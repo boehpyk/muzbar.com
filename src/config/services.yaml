@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+#
+# Service wiring. Hexagonal layers:
+#   Domain         — pure PHP, NOT services (entities, value objects, events, ports)
+#   Application    — use cases (command/query handlers), auto-registered as services
+#   Infrastructure — adapters, controllers, DI wiring, auto-registered as services
+# Layer boundaries are enforced by Deptrac (deptrac.yaml); service registration is here.
+parameters:
+
+services:
+    _defaults:
+        autowire: true      # Automatically injects dependencies in your services.
+        autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+
+    # Register application code as services, excluding the pure-Domain layer and
+    # framework entry points (which must not be services).
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Domain/'
+            - '../src/Entity/'
+            - '../src/Kernel.php'
+
+    # Redis client (Predis) built from REDIS_URL; aliased for autowiring by interface.
+    Predis\Client:
+        arguments: ['%env(REDIS_URL)%']
+    Predis\ClientInterface: '@Predis\Client'

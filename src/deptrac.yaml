@@ -1,0 +1,28 @@
+# Enforces the hexagonal / DDD layer boundaries (Constitution §4).
+#   Domain         may depend on: nothing (pure PHP)
+#   Application    may depend on: Domain
+#   Infrastructure may depend on: Domain + Application (+ framework/vendor)
+# Run: vendor/bin/deptrac  (part of `make check`). A violation fails the build.
+deptrac:
+    paths:
+        - ./src
+    layers:
+        -
+            name: Domain
+            collectors:
+                - { type: directory, value: src/Domain/.* }
+        -
+            name: Application
+            collectors:
+                - { type: directory, value: src/Application/.* }
+        -
+            name: Infrastructure
+            collectors:
+                - { type: directory, value: src/Infrastructure/.* }
+    ruleset:
+        Domain: ~
+        Application:
+            - Domain
+        Infrastructure:
+            - Domain
+            - Application

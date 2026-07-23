@@ -1,0 +1,29 @@
+# Development override — MUST be passed explicitly (never auto-loaded), which is the safety
+# mechanism that keeps dev config (open ports, Xdebug) off production.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# All published ports bind to 127.0.0.1 only (Docker bypasses UFW — see infrastructure.md).
+services:
+  app:
+    build:
+      target: development
+    volumes:
+      - ./src:/var/www/html          # live-mounted source
+    environment:
+      XDEBUG_MODE: "off"             # set to "debug" to step-debug
+
+  nginx:
+    ports:
+      - "127.0.0.1:8080:80"          # http://localhost:8080
+    volumes:
+      - ./src/public:/var/www/html/public
+      - ./docker/nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:8025:8025"        # web UI
+      - "127.0.0.1:1025:1025"        # SMTP

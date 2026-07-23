@@ -1,0 +1,14 @@
+**/.git
+**/.github
+docs
+backups
+scripts
+**/.env.local
+**/.env.*.local
+src/vendor/
+src/var/
+src/node_modules/
+src/public/assets/
+**/.php-cs-fixer.cache
+**/.phpunit.cache/
+**/.deptrac.cache
