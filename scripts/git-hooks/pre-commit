@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Tracked pre-commit hook. Install once per clone: `make hooks.install`.
+# Guards the Constitution's quality gates + the infrastructure footguns.
+set -euo pipefail
+
+fail() { echo "pre-commit: $1" >&2; exit 1; }
+
+# --- Infra footgun guards (fast, no containers needed) -------------------------
+# 1) Never publish datastore ports in the PRODUCTION compose (Docker bypasses UFW).
+if git show ":docker-compose.yml" 2>/dev/null | grep -Eq '^\s*-\s*"?[0-9.]*:?[0-9]+:(5432|6379)"?'; then
+  fail "docker-compose.yml publishes a Postgres/Redis port. Datastores must expose NO ports in prod."
+fi
+# 2) Traefik must be pinned to its network somewhere in the compose labels/config.
+if git show ":docker-compose.yml" 2>/dev/null | grep -q "traefik.enable=true"; then
+  : # routing present; network pinning is asserted in the Traefik service config on the VDS
+fi
+# 3) Block committing real secrets: a staged root .env (only .env.example is allowed).
+if git diff --cached --name-only | grep -qx ".env"; then
+  fail "Refusing to commit the root .env (secrets). Commit .env.example instead."
+fi
+
+# --- Quality gates (run in the dev container if it's up) -----------------------
+if docker compose -f docker-compose.yml -f docker-compose.dev.yml ps --status running app 2>/dev/null | grep -q app; then
+  echo "pre-commit: running make check ..."
+  make check
+else
+  echo "pre-commit: dev stack not running — skipping make check (run 'make up.dev' to enable)." >&2
+fi
+
+echo "pre-commit: OK"

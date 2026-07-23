@@ -1,0 +1,12 @@
+parameters:
+    level: max
+    paths:
+        - src
+        - tests
+    excludePaths:
+        # Symfony-generated bootstrap (defensive method_exists flagged as always-true at max).
+        - tests/bootstrap.php
+    # phpstan-symfony / phpstan-doctrine are auto-registered via phpstan/extension-installer.
+    # The container XML enables Symfony service/type inference; `make check` warms the cache first.
+    symfony:
+        containerXmlPath: var/cache/dev/App_KernelDevDebugContainer.xml

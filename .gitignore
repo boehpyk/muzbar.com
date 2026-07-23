@@ -1,8 +1,8 @@
-# Secrets & env
-.env
-.env.local
-.env.*.local
-!.env.example
+# Secrets & env — repo-root only (Symfony's own src/.env is committed; src/.gitignore governs src/)
+/.env
+/.env.local
+/.env.*.local
+!/.env.example
 
 # Symfony
 /src/var/
