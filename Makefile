@@ -33,7 +33,7 @@ console: ## Run a Symfony console command (usage: make console cmd="about")
 	$(EXEC) php bin/console $(cmd)
 
 migrate: ## Run Doctrine migrations
-	$(EXEC) php bin/console doctrine:migrations:migrate --no-interaction
+	$(EXEC) php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
 
 migration.make: ## Generate a migration from mapping changes
 	$(EXEC) php bin/console make:migration

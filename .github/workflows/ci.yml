@@ -72,7 +72,7 @@ jobs:
         run: vendor/bin/deptrac analyse --no-progress
 
       - name: Migrations sanity (test DB)
-        run: php bin/console doctrine:migrations:migrate --no-interaction --env=test
+        run: php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration --env=test
 
       - name: Tests (PHPUnit)
         env:

@@ -56,7 +56,7 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
             docker compose pull app
             docker compose up -d app nginx
-            docker compose exec -T app php bin/console doctrine:migrations:migrate --no-interaction
+            docker compose exec -T app php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
             docker compose exec -T app php bin/console cache:clear
 
       - name: Smoke check
