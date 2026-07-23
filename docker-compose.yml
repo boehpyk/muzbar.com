@@ -21,6 +21,9 @@ services:
     restart: unless-stopped
 
   app:
+    # Prod pulls this immutable image (set MUZBAR_IMAGE=ghcr.io/<owner>/muzbar:<sha> on the VDS).
+    # Locally, `build` tags the same name so `up --build` works without a registry.
+    image: ${MUZBAR_IMAGE:-muzbar-app:local}
     build:
       context: .
       dockerfile: docker/php/Dockerfile

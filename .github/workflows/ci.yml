@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+defaults:
+  run:
+    working-directory: src
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: muzbar
+          POSTGRES_USER: muzbar
+          POSTGRES_PASSWORD: muzbar
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U muzbar -d muzbar"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      # Point the app at the CI service containers. APP_ENV is left unset here so cache:warmup +
+      # PHPStan run in dev (the container XML they need); PHPUnit forces test itself.
+      DATABASE_URL: "postgresql://muzbar:muzbar@127.0.0.1:5432/muzbar?serverVersion=16&charset=utf8"
+      REDIS_URL: "redis://127.0.0.1:6379"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_pgsql, intl, zip, opcache
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: src/vendor
+          key: composer-${{ hashFiles('src/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Create test database
+        run: php bin/console doctrine:database:create --env=test --if-not-exists
+
+      - name: Warm cache (PHPStan Symfony inference)
+        run: php bin/console cache:warmup
+
+      - name: Code style (php-cs-fixer)
+        run: vendor/bin/php-cs-fixer fix --dry-run --diff
+
+      - name: Static analysis (PHPStan max)
+        run: vendor/bin/phpstan analyse --no-progress
+
+      - name: Architecture boundaries (Deptrac)
+        run: vendor/bin/deptrac analyse --no-progress
+
+      - name: Migrations sanity (test DB)
+        run: php bin/console doctrine:migrations:migrate --no-interaction --env=test
+
+      - name: Tests (PHPUnit)
+        env:
+          APP_ENV: test
+        run: vendor/bin/phpunit
