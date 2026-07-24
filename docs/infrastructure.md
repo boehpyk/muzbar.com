@@ -110,3 +110,7 @@ Traefik network pin, and blocks the commit (see [tooling.md](./tooling.md)).
 See [cicd.md](./cicd.md). Shape: build image in CI → push to registry (GHCR) → SSH to the box → pull
 + `docker compose up -d` + run migrations. Zero-downtime is not a launch requirement; a few seconds of
 restart is acceptable for a solo marketplace at this stage.
+
+Provisioning the least-privilege access that deploy relies on — the repo-scoped GitHub deploy key and
+the caged `muzbar-deploy` VDS user (scoped to `/home/muzbar-deploy/muzbar.com`, on the shared system
+Docker + Traefik) — is a step-by-step runbook in [access-setup.md](./access-setup.md).
