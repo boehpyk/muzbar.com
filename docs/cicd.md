@@ -102,7 +102,10 @@ reversed safely, restore from the pre-deploy `make db.dump`.
 
 ## Secrets
 
-- `GHCR_TOKEN`, `SSH_DEPLOY_KEY`, `SSH_HOST`, `SSH_USER` in GitHub Actions secrets.
+- `GHCR_TOKEN`, `SSH_DEPLOY_KEY`, `SSH_HOST`, `SSH_USER` as **Environment secrets on the `production`
+  Environment** — not repository secrets. These are used only by the gated `deploy` job, so scoping
+  them to the environment means they're exposed only to jobs that declare `environment: production`
+  and are decrypted only *after* the required-reviewer approval — the same gate as the deploy itself.
 - App/prod secrets live in `.env` on the box — never in the workflow, image, or repo.
 
 ## Notifications
