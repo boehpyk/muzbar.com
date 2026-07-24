@@ -67,6 +67,15 @@ jobs:
             set -euo pipefail
             cd /home/muzbar-deploy/muzbar.com
             export MUZBAR_IMAGE="ghcr.io/${GITHUB_REPOSITORY}:${GITHUB_SHA}"
+            # Persist the deployed image into .env so hand-run `docker compose` on the box
+            # targets the right image instead of defaulting to muzbar-app:local and trying to
+            # build (the build context isn't shipped to prod). Rewrite in place via a temp file
+            # + `cat >` so .env keeps its 600 perms and owner.
+            tmp="$(mktemp)"
+            grep -v '^MUZBAR_IMAGE=' .env > "$tmp" || true
+            echo "MUZBAR_IMAGE=${MUZBAR_IMAGE}" >> "$tmp"
+            cat "$tmp" > .env
+            rm -f "$tmp"
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
             docker compose pull app
             docker compose up -d app nginx

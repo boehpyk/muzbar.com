@@ -100,8 +100,10 @@ What lives in `/home/muzbar-deploy/muzbar.com`, owned by `muzbar-deploy`:
   in `deploy.yml`). Don't hand-edit them on the box; they'd be overwritten. The app *code* never
   lands here — it ships inside the image and nginx serves `public/` from a shared volume the app
   container fills on start (see cicd.md §CD).
-- `.env` with prod secrets — **created by hand, once** (next step). CI never ships it. **Secrets stay
-  on the box** — never in the repo, image, or workflow (cicd.md §Secrets).
+- `.env` with prod secrets — **created by hand, once** (next step). CI never *provides* it and never
+  writes secrets to it; it only keeps a single non-secret `MUZBAR_IMAGE=<sha>` line in sync (so
+  hand-run `docker compose` on the box targets the deployed image instead of trying to build).
+  **Secrets stay on the box** — never in the repo, image, or workflow (cicd.md §Secrets).
 
 There is no prod override file: production is the base `docker-compose.yml` alone (the dev override is
 never auto-loaded).
