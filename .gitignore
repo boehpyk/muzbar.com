@@ -37,3 +37,7 @@ node_modules/
 # Claude Code local
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+#Some private docs
+docs/explanations
+/FORboehpyk.md
