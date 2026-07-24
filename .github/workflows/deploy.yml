@@ -42,6 +42,20 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - uses: actions/checkout@v4
+
+      # Ship the non-secret runtime config to the box. The app code ships inside the image;
+      # only the compose file and nginx conf need to live on the host (bind-mounted). The
+      # prod .env is created on the box by hand, once, and is never shipped from CI.
+      - name: Sync compose + nginx config to the VDS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_DEPLOY_KEY }}
+          source: "docker-compose.yml,docker/nginx/default.conf"
+          target: /home/muzbar-deploy/muzbar.com
+
       - name: Release over SSH
         uses: appleboy/ssh-action@v1
         with:

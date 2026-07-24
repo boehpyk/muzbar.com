@@ -94,9 +94,40 @@ sudo usermod -aG docker muzbar-deploy        # same shared Docker + Traefik as o
 sudo -u muzbar-deploy mkdir -p /home/muzbar-deploy/muzbar.com
 ```
 
-The project's `docker-compose.yml` (+ prod overrides) and its `.env` with prod secrets live in
-`/home/muzbar-deploy/muzbar.com`, owned by `muzbar-deploy`. **Secrets stay on the box** — never in
-the repo, image, or workflow (cicd.md §Secrets).
+What lives in `/home/muzbar-deploy/muzbar.com`, owned by `muzbar-deploy`:
+
+- `docker-compose.yml` and `docker/nginx/default.conf` — **shipped by CI** on every deploy (scp step
+  in `deploy.yml`). Don't hand-edit them on the box; they'd be overwritten. The app *code* never
+  lands here — it ships inside the image and nginx serves `public/` from a shared volume the app
+  container fills on start (see cicd.md §CD).
+- `.env` with prod secrets — **created by hand, once** (next step). CI never ships it. **Secrets stay
+  on the box** — never in the repo, image, or workflow (cicd.md §Secrets).
+
+There is no prod override file: production is the base `docker-compose.yml` alone (the dev override is
+never auto-loaded).
+
+#### Bootstrap the prod `.env` (one time, on the box, as `muzbar-deploy`)
+
+`docker compose` reads this from the deploy dir. Generate real secrets — never reuse the dev
+placeholders from `.env.example`:
+
+```bash
+sudo -u muzbar-deploy tee /home/muzbar-deploy/muzbar.com/.env >/dev/null <<'EOF'
+APP_ENV=prod
+APP_SECRET=__PASTE_A_32_BYTE_HEX__          # openssl rand -hex 32
+DB_DATABASE=muzbar
+DB_USERNAME=muzbar
+DB_PASSWORD=__STRONG_UNIQUE__
+DATABASE_URL=postgresql://muzbar:__STRONG_UNIQUE__@postgres:5432/muzbar?serverVersion=16&charset=utf8
+REDIS_PASSWORD=__STRONG_UNIQUE__
+REDIS_URL=redis://:__STRONG_UNIQUE__@redis:6379
+EOF
+sudo -u muzbar-deploy chmod 600 /home/muzbar-deploy/muzbar.com/.env
+```
+
+Keep `DB_PASSWORD` and the password inside `DATABASE_URL` identical, likewise `REDIS_PASSWORD` and the
+one in `REDIS_URL` — the compose file wires the datastores from the first and the app connects with
+the second.
 
 > The effective "scoped folder" is `/home/muzbar-deploy/muzbar.com`, **not** a path under your
 > personal home. A separately isolated user shouldn't live inside `/home/boehpyk/` (mode `750`,

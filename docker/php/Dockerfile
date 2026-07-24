@@ -22,6 +22,14 @@ COPY docker/php/php.dev.ini /usr/local/etc/php/conf.d/zz-app-dev.ini
 FROM base AS production
 ENV APP_ENV=prod
 COPY src/ /var/www/html/
+# Pre-own the shared-volume mount point so a fresh named volume is seeded www-data-writable
+# (Docker copies this dir's ownership onto an empty volume on first mount); the entrypoint
+# then publishes public/ into it on every start so nginx serves assets matching this image.
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress \
-    && mkdir -p var && chown -R www-data:www-data var
+    && mkdir -p var && chown -R www-data:www-data var \
+    && mkdir -p /mnt/public && chown www-data:www-data /mnt/public
+COPY docker/php/docker-entrypoint.prod.sh /usr/local/bin/docker-entrypoint
+RUN chmod +x /usr/local/bin/docker-entrypoint
 USER www-data
+ENTRYPOINT ["docker-entrypoint"]
+CMD ["php-fpm"]

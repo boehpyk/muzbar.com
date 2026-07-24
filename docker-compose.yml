@@ -6,7 +6,10 @@ services:
   nginx:
     image: nginx:1.27-alpine
     volumes:
-      - ./src/public:/var/www/html/public:ro
+      # Prod has no source tree on the host: nginx serves public/ from a shared volume the
+      # app image fills on start (see docker-entrypoint.prod.sh). The dev override replaces
+      # this with a ./src/public bind mount. Only default.conf is shipped to the box.
+      - public_assets:/var/www/html/public:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     labels:
       - "traefik.enable=true"
@@ -29,6 +32,8 @@ services:
       dockerfile: docker/php/Dockerfile
       target: production
     env_file: .env
+    volumes:
+      - public_assets:/mnt/public   # entrypoint publishes this image's public/ here for nginx
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,3 +71,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  public_assets:   # nginx serves this; the app container fills it on start (prod only)
