@@ -76,7 +76,9 @@ Bound to a GitHub **Environment** (`production`) with a **required reviewer** pr
 it in the Actions UI. You get a "hold" moment without any SSH ceremony, and an audit trail of who
 released what and when.
 
-Once approved, over SSH to the VDS (deploy key in GitHub Secrets, restricted deploy user):
+Once approved, the job first **scp's the runtime config** (`docker-compose.yml` + `docker/nginx/default.conf`)
+into `/home/muzbar-deploy/muzbar.com`, then runs, over SSH to the VDS (deploy key in GitHub Secrets,
+restricted deploy user):
 ```
 docker compose pull app worker scheduler
 docker compose up -d app worker scheduler nginx
@@ -84,6 +86,13 @@ docker compose exec -T app php bin/console doctrine:migrations:migrate --no-inte
 docker compose exec -T app php bin/console cache:clear
 ```
 Then **smoke check** — curl `/health/ready`; fail the deploy (and alert) on non-200.
+
+**No source tree on prod.** The app code ships *inside* the image. The only files on the box are the
+compose file + nginx conf (shipped by CI each deploy) and the hand-created `.env` (access-setup.md §2.1).
+nginx can't bind-mount `public/` from a host it doesn't have, so the **app container publishes `public/`
+into a shared named volume (`public_assets`) on start**, and nginx serves that volume read-only. The
+copy runs every start — Docker only auto-seeds an *empty* volume, so without it a redeploy would leave
+nginx serving the previous image's assets.
 
 Migrations run **after** the new image is up but are written to be **backward-compatible** (expand →
 migrate → contract) so a brief overlap never breaks. Zero-downtime is not a launch requirement; a few
