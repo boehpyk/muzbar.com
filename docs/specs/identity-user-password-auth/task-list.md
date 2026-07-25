@@ -13,7 +13,7 @@ T2 makes that mechanically enforceable — do it first.
       recipes' generated config, commit `composer.json` / `composer.lock` / new `config/packages/*`.
       Nothing else changes. *(`symfony/validator`, `security-csrf`, `password-hasher`, `uid`, `clock`
       are already present.)*
-- [ ] **T2:** `deptrac.yaml` — add `SymfonyVendor` / `DoctrineVendor` layers (`classLike` collectors on
+- [x] **T2:** `deptrac.yaml` — add `SymfonyVendor` / `DoctrineVendor` layers (`classLike` collectors on
       `^Symfony\\.*` / `^Doctrine\\.*`) and allow them only from `Infrastructure`. Prove the guard by
       temporarily adding `use Symfony\Component\Uid\Uuid;` to a throwaway `Domain/` class, watching
       `make deptrac` fail, then reverting. **(AC-28)**

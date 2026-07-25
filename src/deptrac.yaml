@@ -1,8 +1,20 @@
 # Enforces the hexagonal / DDD layer boundaries (Constitution §4).
 #   Domain         may depend on: nothing (pure PHP)
 #   Application    may depend on: Domain
-#   Infrastructure may depend on: Domain + Application (+ framework/vendor)
+#   Infrastructure may depend on: Domain + Application + framework/vendor
 # Run: vendor/bin/deptrac  (part of `make check`). A violation fails the build.
+#
+# WHY THE VENDOR LAYERS EXIST
+# Deptrac only reports dependencies *between declared layers*. A class that belongs to no
+# layer is "uncovered" and therefore allowed everywhere. Until these two layers existed,
+# every Symfony and Doctrine class was uncovered — so a `use Symfony\Component\Uid\Uuid;`
+# inside src/Domain/ passed `make deptrac` cleanly. The Constitution's headline rule was
+# unenforced, and nobody noticed because there was no Domain code to catch.
+# Declaring the vendors as layers and omitting them from Domain's and Application's
+# rulesets is what turns "Domain is pure PHP" into a build failure instead of a comment.
+#
+# Note: only ./src is analysed. The classLike collectors below classify the *targets* of
+# dependencies by class name, so vendor sources never need to be scanned.
 deptrac:
     paths:
         - ./src
@@ -19,10 +31,22 @@ deptrac:
             name: Infrastructure
             collectors:
                 - { type: directory, value: src/Infrastructure/.* }
+        -
+            name: SymfonyVendor
+            collectors:
+                - { type: classLike, value: '^Symfony\\.*' }
+        -
+            name: DoctrineVendor
+            collectors:
+                - { type: classLike, value: '^Doctrine\\.*' }
     ruleset:
+        # Domain depends on nothing — not on Application, not on Infrastructure, and
+        # explicitly not on Symfony or Doctrine.
         Domain: ~
         Application:
             - Domain
         Infrastructure:
             - Domain
             - Application
+            - SymfonyVendor
+            - DoctrineVendor
