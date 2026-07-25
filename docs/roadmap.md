@@ -31,17 +31,24 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 - [x] GitHub Actions CI (lint + stan + deptrac + test) + deploy workflow ([cicd.md](./cicd.md)).
 - [x] Health endpoints (`/health/live`, `/health/ready`) — `/health/ready` probes Postgres + Redis and
       returns 503 when either is down (never a bare `return 'ok'`).
-- [x] Sentry error tracking + Umami tracking snippet wired to the shared VDS instance (register muzbar
-      as a site there — no container to deploy). Neither is installed yet.
+- [x] Umami analytics — muzbar is registered as a site on the shared VDS instance (no container to
+      deploy). The `<script>` snippet itself still has nowhere to live: `templates/base.html.twig` is
+      the untouched Symfony skeleton default and nothing user-facing renders yet. It lands with the
+      first public layout, taking the site ID / script URL as config (infrastructure.md §Analytics).
+- [ ] Sentry error tracking — **deferred by decision (2026-07-25)**, not an oversight.
+      infrastructure.md calls it "Phase 0/1, cheap insurance for a solo dev"; the natural moment is the
+      first user-facing flow (the Identity slices), which is when a silent 500 starts costing a signup.
 - **Gate — MET** (merged in #1, hardened by #3–#6, 2026-07-23 → 07-24): CI green, `make check` passes,
   the VDS deploy succeeds and `https://muzbar.com/health/ready` returns 200 with Postgres + Redis
   probed. *Caveat:* the "hello" slice is `HealthController` — an Infrastructure endpoint, not a Domain
   slice; `Domain/Shared/` is still empty. The first real Domain code lands in Phase 1.
 
-> **Phase 0 carry-over into Phase 1** (does not block the gate, but must not be forgotten): the two
-> Claude Code hooks from [tooling.md](./tooling.md) — `pre-write-guard` (Domain purity) and
-> `post-implement-check`. Worth wiring before the Identity slices, since `pre-write-guard` is exactly
-> the guard that catches a stray `use Symfony\...` in the `User` aggregate.
+> **Phase 0 carry-over into Phase 1** (neither blocks the gate, but neither may be forgotten):
+>
+> 1. The two Claude Code hooks from [tooling.md](./tooling.md) — `pre-write-guard` (Domain purity) and
+>    `post-implement-check`. Worth wiring *before* the Identity slices: `pre-write-guard` is exactly
+>    the guard that catches a stray `use Symfony\...` in the `User` aggregate.
+> 2. Sentry, deliberately deferred to the first Identity slice (see above).
 
 ## Phase 1 — Data model, dynamic schema & auth *(PRD Phase 1)*
 

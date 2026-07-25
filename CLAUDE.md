@@ -20,8 +20,9 @@ Docker Compose · Traefik · Nginx.
 > CI/CD, and the `/health/*` endpoints are live and deployed — the commands below **work today**.
 > Current work: **Phase 1 — `Identity` context** (sliced into five cycles in the roadmap).
 > `Domain/Shared/` and `Application/Shared/` are still empty: the first slice writes this repo's first
-> domain code. One Phase 0 item remains open — the two Claude Code hooks from
-> [docs/tooling.md](./docs/tooling.md). See [docs/roadmap.md](./docs/roadmap.md).
+> domain code. Two Phase 0 items carry over — the Claude Code hooks from
+> [docs/tooling.md](./docs/tooling.md), and Sentry (deferred by decision to the first Identity slice).
+> See [docs/roadmap.md](./docs/roadmap.md).
 
 ## Architecture — non-negotiable
 
