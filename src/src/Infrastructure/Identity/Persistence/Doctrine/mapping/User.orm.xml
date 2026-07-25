@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Doctrine mapping for the `Identity` aggregate root.
+
+    WHY THIS FILE EXISTS INSTEAD OF ATTRIBUTES ON THE CLASS.
+    An `#[ORM\Entity]` attribute on `App\Domain\Identity\Entity\User` is a `use Doctrine\...`
+    import inside the Domain layer — precisely what Constitution §4.2 forbids and what Deptrac
+    now fails the build over. XML is the only mapping driver that keeps the metadata physically
+    outside the class, so the aggregate stays a plain PHP object that could be persisted by
+    something else entirely. `validate_xml_mapping: true` makes a typo in here a cache-warm-up
+    failure rather than a runtime surprise.
+
+    Every table and column name is spelled out. The `underscore` naming strategy would derive
+    most of them correctly today, but a derived name is a name nobody chose: renaming a PHP
+    property would silently rename a production column. Explicit names make that a migration.
+
+    Table naming convention, established here for every context that follows:
+    `<context>_<aggregate>`, singular — `identity_user`, later `catalog_category`,
+    `listing_listing`. Contexts stay legible in `\dt` and two of them can own a `user`-ish concept
+    without colliding.
+-->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Domain\Identity\Entity\User" table="identity_user">
+
+        <!--
+            Invariant I-6 (email uniqueness) lives here and nowhere else that can be trusted.
+            It spans every user, so no aggregate can protect it — the index is the truth and
+            `DoctrineUserRepository::save()` translates its violation back into a domain
+            exception. Named explicitly because the handwritten migration, the adapter's comments
+            and the AC-32 `EXPLAIN` assertion all refer to it by name; Doctrine's generated
+            `UNIQ_<hash>` would be unreferenceable.
+
+            It also serves both hot queries: the registration pre-check (`existsByEmail`) and
+            every single login (`findByEmail`).
+        -->
+        <unique-constraints>
+            <unique-constraint name="uniq_identity_user_email" columns="email"/>
+        </unique-constraints>
+
+        <!--
+            `strategy="NONE"` — the id is assigned by the application, minted by
+            `UserRepository::nextIdentity()` before the aggregate is constructed. Nothing here
+            waits for a post-flush sequence value, which is what lets `User::register()` raise an
+            event carrying its own id. The global `identity_generation_preferences` setting for
+            PostgreSQL does not apply to this table; it is left in place for future aggregates
+            that genuinely want a database-generated key.
+        -->
+        <id name="id" type="identity_user_id" column="id">
+            <generator strategy="NONE"/>
+        </id>
+
+        <!-- Length mirrors `Email::MAX_LENGTH`; the VO owns the rule, the column enforces it. -->
+        <field name="email" column="email" type="identity_email" length="180" nullable="false"/>
+
+        <!-- Length mirrors `HashedPassword::MAX_LENGTH` — wide enough for bcrypt and Argon2id. -->
+        <field name="passwordHash" column="password_hash" type="identity_password_hash" length="255" nullable="false"/>
+
+        <field name="roles" column="roles" type="identity_role_set" nullable="false"/>
+
+        <!--
+            `datetimetz_immutable`, not `datetime_immutable`: Postgres `TIMESTAMP WITH TIME ZONE`
+            stores an absolute instant, so a value written by a UTC `Clock` reads back as the same
+            moment no matter what the container's timezone is. Naive timestamps are how "the
+            account registered an hour in the future" bugs happen.
+
+            `email_verified_at` ships nullable in the very first migration although nothing in
+            this slice sets it via the web. That is the whole point of the phased-enforcement
+            decision: `identity-email-verification` needs no migration against this table.
+        -->
+        <field name="emailVerifiedAt" column="email_verified_at" type="datetimetz_immutable" nullable="true"/>
+        <field name="registeredAt" column="registered_at" type="datetimetz_immutable" nullable="false"/>
+
+    </entity>
+
+</doctrine-mapping>
