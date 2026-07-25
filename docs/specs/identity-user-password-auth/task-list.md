@@ -20,44 +20,44 @@ T2 makes that mechanically enforceable — do it first.
 
 ## Domain — `Domain/Shared/` building blocks (first content in this namespace)
 
-- [ ] **T3:** `Domain/Shared/Event/DomainEvent` interface (`occurredAt(): \DateTimeImmutable`) +
+- [x] **T3:** `Domain/Shared/Event/DomainEvent` interface (`occurredAt(): \DateTimeImmutable`) +
       `Domain/Shared/Event/RecordsEvents` trait (`recordThat()`, `releaseEvents()` which empties the
       buffer).
-- [ ] **T4:** `Domain/Shared/Port/Clock` (`now(): \DateTimeImmutable`, UTC) and
+- [x] **T4:** `Domain/Shared/Port/Clock` (`now(): \DateTimeImmutable`, UTC) and
       `Domain/Shared/Port/DomainEventDispatcher` (`dispatch(DomainEvent ...$events): void`).
 
 ## Domain — `Identity` value objects
 
-- [ ] **T5:** `ValueObject/Email` + `Exception/InvalidEmail`. Trim, lower-case the whole address,
+- [x] **T5:** `ValueObject/Email` + `Exception/InvalidEmail`. Trim, lower-case the whole address,
       `FILTER_VALIDATE_EMAIL`, max 180, `equals()`, `toString()`.
-- [ ] **T6:** `ValueObject/UserId` + `Exception/InvalidUserId`. UUID-format regex, `equals()`.
+- [x] **T6:** `ValueObject/UserId` + `Exception/InvalidUserId`. UUID-format regex, `equals()`.
       **No generation here** — the repository port mints ids.
-- [ ] **T7:** `ValueObject/HashedPassword`. Opaque: non-empty, ≤ 255, **no algorithm-format check**.
-- [ ] **T8:** `ValueObject/PlainPassword` + `Exception/WeakPassword`. Length 12–4096,
+- [x] **T7:** `ValueObject/HashedPassword`. Opaque: non-empty, ≤ 255, **no algorithm-format check**.
+- [x] **T8:** `ValueObject/PlainPassword` + `Exception/WeakPassword`. Length 12–4096,
       `#[\SensitiveParameter]` constructor, `__debugInfo()` masking, deliberately **no** `__toString()`.
-- [ ] **T9:** `ValueObject/Role` backed enum (`User`/`Business`/`Admin` → `ROLE_USER`/`ROLE_BUSINESS`/
+- [x] **T9:** `ValueObject/Role` backed enum (`User`/`Business`/`Admin` → `ROLE_USER`/`ROLE_BUSINESS`/
       `ROLE_ADMIN`).
 
 ## Domain — `Identity` aggregate, events, ports
 
-- [ ] **T10:** `Event/UserRegistered` and `Event/UserEmailVerified` (both implement `DomainEvent`,
+- [x] **T10:** `Event/UserRegistered` and `Event/UserEmailVerified` (both implement `DomainEvent`,
       carry VOs only — never the aggregate).
-- [ ] **T11:** `Entity/User` — private constructor; `register()`; readers; `RecordsEvents`.
+- [x] **T11:** `Entity/User` — private constructor; `register()`; readers; `RecordsEvents`.
       Invariants I-1…I-3 (`roles` always contains `Role::User`).
-- [ ] **T12:** `User::verifyEmail()` (idempotent), `isEmailVerified()`, `isUsable()` — invariants
+- [x] **T12:** `User::verifyEmail()` (idempotent), `isEmailVerified()`, `isUsable()` — invariants
       I-4/I-5 — plus `grantRole()` / `revokeRole()` and `Exception/CannotRevokeBaseRole`.
-- [ ] **T13:** `Port/UserRepository` — `nextIdentity`, `save`, `findById`, `findByEmail`,
+- [x] **T13:** `Port/UserRepository` — `nextIdentity`, `save`, `findById`, `findByEmail`,
       `existsByEmail`. Plus `Exception/EmailAlreadyRegistered` and `Exception/UserNotFound`.
-- [ ] **T14:** `Port/PasswordHasher` — `hash(PlainPassword): HashedPassword`. Hashing only; no
+- [x] **T14:** `Port/PasswordHasher` — `hash(PlainPassword): HashedPassword`. Hashing only; no
       `verify()` (Symfony Security verifies).
-- [ ] **T15:** Checkpoint commit — run `make stan deptrac` and confirm zero framework imports under
+- [x] **T15:** Checkpoint commit — run `make stan deptrac` and confirm zero framework imports under
       `Domain/`. No new code; this is the "the Domain compiles and is pure" gate.
 
 ## Application
 
-- [ ] **T16:** `Application/Identity/Command/RegisterUser` (primitives; `#[\SensitiveParameter]`) +
+- [x] **T16:** `Application/Identity/Command/RegisterUser` (primitives; `#[\SensitiveParameter]`) +
       `Handler/RegisterUserHandler` — the 8-step flow in the technical plan, returning `UserId`.
-- [ ] **T17:** `Application/Identity/Command/VerifyUserEmail` + `Handler/VerifyUserEmailHandler` —
+- [x] **T17:** `Application/Identity/Command/VerifyUserEmail` + `Handler/VerifyUserEmailHandler` —
       load, verify, save, dispatch; idempotent via the aggregate.
 
 ## Infrastructure — shared adapters
