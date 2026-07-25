@@ -422,9 +422,8 @@ AC-28 requires demonstrating the failure once and reverting it — an unproven g
 | `registration_form[_token]` | valid CSRF token | missing/stale/tampered |
 | **anything else** | **ignored** — the form is `allow_extra_fields: false` and the DTO has no `roles` property, so `roles[]=ROLE_ADMIN` cannot bind (AC-20) | |
 
-Responses: `302 → /login` + flash on success; `422` (or 200 re-render, whichever the Form component
-yields for the configured `HttpFoundation` behaviour — assert the actual code once and pin it in the
-test) with field errors on failure.
+Responses: `302 → /login` + flash on success; **`422` with field errors on failure** — measured and
+pinned during implementation (2026-07-26), so that is now the contract, not an open question.
 
 **`POST /login`** — `_username`, `_password`, `_csrf_token`. Handled entirely by Symfony's
 `form_login`. Success → `302 /account`. Failure → re-render with a **fixed** error string; the response

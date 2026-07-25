@@ -84,37 +84,37 @@ T2 makes that mechanically enforceable — do it first.
 
 ## Infrastructure — security
 
-- [ ] **T23:** `Security/SecurityUser` — the `UserInterface` / `PasswordAuthenticatedUserInterface`
+- [x] **T23:** `Security/SecurityUser` — the `UserInterface` / `PasswordAuthenticatedUserInterface`
       adapter over the Domain `User`, carrying the id string for refresh.
-- [ ] **T24:** `Security/DomainUserProvider implements UserProviderInterface` — `loadUserByIdentifier`
+- [x] **T24:** `Security/DomainUserProvider implements UserProviderInterface` — `loadUserByIdentifier`
       via `findByEmail`, `refreshUser` via `findById`, `UserNotFoundException` when absent. No
       `PasswordUpgraderInterface`.
-- [ ] **T25:** `Security/SymfonyPasswordHasher implements PasswordHasher` — resolves the hasher for
+- [x] **T25:** `Security/SymfonyPasswordHasher implements PasswordHasher` — resolves the hasher for
       `SecurityUser::class` from `PasswordHasherFactoryInterface`. Add the DI alias.
-- [ ] **T26:** `config/packages/security.yaml` — provider `identity_users`, `form_login`
+- [x] **T26:** `config/packages/security.yaml` — provider `identity_users`, `form_login`
       (`enable_csrf: true`, `default_target_path: app_account`), `logout`,
       `login_throttling: { max_attempts: 5, interval: '15 minutes' }`, `access_control` on `^/account`.
       **Deliberately no `user_checker`** — add the AC-24 rationale as a comment pointing at
       `identity-email-verification`.
-- [ ] **T27:** Redis wiring — `cache.app: cache.adapter.redis` + `default_redis_provider`, the
+- [x] **T27:** Redis wiring — `cache.app: cache.adapter.redis` + `default_redis_provider`, the
       `cache.rate_limiter` pool, and `RedisSessionHandler` for sessions (keep the `when@test` mock
       session). Verify a real round-trip in the container. **(AC-15, AC-18)**
 
 ## Infrastructure — HTTP, forms, console
 
-- [ ] **T28:** `Form/RegistrationFormData` DTO + constraints (`Email(strict)`, `Length(max:180)`,
+- [x] **T28:** `Form/RegistrationFormData` DTO + constraints (`Email(strict)`, `Length(max:180)`,
       `Length(min:12,max:4096)`, `NotCompromisedPassword(skipOnError: true)`) and
       `Form/RegistrationFormType` (`RepeatedType`, `allow_extra_fields: false`). **(AC-20)**
-- [ ] **T29:** `Http/Controller/RegistrationController` (`/register`) + `templates/identity/register.html.twig`
+- [x] **T29:** `Http/Controller/RegistrationController` (`/register`) + `templates/identity/register.html.twig`
       — map DTO → `RegisterUser`, catch `EmailAlreadyRegistered` into a form error, redirect to
       `app_login` with a flash. **(AC-1 … AC-4, AC-9)**
-- [ ] **T30:** `Http/Controller/SecurityController` (`/login`, `/logout`) +
+- [x] **T30:** `Http/Controller/SecurityController` (`/login`, `/logout`) +
       `templates/identity/login.html.twig` using `AuthenticationUtils`; render the error verbatim so
       unknown-email and wrong-password are identical. **(AC-12, AC-13)**
-- [ ] **T31:** `Http/Controller/AccountController` (`/account`) + `templates/identity/account.html.twig`
+- [x] **T31:** `Http/Controller/AccountController` (`/account`) + `templates/identity/account.html.twig`
       showing only the authenticated user's own email; add a flash-message block to `base.html.twig`.
       **(AC-11, AC-21, AC-22)**
-- [ ] **T32:** `Console/VerifyUserEmailCommand` (`muzbar:identity:verify-email <email>`) over
+- [x] **T32:** `Console/VerifyUserEmailCommand` (`muzbar:identity:verify-email <email>`) over
       `VerifyUserEmailHandler` — exit 0 on verified/already-verified, 1 on unknown. **(AC-25, AC-26)**
 
 ## Tests (qa — written after implementation, by the independent agent)

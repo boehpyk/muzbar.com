@@ -162,8 +162,14 @@ Enumerated, measurable, each independently checkable. These are what `/verify` c
       side-channels are out of scope and blunted by AC-14.)*
 - [ ] **AC-14 (throttling):** With `max_attempts: 5` / `interval: '15 minutes'`, the **6th** failed
       attempt for the same (username, IP) inside the window is rejected with *"Too many failed login
-      attempts, please try again later."* and performs no password verification. A test drives five
-      failures then asserts the sixth differs.
+      attempts, please try again in 15 minutes."* and performs no password verification. A test drives
+      five failures then asserts the sixth differs.
+      *(Amended 2026-07-26 during implementation. The spec originally said "…please try again later."
+      Symfony's `security` translation domain renders the `%minutes%` variant whenever `interval` is
+      set, so the framework string is the one above. Forcing the original wording would require a
+      `translations/security.en.xlf` override — a product-wording decision, not an implementation
+      one — and any conditional in the template to vary it would breach AC-13. We assert what the
+      framework actually renders.)*
 - [ ] **AC-15:** Throttle counters live in the Redis-backed `cache.rate_limiter` pool, not on the
       container filesystem — asserted by inspecting the configured pool's adapter — so a deploy or
       container restart cannot silently reset the brute-force budget.
