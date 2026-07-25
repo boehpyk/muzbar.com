@@ -65,3 +65,28 @@ domain.
   (same email, different methods; case-folding) need explicit tests. Password hashes and API keys are
   security-critical at rest. The email-isolation rule still governs how addresses are **displayed**
   publicly.
+
+### Amendment, 2026-07-26 — the usable-account invariant is modelled now, enforced later
+
+The `identity-user-password-auth` slice implements this ADR's password half. It **models** the
+invariant *"a usable account has a verified email or a linked verified OAuth identity"* as
+`User::isUsable()`, ships `emailVerifiedAt` in the first migration, and ships `verifyEmail()` with a
+real caller (`muzbar:identity:verify-email`). It **does not enforce** the invariant at login: the
+firewall installs no `UserCheckerInterface`, so an unverified user can currently authenticate.
+
+This is deliberate and bounded. Email verification — the flow by which a user can actually *become*
+verified — is the next slice, `identity-email-verification`. Enforcing the rule before that flow
+exists would ship a feature whose happy path only the box operator can reach, which is not a
+shippable slice. The alternatives were worse: marking users verified at registration writes a lie
+into the data, and deferring the column and the state entirely would cost a migration against
+`identity_user` plus a reopening of the aggregate's design.
+
+Enforcement is deferred at **exactly one point**, and it is an Infrastructure one — consistent with
+this ADR's own framing that *"credential checking crosses the security layer, not the domain."*
+`identity-email-verification` adds a `VerifiedAccountUserChecker` (~15 lines) plus one line of
+`security.yaml`. Nothing in `Domain` or `Application` changes.
+
+**Residual risk, accepted:** between these two slices, unverified accounts can log in. Mitigated by
+Phase 1 not being publicly launched, by `identity-email-verification` being the very next cycle, and
+by the debt being visible in that slice's spec as an explicitly invertible acceptance criterion
+(AC-24) rather than buried in code.

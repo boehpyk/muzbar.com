@@ -144,7 +144,7 @@ T2 makes that mechanically enforceable — do it first.
 
 ## Docs & verify
 
-- [ ] **T43:** Write the two flagged ADRs with `/adr` — **ADR-0007 "Persistence conventions for Domain
+- [x] **T43:** Write the two flagged ADRs with `/adr` — **ADR-0007 "Persistence conventions for Domain
       aggregates"** and **ADR-0008 "Domain events: recorded on the aggregate, released by the handler"**
       — and (if the human agreed) the dated amendment to ADR-0005's *Consequences* recording the phased
       enforcement of the usable-account invariant.
