@@ -148,7 +148,7 @@ T2 makes that mechanically enforceable — do it first.
       aggregates"** and **ADR-0008 "Domain events: recorded on the aggregate, released by the handler"**
       — and (if the human agreed) the dated amendment to ADR-0005's *Consequences* recording the phased
       enforcement of the usable-account invariant.
-- [ ] **T44:** Docs: CLAUDE.md (mapping location, table-naming convention, the new `make`-visible
+- [x] **T44:** Docs: CLAUDE.md (mapping location, table-naming convention, the new `make`-visible
       commands), `docs/roadmap.md` (tick the slice), `FORboehpyk.md` (the running story — the
       verification-invariant decision, the Deptrac blind spot, and the Doctrine-mapping trap are the
       three lessons worth telling).
