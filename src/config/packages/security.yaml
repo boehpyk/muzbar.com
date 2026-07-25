@@ -1,11 +1,24 @@
 security:
+    # Keyed on the *interface*, so any future user adapter that implements it inherits the same
+    # algorithm. `SymfonyPasswordHasher` resolves the hasher for `SecurityUser::class`, which
+    # implements this interface — registration therefore hashes with exactly the algorithm the
+    # firewall verifies with. Keeping those two in step is not automatic; it is this line plus the
+    # class name in that adapter.
     # https://symfony.com/doc/current/security.html#registering-the-user-hashing-passwords
     password_hashers:
         Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
 
-    # https://symfony.com/doc/current/security.html#loading-the-user-the-user-provider
+    # The provider is our own class, reached by service id. Symfony's `entity` provider is
+    # deliberately unused: it would query a Doctrine repository straight from security config,
+    # putting persistence details somewhere the Domain can neither see nor test.
+    # `DomainUserProvider` goes through the `UserRepository` port instead, so authentication
+    # depends on the Domain's contract rather than on Doctrine.
+    #
+    # The skeleton's `users_in_memory` provider is REMOVED, not left alongside: an unused in-memory
+    # provider is one typo away from a firewall authenticating against nothing.
     providers:
-        users_in_memory: { memory: null }
+        identity_users:
+            id: App\Infrastructure\Identity\Security\DomainUserProvider
 
     firewalls:
         dev:
@@ -13,19 +26,61 @@ security:
             pattern: ^/(_profiler|_wdt|assets|build)/
             security: false
         main:
+            # `lazy: true` — the user is not loaded from the session until something actually asks
+            # who is logged in, so anonymous pages cost no database round trip.
             lazy: true
-            provider: users_in_memory
+            provider: identity_users
 
-            # Activate different ways to authenticate:
-            # https://symfony.com/doc/current/security.html#the-firewall
+            # `login_path` and `check_path` are the same route on purpose: GET renders the form,
+            # POST is intercepted by the firewall before `SecurityController::login()` ever runs.
+            # `enable_csrf: true` puts the login POST behind the session-backed token manager
+            # configured in csrf.yaml.
+            form_login:
+                login_path: app_login
+                check_path: app_login
+                enable_csrf: true
+                default_target_path: app_account
+
+            logout:
+                path: app_logout
+                target: app_login
+
+            # Brute-force budget: 5 failed attempts per (username, IP) per 15 minutes, plus
+            # Symfony's implicit global limiter at five times that per IP. The 6th attempt is
+            # rejected *before* any password verification, which also stops an attacker from using
+            # our deliberately slow hasher as a free amplification primitive.
+            #
+            # The counters live in the `cache.rate_limiter` pool, which cache.yaml points at Redis:
+            # a throttle that resets on every deploy is not a throttle (AC-15).
+            login_throttling:
+                max_attempts: 5
+                interval: '15 minutes'
+
+            # NO `user_checker` — AND THAT IS A DECISION, NOT AN OMISSION (AC-24).
+            #
+            # `User::isUsable()` already returns false for an account whose email has not been
+            # verified: the Domain holds the opinion. Nothing enforces it at login yet, because the
+            # flow that lets a user *become* verified — the verification email and its signed link —
+            # is the next slice, `identity-email-verification`. Enforcing now would ship a feature
+            # whose happy path only the box operator can reach.
+            #
+            # That slice flips this by adding a `VerifiedAccountUserChecker` (~15 lines) plus one
+            # `user_checker:` line here, and by inverting AC-24. Nothing in Domain or Application
+            # changes — which is the point: per ADR-0005 authentication policy belongs to the
+            # Security layer, so the enforcement point is a single Infrastructure class.
+            #
+            # `hide_user_not_found` is left at its secure default (true) so an unknown email and a
+            # wrong password stay indistinguishable (AC-13). Do not set it.
 
             # https://symfony.com/doc/current/security/impersonating_user.html
             # switch_user: true
 
     # Note: Only the *first* matching rule is applied
     access_control:
-        # - { path: ^/admin, roles: ROLE_ADMIN }
-        # - { path: ^/profile, roles: ROLE_USER }
+        # Belt and braces with `#[IsGranted]` on the controller: the attribute documents the
+        # requirement where a reader of the action will see it, this rule enforces it even if the
+        # controller is later refactored or a sub-path appears under /account.
+        - { path: ^/account, roles: ROLE_USER }
 
 when@test:
     security:
