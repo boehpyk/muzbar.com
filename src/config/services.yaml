@@ -35,6 +35,7 @@ services:
     App\Domain\Shared\Port\Clock: '@App\Infrastructure\Shared\Clock\SystemClock'
     App\Domain\Shared\Port\DomainEventDispatcher: '@App\Infrastructure\Shared\Event\SymfonyDomainEventDispatcher'
     App\Domain\Identity\Port\UserRepository: '@App\Infrastructure\Identity\Persistence\Doctrine\DoctrineUserRepository'
+    App\Domain\Identity\Port\PasswordHasher: '@App\Infrastructure\Identity\Security\SymfonyPasswordHasher'
 
     # Redis client (Predis) built from REDIS_URL; aliased for autowiring by interface.
     Predis\Client:
