@@ -1,0 +1,14 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Your account{% endblock %}
+
+{% block body %}
+    <h1>Your account</h1>
+
+    {# Exactly one address, and it is the visitor's own (AC-21). No roles, no password hash, no
+       other user's data — the controller passes a single string, so there is nothing else here to
+       render even by accident (AC-22). #}
+    <p>Signed in as <span class="account-email">{{ email }}</span>.</p>
+
+    <p><a href="{{ path('app_logout') }}">Sign out</a></p>
+{% endblock %}

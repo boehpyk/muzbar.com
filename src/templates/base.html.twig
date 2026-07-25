@@ -19,6 +19,16 @@
         {% endif %}
     </head>
     <body>
+        {# Flashes live in the layout, not in each page: a flash is set by the request that
+           redirects away, so the page that displays it is never the page that produced it. #}
+        {% block flashes %}
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <p class="flash flash-{{ label }}">{{ message }}</p>
+                {% endfor %}
+            {% endfor %}
+        {% endblock %}
+
         {% block body %}{% endblock %}
     </body>
 </html>
