@@ -3,17 +3,32 @@ framework:
         # Unique name of your app: used to compute stable namespaces for cache keys.
         #prefix_seed: your_vendor_name/app_name
 
-        # The "app" cache stores to the filesystem by default.
-        # The data in this cache should persist between deploys.
-        # Other options include:
-
-        # Redis
-        #app: cache.adapter.redis
-        #default_redis_provider: redis://localhost
+        # Redis, not the filesystem (Constitution §3). The skeleton's filesystem default is a trap
+        # on this stack: every deploy replaces the app container, so anything cached "between
+        # deploys" would in fact evaporate on each one — including, until this line existed, the
+        # login throttle counters.
+        #
+        # NOTE ON THE CLIENT. The image ships no `ext-redis`; only `predis/predis ^3` is installed.
+        # `RedisAdapter::createConnection()` copes with that on its own: with no extension present
+        # it builds a `Predis\Client`, and predis 3.5.1 was verified to round-trip through this pool
+        # inside the container. Should that ever stop holding, the fallback is to give the pool an
+        # explicit `provider:` pointing at the `Predis\Client` service already defined in
+        # services.yaml — not to quietly fall back to the filesystem.
+        app: cache.adapter.redis
+        default_redis_provider: '%env(REDIS_URL)%'
 
         # APCu (not recommended with heavy random-write workloads as memory fragmentation can cause perf issues)
         #app: cache.adapter.apcu
 
-        # Namespaced pools use the above "app" backend by default
-        #pools:
-            #my.dedicated.cache: null
+        pools:
+            # FrameworkBundle already defines `cache.rate_limiter` as a child of `cache.app`, so
+            # with `app: cache.adapter.redis` above it would land on Redis anyway. Declaring it
+            # explicitly is deliberate: it decouples the brute-force budget from whatever
+            # `cache.app` becomes later (an APCu experiment, a chain adapter, a null adapter in some
+            # environment), and it makes AC-15 assertable against a definition that *says* Redis
+            # rather than one that merely inherits it today.
+            #
+            # FrameworkBundle registers cache pools after rate limiters, so this definition replaces
+            # the built-in child-of-`cache.app` one rather than racing it.
+            cache.rate_limiter:
+                adapter: cache.adapter.redis

@@ -3,13 +3,38 @@ framework:
     secret: '%env(APP_SECRET)%'
 
     # Note that the session will be started ONLY if you read or write from it.
-    session: true
+    session:
+        # Sessions live in Redis, never on the container filesystem (Constitution §3, AC-18).
+        # PHP's default `files` handler writes to the container's own /tmp, which dies with the
+        # container: every deploy would log every user out, and nothing would be shared if a second
+        # app container ever appears. Redis is the same store the rate limiter already needs, so
+        # this costs no new moving part.
+        #
+        # There is deliberately NO fallback to filesystem storage when Redis is down. A silent
+        # fallback would keep the site up while disabling brute-force protection — precisely when
+        # the box is already unhealthy. Failing loudly, with /health/ready reporting Redis down, is
+        # the honest behaviour.
+        handler_id: Symfony\Component\HttpFoundation\Session\Storage\Handler\RedisSessionHandler
 
     #esi: true
     #fragments: true
+
+services:
+    # Registered here rather than in services.yaml so the handler sits next to the config line that
+    # names it. It is fed the `Predis\Client` service (built from REDIS_URL) rather than letting the
+    # handler open its own connection: one client, one connection, one place the credentials come
+    # from. `RedisSessionHandler` accepts `Predis\ClientInterface` natively, so the missing
+    # `ext-redis` is a non-issue here.
+    Symfony\Component\HttpFoundation\Session\Storage\Handler\RedisSessionHandler:
+        arguments:
+            $redis: '@Predis\Client'
+            $options: { prefix: 'muzbar:session:' }
 
 when@test:
     framework:
         test: true
         session:
+            # Tests use PHP's mock file storage: it needs no running Redis, and it lets the client
+            # drive sessions without a real session cookie round trip. The handler above is simply
+            # not consulted by this storage factory.
             storage_factory_id: session.storage.factory.mock_file
