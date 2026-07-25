@@ -17,8 +17,14 @@ use App\Domain\Identity\ValueObject\Email;
  */
 final class EmailAlreadyRegistered extends \DomainException
 {
-    public static function withEmail(Email $email): self
+    /**
+     * `$previous` exists for the adapter's benefit: when this is raised by translating a database
+     * unique-constraint violation, the operator still wants the SQLSTATE and the offending
+     * statement in the log. Accepting a cause is not the Domain learning about SQL — a
+     * `\Throwable` is plain PHP, and the Domain neither inspects it nor knows what produced it.
+     */
+    public static function withEmail(Email $email, ?\Throwable $previous = null): self
     {
-        return new self(\sprintf('An account with email "%s" already exists.', $email->toString()));
+        return new self(\sprintf('An account with email "%s" already exists.', $email->toString()), 0, $previous);
     }
 }
