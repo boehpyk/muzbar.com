@@ -62,23 +62,23 @@ T2 makes that mechanically enforceable — do it first.
 
 ## Infrastructure — shared adapters
 
-- [ ] **T18:** `Infrastructure/Shared/Clock/SystemClock` (UTC) and
+- [x] **T18:** `Infrastructure/Shared/Clock/SystemClock` (UTC) and
       `Infrastructure/Shared/Event/SymfonyDomainEventDispatcher` (wraps `EventDispatcherInterface`),
       plus their two DI aliases in `config/services.yaml`.
 
 ## Infrastructure — persistence
 
-- [ ] **T19:** Custom DBAL types in `Infrastructure/Identity/Persistence/Doctrine/Type/`:
+- [x] **T19:** Custom DBAL types in `Infrastructure/Identity/Persistence/Doctrine/Type/`:
       `UserIdType`, `EmailType`, `HashedPasswordType`, `RoleSetType`; register them under
       `doctrine.dbal.types`.
-- [ ] **T20:** `Persistence/Doctrine/mapping/User.orm.xml` **+** the `doctrine.yaml` mapping switch:
+- [x] **T20:** `Persistence/Doctrine/mapping/User.orm.xml` **+** the `doctrine.yaml` mapping switch:
       add the `Identity` XML mapping, **remove** the `App` → `src/Entity` attribute mapping, delete
       `src/src/Entity/`, drop the dead `'../src/Entity/'` exclude from `config/services.yaml`.
       `bin/console doctrine:mapping:info` must list `App\Domain\Identity\Entity\User`. **(AC-29)**
-- [ ] **T21:** `Persistence/Doctrine/DoctrineUserRepository` implementing `UserRepository` —
+- [x] **T21:** `Persistence/Doctrine/DoctrineUserRepository` implementing `UserRepository` —
       `nextIdentity()` via `Uuid::v7()`, `save()` translating `UniqueConstraintViolationException` into
       `EmailAlreadyRegistered`, `findByEmail()`/`existsByEmail()`/`findById()`. Add the DI alias.
-- [ ] **T22:** Migration creating `identity_user` + `uniq_identity_user_email`, including
+- [x] **T22:** Migration creating `identity_user` + `uniq_identity_user_email`, including
       `email_verified_at` (nullable) — generated with `make migration.make`, then **hand-reviewed**:
       correct types, working `down()`. Run `make migrate` and `make test.db`. **(AC-23, AC-31)**
 
