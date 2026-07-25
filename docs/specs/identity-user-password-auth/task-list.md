@@ -119,26 +119,26 @@ T2 makes that mechanically enforceable — do it first.
 
 ## Tests (qa — written after implementation, by the independent agent)
 
-- [ ] **T33:** `tests/Factory/UserFactory` (Foundry) constructing through `User::register()`; a
+- [x] **T33:** `tests/Factory/UserFactory` (Foundry) constructing through `User::register()`; a
       `verified()` state helper. Everything below depends on it.
-- [ ] **T34:** Domain unit tests — value objects: normalisation, bounds, equality, the `PlainPassword`
+- [x] **T34:** Domain unit tests — value objects: normalisation, bounds, equality, the `PlainPassword`
       masking/`__toString`-absence assertions. **(AC-5, AC-7, AC-10)**
-- [ ] **T35:** Domain unit tests — `User`: registration state + event, idempotent `verifyEmail`,
+- [x] **T35:** Domain unit tests — `User`: registration state + event, idempotent `verifyEmail`,
       `isUsable()` before/after, role invariants, `releaseEvents()` empties. **(AC-24, AC-27)**
-- [ ] **T36:** Integration — `DoctrineUserRepository`: full VO round-trip after `clear()`, duplicate →
+- [x] **T36:** Integration — `DoctrineUserRepository`: full VO round-trip after `clear()`, duplicate →
       `EmailAlreadyRegistered`, `nextIdentity()` uniqueness/validity. **(AC-9)**
-- [ ] **T37:** Integration — `RegisterUserHandler` + `VerifyUserEmailHandler` with a fixed `Clock` and a
+- [x] **T37:** Integration — `RegisterUserHandler` + `VerifyUserEmailHandler` with a fixed `Clock` and a
       spy dispatcher: happy path, duplicate, weak password (nothing persisted), idempotent verify.
       **(AC-2, AC-27)**
-- [ ] **T38:** Functional — registration: happy path, mixed-case duplicate, weak password, mismatch,
+- [x] **T38:** Functional — registration: happy path, mixed-case duplicate, weak password, mismatch,
       bad email, missing CSRF, `roles[]=ROLE_ADMIN` ignored. **(AC-1 … AC-8, AC-20)**
-- [ ] **T39:** Functional — login/logout: success → `/account`, wrong password, **unknown email is
+- [x] **T39:** Functional — login/logout: success → `/account`, wrong password, **unknown email is
       byte-identical**, session id rotates, logout kills the session, anonymous `/account` redirects.
       **(AC-11 … AC-13, AC-16, AC-17, AC-19)**
-- [ ] **T40:** Functional — throttling: five failures then a distinct sixth. **(AC-14)**
-- [ ] **T41:** Functional — console command: verify, verify again (idempotent, timestamp unchanged),
+- [x] **T40:** Functional — throttling: five failures then a distinct sixth. **(AC-14)**
+- [x] **T41:** Functional — console command: verify, verify again (idempotent, timestamp unchanged),
       unknown email exits 1. **(AC-25, AC-26)**
-- [ ] **T42:** Infrastructure assertions — `EXPLAIN` on the email lookup shows an Index Scan on
+- [x] **T42:** Infrastructure assertions — `EXPLAIN` on the email lookup shows an Index Scan on
       `uniq_identity_user_email`; the `cache.rate_limiter` pool and the session handler resolve to
       Redis. **(AC-15, AC-18, AC-32)**
 
