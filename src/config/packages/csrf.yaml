@@ -1,0 +1,25 @@
+# CSRF protection for forms and login/logout.
+#
+# The symfony/form recipe ships *stateless* (same-origin) CSRF by default, via
+# `framework.csrf_protection.stateless_token_ids`. We deliberately use the classic
+# session-backed token manager instead:
+#
+#   1. Stateless CSRF's double-submit leg requires a JavaScript snippet to set the
+#      `csrf-token` cookie. This slice ships no JS (no Stimulus, no Live Components),
+#      so that leg can never fire and validation degrades to the origin check alone.
+#   2. That origin check compares the Origin/Referer header against
+#      Request::getSchemeAndHttpHost(). Behind Traefik -> nginx -> php-fpm that host and
+#      scheme are the *internal* ones unless framework.trusted_proxies / trusted_headers
+#      are configured. A browser posting from https://muzbar.com would then be rejected as
+#      cross-origin — every form POST broken in production, working fine in dev.
+#
+# Sessions are Redis-backed (Constitution §3), so a stateful token store survives deploys
+# and container restarts.
+#
+# Revisit when the public UI gains its asset pipeline: stateless CSRF is the better fit for
+# an HTTP-cacheable, JS-enabled front end, but it needs trusted_proxies configured first.
+framework:
+    form:
+        csrf_protection: true
+
+    csrf_protection: true
