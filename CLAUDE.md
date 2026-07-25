@@ -16,8 +16,12 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **greenfield.** As of 2026-07-23 the repo contains design docs only — no application code
-> yet. The commands below describe the *intended* setup and will work once Phase 0 scaffolds it.
+> Status: **Phase 0 complete** (2026-07-23 → 07-24). The Symfony app, Docker stack, quality gates,
+> CI/CD, and the `/health/*` endpoints are live and deployed — the commands below **work today**.
+> Current work: **Phase 1 — `Identity` context** (sliced into five cycles in the roadmap).
+> `Domain/Shared/` and `Application/Shared/` are still empty: the first slice writes this repo's first
+> domain code. One Phase 0 item remains open — the two Claude Code hooks from
+> [docs/tooling.md](./docs/tooling.md). See [docs/roadmap.md](./docs/roadmap.md).
 
 ## Architecture — non-negotiable
 
@@ -62,6 +66,7 @@ make db.dump                   # pg_dump -Fc to backups/
 make cs                        # php-cs-fixer
 make stan                      # phpstan max
 make deptrac                   # layer boundary check
+make test.db                   # create + migrate muzbar_test (run automatically by `make test`)
 make test                      # phpunit  (opts: filter=, file=)
 make check                     # cs + stan + deptrac + test — run before every commit
 ```

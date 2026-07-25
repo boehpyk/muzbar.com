@@ -13,27 +13,50 @@ Legend: each milestone is a `/plan → /implement → /verify` cycle (see [sdlc.
 
 Stand up the skeleton the SDLC assumes. No product features yet.
 
-- [ ] Symfony 7 app under `src/`, hexagonal folders (`Domain/`, `Application/`, `Infrastructure/`),
+- [x] Symfony 7 app under `src/`, hexagonal folders (`Domain/`, `Application/`, `Infrastructure/`),
       Deptrac config expressing the layer rules.
-- [ ] Docker: `docker-compose.yml` (prod) + `docker-compose.dev.yml` (dev), PHP 8.4-FPM multi-stage
+- [x] Docker: `docker-compose.yml` (prod) + `docker-compose.dev.yml` (dev), PHP 8.4-FPM multi-stage
       Dockerfile, nginx, postgres, redis — footgun guards applied (ADR-0003 / infrastructure.md).
-- [ ] Quality tooling: php-cs-fixer, PHPStan max (+ symfony/doctrine extensions), PHPUnit + Foundry +
+- [x] Quality tooling: php-cs-fixer, PHPStan max (+ symfony/doctrine extensions), PHPUnit + Foundry +
       DAMA, Makefile (`up.dev`, `console`, `migrate`, `cs`, `stan`, `deptrac`, `test`, `check`,
       `db.dump`), tracked git hooks (`scripts/git-hooks`, `core.hooksPath`).
-- [ ] Test environment: `APP_ENV=test`, dedicated `muzbar_test` DB (never the dev DB), `.env.test`,
+- [x] Test environment: `APP_ENV=test`, dedicated `muzbar_test` DB (never the dev DB), `.env.test`,
       DAMA transactional rollback; `make test` provisions/migrates it against the test env.
+      Isolation comes from `when@test: dbal.dbname_suffix` in `config/packages/doctrine.yaml` — **not**
+      from a `DATABASE_URL` in `.env.test`, which would defeat it (see the note in that file).
 - [ ] `.claude/` agents, commands, hooks, skills per [tooling.md](./tooling.md).
-- [ ] GitHub Actions CI (lint + stan + deptrac + test) + deploy workflow ([cicd.md](./cicd.md)).
-- [ ] Health endpoints (`/health/live`, `/health/ready`), Sentry, Umami tracking snippet wired to the
-      shared VDS instance (register muzbar as a site there — no container to deploy).
-- **Gate:** CI green on a trivial "hello" domain slice; `make check` passes; a deploy to the VDS
-  succeeds and `/health/ready` returns 200 with Postgres + Redis probed.
+      *Partial:* 6 agents, 5 commands, 3 skills are in place; the Claude Code hooks
+      (`pre-write-guard`, `post-implement-check`) are **not** configured in `.claude/settings*.json`.
+      (The *git* hooks — `pre-commit`, `commit-msg` — are done, under Quality tooling above.)
+- [x] GitHub Actions CI (lint + stan + deptrac + test) + deploy workflow ([cicd.md](./cicd.md)).
+- [x] Health endpoints (`/health/live`, `/health/ready`) — `/health/ready` probes Postgres + Redis and
+      returns 503 when either is down (never a bare `return 'ok'`).
+- [x] Sentry error tracking + Umami tracking snippet wired to the shared VDS instance (register muzbar
+      as a site there — no container to deploy). Neither is installed yet.
+- **Gate — MET** (merged in #1, hardened by #3–#6, 2026-07-23 → 07-24): CI green, `make check` passes,
+  the VDS deploy succeeds and `https://muzbar.com/health/ready` returns 200 with Postgres + Redis
+  probed. *Caveat:* the "hello" slice is `HealthController` — an Infrastructure endpoint, not a Domain
+  slice; `Domain/Shared/` is still empty. The first real Domain code lands in Phase 1.
+
+> **Phase 0 carry-over into Phase 1** (does not block the gate, but must not be forgotten): the two
+> Claude Code hooks from [tooling.md](./tooling.md) — `pre-write-guard` (Domain purity) and
+> `post-implement-check`. Worth wiring before the Identity slices, since `pre-write-guard` is exactly
+> the guard that catches a stray `use Symfony\...` in the `User` aggregate.
 
 ## Phase 1 — Data model, dynamic schema & auth *(PRD Phase 1)*
 
 - [ ] `Identity` context: `User` aggregate, roles, three authenticators (ADR-0005) — email/password
       with **email verification + password reset + login throttling**, Google OAuth, and account
-      linking; login/register overlay + intended-action redirect.
+      linking; login/register overlay + intended-action redirect. **Too big for one cycle — sliced:**
+  - [ ] `identity-user-password-auth` — `User` aggregate, `Email` / `HashedPassword` VOs, roles,
+        register + form login, `login_throttling`. Must be first; everything below builds on it.
+  - [ ] `identity-email-verification` — `symfonycasts/verify-email-bundle`, the "usable account"
+        invariant (verified email **or** a linked verified OAuth identity).
+  - [ ] `identity-password-reset` — `symfonycasts/reset-password-bundle` flow.
+  - [ ] `identity-google-oauth` — `knpuniversity/oauth2-client-bundle`, `OAuthIdentity` VO, account
+        linking by email (never a duplicate `User`).
+  - [ ] `identity-login-overlay` — login/register overlay Live Component + intended-action redirect
+        preserved across both the form and the OAuth round-trip.
 - [ ] `Catalog` context: `Category` + `Attribute` + `AttributeOption` aggregates with invariants;
       admin CRUD for categories and attribute schemas (FR-1). This is the core DDD exercise.
 - [ ] `Listing` context (skeleton): `Listing` aggregate + `listing_attribute_value` model and the
