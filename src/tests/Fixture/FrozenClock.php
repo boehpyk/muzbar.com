@@ -14,6 +14,13 @@ use Symfony\Component\Clock\MockClock;
  * Exists so `RegisterUserHandlerTest`/`VerifyUserEmailHandlerTest` can prove `registeredAt` /
  * `emailVerifiedAt` come from the `Clock` port and not from the wall clock (technical plan, Test
  * plan: "a fixed Clock stub proves `registeredAt` comes from the port").
+ *
+ * Deliberately mirrors the port's guarantees, exactly as `SystemClock` does in production: `now()`
+ * is coerced to UTC and truncated to whole-second precision, even though the constructor accepts
+ * whatever instant the test hands it. A test double that is more permissive than production is a
+ * test double that hides bugs — one constructed with a sub-second or local-zone instant would
+ * otherwise feed the Domain a precision and a zone production can never produce, silently
+ * un-catching the exact class of bug `SystemClock` was fixed for (see its docblock).
  */
 final readonly class FrozenClock implements Clock
 {
@@ -26,6 +33,13 @@ final readonly class FrozenClock implements Clock
 
     public function now(): \DateTimeImmutable
     {
-        return $this->clock->now();
+        $utc = $this->clock->now()->setTimezone(new \DateTimeZone('UTC'));
+
+        return $utc->setTime(
+            (int) $utc->format('H'),
+            (int) $utc->format('i'),
+            (int) $utc->format('s'),
+            0,
+        );
     }
 }

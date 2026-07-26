@@ -23,6 +23,23 @@ use Symfony\Component\Clock\ClockInterface;
  * local zone. `setTimezone()` re-labels the instant without moving it, so the absolute time is
  * untouched and only its presentation is pinned — which is exactly what makes log lines and test
  * assertions read the same on a laptop in Kyiv and on the VDS.
+ *
+ * WHY THE MICROSECONDS ARE THROWN AWAY HERE, AT THE SOURCE.
+ * Persistence cannot keep them. Doctrine's `datetimetz_immutable` formats through
+ * `PostgreSQLPlatform::getDateTimeTzFormatString()`, which is `'Y-m-d H:i:sO'` — the *type* drops
+ * the fractional part before the column's `TIMESTAMP(0)` precision is ever consulted, so widening
+ * the column would change nothing. Left un-truncated, a timestamp would therefore mean two
+ * different instants depending on where you read it from: within one request the identity map hands
+ * back the in-memory object with its microseconds intact, while after an `EntityManager::clear()`
+ * or in any later request the same aggregate reports the truncated value. Comparisons like
+ * `registeredAt == $clock->now()` would then pass or fail based on whether Doctrine happened to
+ * have the object cached.
+ *
+ * Truncating here makes "the instant the Domain saw" and "the instant the database stores" the same
+ * value by construction, and does it in the one place every timestamp in the system already flows
+ * through — rather than in each aggregate, each mapping, or each assertion. `setTime()` rebuilds the
+ * value from the instant's own UTC clock fields with an explicit zero microsecond argument, so
+ * nothing is formatted to a string and reparsed, and no arithmetic can drift.
  */
 final readonly class SystemClock implements Clock
 {
@@ -33,6 +50,13 @@ final readonly class SystemClock implements Clock
 
     public function now(): \DateTimeImmutable
     {
-        return $this->clock->now()->setTimezone(new \DateTimeZone('UTC'));
+        $utc = $this->clock->now()->setTimezone(new \DateTimeZone('UTC'));
+
+        return $utc->setTime(
+            (int) $utc->format('H'),
+            (int) $utc->format('i'),
+            (int) $utc->format('s'),
+            0,
+        );
     }
 }
