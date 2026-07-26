@@ -48,17 +48,34 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 > 1. The two Claude Code hooks from [tooling.md](./tooling.md) — `pre-write-guard` (Domain purity) and
 >    `post-implement-check`. Worth wiring *before* the Identity slices: `pre-write-guard` is exactly
 >    the guard that catches a stray `use Symfony\...` in the `User` aggregate.
+>    **Still outstanding after slice 1.** Largely mitigated: `deptrac.yaml` declares a catch-all
+>    `Vendor` layer (anything outside `App\`, excluding PHP built-ins) and enables the `use` emitter,
+>    and `make deptrac` runs `--fail-on-uncovered` — so *any* stray vendor import in `Domain/` fails
+>    `make check`, even an unused one (proven, not assumed). The hook would still catch it earlier — at
+>    write time rather than at commit time.
 > 2. Sentry, deliberately deferred to the first Identity slice (see above).
+>    **Now due.** That trigger condition — "the first user-facing flow, which is when a silent 500
+>    starts costing a signup" — was met on 2026-07-26 when `/register` and `/login` shipped.
 
 ## Phase 1 — Data model, dynamic schema & auth *(PRD Phase 1)*
 
 - [ ] `Identity` context: `User` aggregate, roles, three authenticators (ADR-0005) — email/password
       with **email verification + password reset + login throttling**, Google OAuth, and account
       linking; login/register overlay + intended-action redirect. **Too big for one cycle — sliced:**
-  - [ ] `identity-user-password-auth` — `User` aggregate, `Email` / `HashedPassword` VOs, roles,
-        register + form login, `login_throttling`. Must be first; everything below builds on it.
+  - [x] `identity-user-password-auth` — **DONE 2026-07-26.** `User` aggregate, `Email` /
+        `HashedPassword` / `PlainPassword` / `UserId` VOs, `Role` enum, `UserRegistered` /
+        `UserEmailVerified` events, `UserRepository` + `PasswordHasher` ports, the first migration
+        (`identity_user`), register + form login + logout + `/account`, `login_throttling` on Redis,
+        and `muzbar:identity:verify-email`. Established [ADR-0007](./adr/0007-persistence-conventions-for-domain-aggregates.md)
+        (persistence conventions) and [ADR-0008](./adr/0008-domain-events-recorded-on-the-aggregate.md)
+        (domain events), and amended ADR-0005 to record that the usable-account invariant is modelled
+        now and enforced in the next slice.
   - [ ] `identity-email-verification` — `symfonycasts/verify-email-bundle`, the "usable account"
-        invariant (verified email **or** a linked verified OAuth identity).
+        invariant (verified email **or** a linked verified OAuth identity). **Needs no migration on
+        `identity_user`** — `email_verified_at` already ships. Its job is to add the
+        `VerifiedAccountUserChecker` + one `security.yaml` line (inverting AC-24 of the previous
+        slice), a second adapter over the existing `VerifyUserEmailHandler`, and a deliberate decision
+        about event delivery once a listener on `UserRegistered` becomes load-bearing (ADR-0008).
   - [ ] `identity-password-reset` — `symfonycasts/reset-password-bundle` flow.
   - [ ] `identity-google-oauth` — `knpuniversity/oauth2-client-bundle`, `OAuthIdentity` VO, account
         linking by email (never a duplicate `User`).

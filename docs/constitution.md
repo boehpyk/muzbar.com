@@ -44,6 +44,8 @@ These are decided. Changing any row requires a new ADR that supersedes the relev
 | Styling — public UI | Hand-authored SCSS (standalone Dart Sass, no Node) | [0006](./adr/0006-dual-styling-admin-public.md) |
 | Asset pipeline | Symfony AssetMapper (Node-free) | [0006](./adr/0006-dual-styling-admin-public.md) |
 | ORM / migrations | Doctrine ORM + Doctrine Migrations | [0001](./adr/0001-framework-symfony.md) |
+| Aggregate persistence | XML mapping in `Infrastructure`, DBAL types for VOs, app-assigned UUIDv7 | [0007](./adr/0007-persistence-conventions-for-domain-aggregates.md) |
+| Domain events | Recorded on the aggregate, released by the handler, dispatched via a port | [0008](./adr/0008-domain-events-recorded-on-the-aggregate.md) |
 | Database | PostgreSQL 16 | [0004](./adr/0004-dynamic-category-attribute-schema.md) |
 | Search | **PostgreSQL** (composite indexes + FTS/pg_trgm) behind a `SearchPort` | [0002](./adr/0002-search-postgres-behind-port.md) |
 | Cache / sessions | Redis 7 | [0003](./adr/0003-infra-single-vds-compose-traefik.md) |

@@ -7,19 +7,46 @@ doctrine:
         #server_version: '16'
 
         profiling_collect_backtrace: '%kernel.debug%'
+
+        # Custom DBAL types map Identity's value objects onto columns.
+        #
+        # WHY TYPES AND NOT EMBEDDABLES: every one of these VOs is a single value in a single
+        # column. An embeddable would demand its own mapping document per one-field object and
+        # cannot express a single-column unique index cleanly — three times the ceremony for the
+        # same result. Types keep the mapping XML readable and the conversion logic unit-testable.
+        #
+        # FOOTGUN TO RESPECT: Doctrine's UnitOfWork compares custom-typed values with `!==`, so
+        # replacing a value object with an equal-but-distinct instance marks the entity dirty and
+        # emits a harmless UPDATE. Our VOs are immutable and only ever replaced on a real change,
+        # which is exactly why they must never be mutated in place.
+        types:
+            identity_user_id: App\Infrastructure\Identity\Persistence\Doctrine\Type\UserIdType
+            identity_email: App\Infrastructure\Identity\Persistence\Doctrine\Type\EmailType
+            identity_password_hash: App\Infrastructure\Identity\Persistence\Doctrine\Type\HashedPasswordType
+            identity_role_set: App\Infrastructure\Identity\Persistence\Doctrine\Type\RoleSetType
     orm:
         validate_xml_mapping: true
         naming_strategy: doctrine.orm.naming_strategy.underscore
         identity_generation_preferences:
             Doctrine\DBAL\Platforms\PostgreSQLPlatform: identity
         auto_mapping: true
+
+        # One mapping block per bounded context, each pointing at XML that lives inside that
+        # context's Infrastructure layer.
+        #
+        # The Symfony skeleton's `App` -> `src/Entity` attribute mapping was REMOVED here, not
+        # merely left unused. It was a trap: it made `App\Entity\Something` with ORM attributes on
+        # it the path of least resistance for `make:entity`, every tutorial and every reflex —
+        # which is a class outside all three hexagonal layers, and a Constitution §4.2 violation
+        # the moment such a class is treated as a domain object. Deleting the mapping and the
+        # directory removes the temptation rather than documenting it.
         mappings:
-            App:
-                type: attribute
+            Identity:
+                type: xml
                 is_bundle: false
-                dir: '%kernel.project_dir%/src/Entity'
-                prefix: 'App\Entity'
-                alias: App
+                dir: '%kernel.project_dir%/src/Infrastructure/Identity/Persistence/Doctrine/mapping'
+                prefix: 'App\Domain\Identity\Entity'
+                alias: Identity
 
 when@test:
     doctrine:

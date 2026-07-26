@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Your account{% endblock %}
+
+{% block body %}
+    <h1>Your account</h1>
+
+    {# Exactly one address, and it is the visitor's own (AC-21). No roles, no password hash, no
+       other user's data — the controller passes a single string, so there is nothing else here to
+       render even by accident (AC-22). #}
+    <p>Signed in as <span class="account-email">{{ email }}</span>.</p>
+
+    {# A POST form, not `logout_path()`'s tokenised GET link.
+
+       `logout_path()` would work — the firewall accepts the token from the query string — but it
+       puts a live, session-valid token into a URL, where it ends up in access logs, browser history
+       and `Referer` headers. Worse, it stays a GET: a link prefetch, a "link preview" bot or an
+       over-eager crawler following an href in an authenticated page signs the user out, and the
+       token in that href is genuinely valid, so CSRF protection does not stop it. Only the method
+       does. State-changing means POST.
+
+       No JS involved: a plain submit button is a form control, so this works with scripting off,
+       which matters because this slice ships no JS at all. #}
+    <form action="{{ path('app_logout') }}" method="post">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+        <button type="submit">Sign out</button>
+    </form>
+{% endblock %}

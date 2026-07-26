@@ -1,0 +1,31 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Create an account{% endblock %}
+
+{% block body %}
+    <h1>Create an account</h1>
+
+    {# `form_start`/`form_end` render the CSRF token (`registration_form[_token]`) and every field
+       with its errors. Unstyled on purpose: the public SCSS system arrives with the first real
+       layout, and hand-marking-up fields now would only have to be thrown away then. #}
+    {{ form_start(registrationForm) }}
+        {# Root-level errors — an invalid CSRF token and the `allow_extra_fields: false` rejection
+           both land here, on the form itself rather than on any field. Neither `form_start` nor
+           `form_end` renders them, so omitting this line makes a rejected submit look like a page
+           that silently did nothing. #}
+        {{ form_errors(registrationForm) }}
+
+        {{ form_row(registrationForm.email) }}
+
+        {# The mismatch error and the defensive `WeakPassword` error are attached to the *repeated*
+           field itself, not to either box, so they need rendering explicitly — rendering only the
+           two children would swallow "The two passwords must match." entirely. #}
+        {{ form_errors(registrationForm.plainPassword) }}
+        {{ form_row(registrationForm.plainPassword.first) }}
+        {{ form_row(registrationForm.plainPassword.second) }}
+
+        <button type="submit">Register</button>
+    {{ form_end(registrationForm) }}
+
+    <p><a href="{{ path('app_login') }}">Already have an account? Sign in</a></p>
+{% endblock %}

@@ -63,7 +63,7 @@ stan: ## Static analysis (PHPStan max) — warms the container first for Symfony
 	$(EXEC) vendor/bin/phpstan analyse --no-progress
 
 deptrac: ## Enforce hexagonal layer boundaries
-	$(EXEC) vendor/bin/deptrac analyse --no-progress
+	$(EXEC) vendor/bin/deptrac analyse --no-progress --fail-on-uncovered
 
 test.db: ## Create + migrate the dedicated test database (muzbar_test)
 	$(DC_DEV) exec -T -e APP_ENV=test app php bin/console doctrine:database:create --if-not-exists --no-interaction
