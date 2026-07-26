@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<html>
+{# `lang` is derived from the request, not hardcoded to `en`. It resolves to
+   `framework.default_locale` today, but muzbar is a Ukraine-facing marketplace, so the locale will
+   become a real variable — and a hardcoded `en` that outlives the single-locale phase is worse than
+   no attribute at all: screen readers would read Ukrainian listing titles with English phonetics and
+   browsers would offer to translate pages that are already in the reader's language. #}
+<html lang="{{ app.request.locale }}">
     <head>
         <meta charset="UTF-8">
         <title>{% block title %}Welcome!{% endblock %}</title>
