@@ -6,15 +6,38 @@
 #
 # WHY THE VENDOR LAYERS EXIST
 # Deptrac only reports dependencies *between declared layers*. A class that belongs to no
-# layer is "uncovered" and therefore allowed everywhere. Until these two layers existed,
-# every Symfony and Doctrine class was uncovered — so a `use Symfony\Component\Uid\Uuid;`
-# inside src/Domain/ passed `make deptrac` cleanly. The Constitution's headline rule was
-# unenforced, and nobody noticed because there was no Domain code to catch.
-# Declaring the vendors as layers and omitting them from Domain's and Application's
-# rulesets is what turns "Domain is pure PHP" into a build failure instead of a comment.
+# layer is "uncovered" and therefore allowed everywhere — silently. This file used to declare
+# only two named vendor layers, `SymfonyVendor` and `DoctrineVendor`, which meant every OTHER
+# vendor namespace (Predis, Psr, ramsey/uuid, whatever the next context pulls in) was
+# uncovered and could be `use`d from src/Domain/ without `make deptrac` ever noticing.
+# `--report-uncovered` proved it: `Predis\ClientInterface` and
+# `Psr\EventDispatcher\EventDispatcherInterface` were both uncovered, despite being real
+# dependencies wired through Infrastructure.
 #
-# Note: only ./src is analysed. The classLike collectors below classify the *targets* of
-# dependencies by class name, so vendor sources never need to be scanned.
+# `Vendor` below closes that gap with a catch-all: a `bool` collector that matches any
+# class-like target that is NOT under the app's own `App\` namespace (see composer.json's
+# psr-4 autoload). That covers every present and future vendor dependency without enumerating
+# prefixes one by one. `SymfonyVendor` and `DoctrineVendor` are kept alongside it purely so a
+# violation naming one of them reads better than a generic "Vendor" in CI output — they are a
+# subset of `Vendor`, not a substitute for it, and Infrastructure's ruleset grants all three.
+#
+# Belt and braces: `make deptrac` also passes `--fail-on-uncovered` (see Makefile), so any
+# dependency that still slips past every collector above fails the build loudly instead of
+# being silently allowed.
+#
+# `Vendor`'s `must_not` also excludes `php_internal` (Deptrac's own JetBrains-stubs-backed
+# check for real PHP/SPL classes such as `DateTimeImmutable`, `DomainException`, or
+# `SensitiveParameter`). That's the language itself, not "framework/vendor" — Domain is free
+# to use it, the same carve-out `ignore_uncovered_internal_classes` grants uncovered
+# built-ins. Without this, the `.*` catch-all would flag every core PHP class Domain touches.
+#
+# analyser.types adds the `use` emitter to Deptrac's default (`class`, `function`). Without
+# it, a bare `use Some\Vendor\Thing;` that is never actually referenced in the class body
+# emits no dependency at all and passes `make deptrac` cleanly — the AC-28 regression this
+# file guards against.
+#
+# Note: only ./src is analysed. The collectors below classify the *targets* of dependencies
+# by class name, so vendor sources never need to be scanned.
 deptrac:
     paths:
         - ./src
@@ -39,9 +62,20 @@ deptrac:
             name: DoctrineVendor
             collectors:
                 - { type: classLike, value: '^Doctrine\\.*' }
+        -
+            name: Vendor
+            collectors:
+                -
+                    type: bool
+                    must:
+                        - { type: classLike, value: '.*' }
+                    must_not:
+                        - { type: classLike, value: '^App\\.*' }
+                        - { type: php_internal, value: '.*' }
     ruleset:
         # Domain depends on nothing — not on Application, not on Infrastructure, and
-        # explicitly not on Symfony or Doctrine.
+        # explicitly not on any vendor/framework code (Symfony, Doctrine, or anything else
+        # caught by the Vendor catch-all).
         Domain: ~
         Application:
             - Domain
@@ -50,3 +84,9 @@ deptrac:
             - Application
             - SymfonyVendor
             - DoctrineVendor
+            - Vendor
+    analyser:
+        types:
+            - class
+            - function
+            - use
