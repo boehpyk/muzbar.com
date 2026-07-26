@@ -9,6 +9,14 @@ services:
     volumes:
       - ./src:/var/www/html          # live-mounted source
     environment:
+      # Dev mode is a property of *loading this override file*, not of a value someone copied into a
+      # gitignored .env. The image bakes `ENV APP_ENV=prod` (docker/php/Dockerfile) so the safe value
+      # is the default everywhere; this line is what makes `make up.dev` a dev box. Compose's
+      # `environment:` outranks `env_file:`, so it also wins over the root .env.
+      #
+      # Without this, dev-ness came from `.env.example`'s `APP_ENV=dev` — meaning the file you copy
+      # to get a working laptop was also the file that would silently put the VDS in dev mode.
+      APP_ENV: dev
       XDEBUG_MODE: "off"             # set to "debug" to step-debug
 
   nginx:

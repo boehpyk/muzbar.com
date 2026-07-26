@@ -130,6 +130,14 @@ These are documented failure modes we design against (see [docs/infrastructure.m
 - Use **named** volumes only; anonymous Postgres volumes remember stale passwords.
 - Give Redis a password and a stable network alias.
 - Health checks probe Postgres + Redis — never `return 'ok'`.
+- **`env_file:` outranks the image's `ENV`, so the root `.env` decides `APP_ENV` on a real box** — the
+  Dockerfile's `ENV APP_ENV=prod` cannot protect you. `.env.example` therefore defaults to
+  `APP_ENV=prod` (the safe value), and `docker-compose.dev.yml` pins `APP_ENV: dev` in `environment:`
+  (which outranks `env_file:`) so dev-ness follows the override file you load rather than a value
+  someone remembered to change. Verified empirically, not assumed.
+- The container writes into the live-mounted `./src` **as root**, so directories it creates (e.g.
+  `src/translations/`) become un-manageable by host git and can block a `git pull`. Chown to `1000:1000`
+  when it happens; a `user:` mapping in the dev override would fix it at the source.
 
 ## SDLC
 
