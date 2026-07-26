@@ -59,6 +59,12 @@
         <!-- Length mirrors `HashedPassword::MAX_LENGTH` — wide enough for bcrypt and Argon2id. -->
         <field name="passwordHash" column="password_hash" type="identity_password_hash" length="255" nullable="false"/>
 
+        <!--
+            No `jsonb` column option here on purpose: `RoleSetType` extends Doctrine's `JsonbType`,
+            so the binary `jsonb` declaration comes from the type itself. The storage shape belongs
+            to the one class that knows how a `list<Role>` is encoded, not to each mapping that
+            happens to use it — see `RoleSetType` for why `jsonb` over textual `json`.
+        -->
         <field name="roles" column="roles" type="identity_role_set" nullable="false"/>
 
         <!--
