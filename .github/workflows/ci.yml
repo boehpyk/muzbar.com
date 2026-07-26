@@ -68,8 +68,19 @@ jobs:
       - name: Static analysis (PHPStan max)
         run: vendor/bin/phpstan analyse --no-progress
 
+      # `--fail-on-uncovered` must match the `deptrac` target in the Makefile. Deptrac only compares
+      # layers it has been told about, so a dependency matching no collector is "uncovered" and
+      # silently allowed — and the catch-all `Vendor` layer cannot see a class under `App\` that sits
+      # outside all three layer directories. A resurrected `App\Entity\Foo` (which `make:entity`
+      # will try to create — see ADR-0007) is exactly that shape.
+      #
+      # NOTE: the four gate commands below are duplicated from the Makefile rather than invoked
+      # through it, because the Makefile targets wrap `docker compose exec` and CI installs Composer
+      # directly on the runner. That duplication is a drift seam: this flag was added to the Makefile
+      # first and did not reach CI until someone checked. Any future change to a gate's flags must be
+      # made in both places until the Makefile's exec prefix is parameterised.
       - name: Architecture boundaries (Deptrac)
-        run: vendor/bin/deptrac analyse --no-progress
+        run: vendor/bin/deptrac analyse --no-progress --fail-on-uncovered
 
       - name: Migrations sanity (test DB)
         run: php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration --env=test
