@@ -48,10 +48,11 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 > 1. The two Claude Code hooks from [tooling.md](./tooling.md) — `pre-write-guard` (Domain purity) and
 >    `post-implement-check`. Worth wiring *before* the Identity slices: `pre-write-guard` is exactly
 >    the guard that catches a stray `use Symfony\...` in the `User` aggregate.
->    **Still outstanding after slice 1.** Partially mitigated: `deptrac.yaml` now declares
->    `SymfonyVendor` / `DoctrineVendor` layers, so a stray framework import in `Domain/` fails
->    `make check` (proven, not assumed). The hook would still catch it earlier — at write time rather
->    than at commit time.
+>    **Still outstanding after slice 1.** Largely mitigated: `deptrac.yaml` declares a catch-all
+>    `Vendor` layer (anything outside `App\`, excluding PHP built-ins) and enables the `use` emitter,
+>    and `make deptrac` runs `--fail-on-uncovered` — so *any* stray vendor import in `Domain/` fails
+>    `make check`, even an unused one (proven, not assumed). The hook would still catch it earlier — at
+>    write time rather than at commit time.
 > 2. Sentry, deliberately deferred to the first Identity slice (see above).
 >    **Now due.** That trigger condition — "the first user-facing flow, which is when a silent 500
 >    starts costing a signup" — was met on 2026-07-26 when `/register` and `/login` shipped.

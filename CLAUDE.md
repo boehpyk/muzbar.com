@@ -35,7 +35,9 @@ layers with strictly ordered dependencies:
 | `Application` | `Domain` | `Infrastructure`, Doctrine, controllers |
 | `Infrastructure` | `Domain` + `Application` + Symfony/Doctrine | — |
 
-Enforced by **Deptrac** in CI. Repository/`*Port` interfaces live in `Domain/<Context>/Port/`;
+Enforced by **Deptrac** in CI — via a catch-all `Vendor` layer (anything not under `App\`, minus real
+PHP/SPL built-ins) granted only to `Infrastructure`, so *every* vendor is caught rather than a list of
+named ones, plus the `use` emitter so a bare unused import counts. Repository/`*Port` interfaces live in `Domain/<Context>/Port/`;
 adapters live in `Infrastructure/`. Bounded contexts: `Catalog`, `Listing`, `Directory`, `Identity`,
 `Billing`, `Notification`, `Search` — see Constitution §4.
 
@@ -54,6 +56,11 @@ established by the first slice, inherited by every context:
   registered under `doctrine.dbal.types` as `<context>_<concept>`), not embeddables.
 - **Tables are `<context>_<aggregate>`, singular** (`identity_user`), with every table and column name
   spelled out explicitly in the XML rather than derived by the naming strategy.
+- **Column types are chosen, not inherited from driver defaults.** JSON columns are **`jsonb`** — extend
+  `Doctrine\DBAL\Types\JsonbType`, never `JsonType` (whose PostgreSQL default is textual `json`) and
+  never the deprecated `jsonb` column option. Timestamps are **whole-second**: `datetimetz_immutable`
+  discards microseconds at the *type*, so `Clock` mandates whole seconds and `SystemClock` truncates at
+  the source. Any hand-written `Clock` test double must honour that too.
 - Identity is **application-assigned UUIDv7** minted by `Repository::nextIdentity()`, mapped with
   `<generator strategy="NONE"/>`. Adapters implement the port and do **not** extend
   `ServiceEntityRepository`.
@@ -86,7 +93,8 @@ make db.dump                   # pg_dump -Fc to backups/
 # Quality gates (also run in CI)
 make cs                        # php-cs-fixer
 make stan                      # phpstan max
-make deptrac                   # layer boundary check
+make deptrac                   # layer boundary check (--fail-on-uncovered: an unclassified
+                               #   dependency fails the build instead of being silently allowed)
 make test.db                   # create + migrate muzbar_test (run automatically by `make test`)
 make test                      # phpunit  (opts: filter=, file=)
 make check                     # cs + stan + deptrac + test — run before every commit

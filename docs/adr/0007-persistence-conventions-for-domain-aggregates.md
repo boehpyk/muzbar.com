@@ -59,6 +59,21 @@ the XML rather than derived by the naming strategy.
 to translate a database failure into a domain exception — `UniqueConstraintViolationException` becomes
 `EmailAlreadyRegistered` inside `save()`.
 
+**8. Column *types* are chosen as deliberately as column names.** Decision 6 already refuses to let the
+naming strategy derive a name; the same applies to the physical type, which a driver default will
+otherwise pick for you. Two consequences established by the first slice:
+
+- **JSON columns are `jsonb`, not textual `json`.** The DBAL custom type extends
+  `Doctrine\DBAL\Types\JsonbType` (not `JsonType`, whose PostgreSQL default is textual `json`), so the
+  storage shape lives in the one class that knows how the value is encoded and every future mapping
+  reaching for that type inherits it. Do **not** use the `jsonb` column option in the XML instead —
+  DBAL deprecated that path in favour of the type.
+- **Timestamps are whole-second, and the `Clock` port says so.** `datetimetz_immutable` formats
+  through PostgreSQL's `'Y-m-d H:i:sO'`, so the *type* discards microseconds before column precision is
+  ever consulted — widening a column to `TIMESTAMP(6)` changes nothing. Rather than let the Domain hold
+  precision that persistence silently drops, `Clock` mandates whole seconds and `SystemClock` truncates
+  once, at the source.
+
 ## Alternatives
 
 - **ORM attributes on Domain classes.** The idiomatic Symfony choice, and the one every tutorial
@@ -71,6 +86,15 @@ to translate a database failure into a domain exception — `UniqueConstraintVio
   exactly the kind of boilerplate that rots. XML gets ~95% of the isolation for ~5% of the cost.
 - **YAML mapping.** Also external to the class, but deprecated and removed in Doctrine ORM 3.
 - **Embeddables for value objects.** See decision 4.
+- **Textual `json` for the roles column.** Doctrine's PostgreSQL default, and therefore what you get by
+  not deciding. Rejected: `jsonb` parses once on write and stores a normalised binary form, so
+  containment (`@>`) and GIN indexes are available the day an admin screen needs "every user holding
+  `ROLE_ADMIN`", whereas textual `json` keeps the raw bytes and reparses on every read.
+- **`TIMESTAMP(6)` plus a microsecond-aware DBAL type,** preserving sub-second precision instead of
+  truncating. Rejected as disproportionate: it means a custom datetime type for every timestamp column
+  in seven contexts, to keep precision no domain rule here asks for. A context that genuinely needs
+  sub-second granularity must widen the column *and* supply that type deliberately — and change the
+  `Clock` contract, which is the point at which someone has to think about it.
 - **Database-generated identity (`IDENTITY`/sequence).** Simpler on the surface, but the aggregate is
   then invalid until it has met a transaction — it cannot raise an event carrying its own id, and it
   cannot be discarded on a validation failure without a wasted round trip. `identity_generation_
@@ -99,3 +123,11 @@ to translate a database failure into a domain exception — `UniqueConstraintVio
     Immutability from outside is guaranteed by the private constructor and the absence of setters.
   - **Two places now know each column's width** (the VO's `MAX_LENGTH` constant and the XML `length`).
     The constant is quoted where possible; where it cannot be, they must be changed together.
+  - **A storage limit is now written into a Domain contract.** `Clock`'s whole-second clause exists
+    because of how Doctrine writes timestamps — a persistence fact leaking upward into the Domain's
+    vocabulary. It is stated as a *granularity* guarantee with the mechanics left to the adapter, which
+    keeps `Domain/` free of Doctrine, but the honest reading is that this is a leak we accepted rather
+    than one we avoided. The alternative was a Domain that holds precision the database silently
+    discards, which makes timestamp equality depend on whether Doctrine happened to have the object
+    cached. **Any hand-written `Clock` double must honour both clauses** — the first one written did
+    not, and only accidentally passed because every call site fed it clean instants.
