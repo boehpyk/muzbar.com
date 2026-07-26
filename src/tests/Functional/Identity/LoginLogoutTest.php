@@ -116,6 +116,10 @@ final class LoginLogoutTest extends WebTestCase
 
     /**
      * AC-16: logging out invalidates the session; a subsequent /account is a 302 to /login.
+     *
+     * Driven through the real "Sign out" form on /account rather than a bare request to /logout,
+     * because logout is CSRF-protected: the token only exists on the rendered page, so this is the
+     * only path a browser can actually take.
      */
     public function testLogoutInvalidatesTheSessionAndAccountThenRedirects(): void
     {
@@ -123,11 +127,61 @@ final class LoginLogoutTest extends WebTestCase
         $this->login('logout-check@example.com', 'a-correct-password-1');
         self::assertResponseRedirects('/account');
 
-        $this->client->request('GET', '/logout');
+        $this->logoutViaTheSignOutForm();
         self::assertResponseRedirects('/login');
 
         $this->client->request('GET', '/account');
         self::assertResponseRedirects('/login');
+    }
+
+    /**
+     * `enable_csrf: true` on the `logout` firewall key (security.yaml) must actually be enforced,
+     * not merely configured. A request to /logout carrying no token must both be rejected AND have
+     * no side effect: the assertion that actually matters is that a subsequent GET /account still
+     * returns 200 and still renders this user's own email, which would fail to hold if the firewall
+     * had already cleared the session before rejecting the request for want of a token. Asserting
+     * only the rejection status would pass under that bug too, so both are asserted.
+     */
+    public function testUntokenisedLogoutIsRejectedAndLeavesTheSessionIntact(): void
+    {
+        $this->registerUserWithKnownCredentials('logout-no-token@example.com', 'a-correct-password-1');
+        $this->login('logout-no-token@example.com', 'a-correct-password-1');
+        self::assertResponseRedirects('/account');
+        $this->client->followRedirect();
+
+        $this->client->request('POST', '/logout');
+
+        self::assertResponseStatusCodeSame(403);
+
+        $this->client->request('GET', '/account');
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.account-email', 'logout-no-token@example.com');
+    }
+
+    /**
+     * A token must be checked against the *logout* token id specifically, not merely be "some
+     * token the session recognises". A valid, freshly-issued *login* CSRF token replayed against
+     * /logout must be rejected just as an absent one is — otherwise a regression that checks only
+     * for token presence (any non-empty `_csrf_token`) would pass this suite.
+     */
+    public function testLogoutRejectsAValidCsrfTokenIssuedForADifferentTokenId(): void
+    {
+        $this->registerUserWithKnownCredentials('logout-wrong-token@example.com', 'a-correct-password-1');
+        $this->login('logout-wrong-token@example.com', 'a-correct-password-1');
+        self::assertResponseRedirects('/account');
+        $this->client->followRedirect();
+
+        $loginCrawler = $this->client->request('GET', '/login');
+        $loginToken = $loginCrawler->filter('input[name="_csrf_token"]')->attr('value');
+        self::assertNotNull($loginToken);
+
+        $this->client->request('POST', '/logout', ['_csrf_token' => $loginToken]);
+
+        self::assertResponseStatusCodeSame(403);
+
+        $this->client->request('GET', '/account');
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.account-email', 'logout-wrong-token@example.com');
     }
 
     /**
@@ -187,5 +241,19 @@ final class LoginLogoutTest extends WebTestCase
             '_password' => $password,
             '_csrf_token' => $token,
         ]);
+    }
+
+    /**
+     * Logout is CSRF-protected, so a bare request to /logout is (correctly) a 403. The token lives
+     * only on the rendered page, so this submits the actual "Sign out" form from /account — the same
+     * sequence a browser performs, which is also what makes it a real regression test for the form
+     * still being there and still carrying a valid token.
+     */
+    private function logoutViaTheSignOutForm(): void
+    {
+        $crawler = $this->client->request('GET', '/account');
+        self::assertResponseIsSuccessful();
+
+        $this->client->submit($crawler->selectButton('Sign out')->form());
     }
 }
