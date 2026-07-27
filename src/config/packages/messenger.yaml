@@ -1,22 +1,65 @@
+# Messenger carries exactly one kind of message today: outgoing mail.
+#
+# WHY MAIL IS ASYNCHRONOUS AND EVENTS ARE NOT (ADR-0010). Two orthogonal questions were answered
+# together, because answering them separately produces an incoherent design. Domain events stay on
+# synchronous PSR-14 dispatch after a successful save (ADR-0008, unchanged) — the window between
+# commit and dispatch stays open and is documented as accepted. Mail goes through this bus.
+#
+# The reasoning is that the two windows are not equally bad: a lost *mail* is invisible and
+# permanent — nobody finds out and the user simply never verifies — while a lost *event* here costs
+# the user one click on the resend form, which the slice ships anyway. That makes the resend
+# endpoint the honest, cheap alternative to a transactional outbox, which is why it is anonymous and
+# part of this slice rather than a follow-up.
+#
+# Concretely: registration must never 500 because the SMTP relay is slow, and must never *wait* on
+# it, for an account that is already committed by the time the mail is attempted.
 framework:
     messenger:
-        # Uncomment this (and the failed transport below) to send failed messages to this transport for later handling.
-        # failure_transport: failed
+        # Sends exhausted retries somewhere inspectable instead of letting them vanish. It is a
+        # queue nobody looks at until they are told to, so the infrastructure runbook says so:
+        # `messenger:failed:show` / `messenger:failed:retry`.
+        failure_transport: failed
 
         transports:
-            # https://symfony.com/doc/current/messenger.html#transport-configuration
-            # async: '%env(MESSENGER_TRANSPORT_DSN)%'
-            # failed: 'doctrine://default?queue_name=failed'
+            # `doctrine://default`, NOT Redis — a constraint respected rather than a preference
+            # (ADR-0010 decision 4). Messenger's Redis transport requires `ext-redis`, which this
+            # image does not have; slice 1 reaches Redis through `predis/predis`, which the
+            # transport cannot use. Doctrine is durable, already installed, and costs one extra
+            # migration for `messenger_messages`.
+            #
+            # The DSN carries `auto_setup=0` in every environment, including dev (see the comment on
+            # MESSENGER_TRANSPORT_DSN in `.env`). That table is created by a reviewed migration, not
+            # by Messenger silently DDL-ing against a live database at runtime — dev exercises the
+            # same migration path prod gets.
+            async: '%env(MESSENGER_TRANSPORT_DSN)%'
+
+            # Same database, a different `queue_name`, so a failed message is moved rather than
+            # lost and no second piece of infrastructure appears to hold it.
+            failed: 'doctrine://default?queue_name=failed'
+
+            # Kept for messages that must run inline. Nothing is routed here outside the test
+            # environment today; it is the escape hatch for a future message whose caller genuinely
+            # needs the result before it returns.
             sync: 'sync://'
 
         routing:
-            # Route your messages to the transports
-            # 'App\Message\YourMessage': async
+            # `SendEmailMessage` is what `MailerInterface::send()` dispatches once a bus is
+            # configured — the mailer notices the bus and hands the envelope over instead of opening
+            # an SMTP socket in-request. So this single line is the entire "send mail
+            # asynchronously" decision; `TwigVerificationMailer` calls `send()` either way and knows
+            # nothing about transports.
+            'Symfony\Component\Mailer\Messenger\SendEmailMessage': async
 
-# when@test:
-#    framework:
-#        messenger:
-#            transports:
-#                # replace with your transport name here (e.g., my_transport: 'in-memory://')
-#                # For more Messenger testing tools, see https://github.com/zenstruck/messenger-test
-#                async: 'in-memory://'
+when@test:
+    framework:
+        messenger:
+            routing:
+                # Routed to `sync` so the whole send happens inside the test process and
+                # `MailerAssertionsTrait` can assert on the message without a worker running
+                # (ADR-0010 decision 5). `.env.test` points MAILER_DSN at `null://null`, so "sent"
+                # means "handed to the null transport, and recorded" — nothing reaches a socket.
+                #
+                # This is a routing override, not a transport one: leaving it on `async` would push
+                # rows into `messenger_messages` that no test ever drains, so every mail assertion
+                # would fail on a system that is working correctly.
+                'Symfony\Component\Mailer\Messenger\SendEmailMessage': sync
