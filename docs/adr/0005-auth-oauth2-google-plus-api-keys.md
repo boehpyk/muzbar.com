@@ -90,3 +90,28 @@ this ADR's own framing that *"credential checking crosses the security layer, no
 Phase 1 not being publicly launched, by `identity-email-verification` being the very next cycle, and
 by the debt being visible in that slice's spec as an explicitly invertible acceptance criterion
 (AC-24) rather than buried in code.
+
+### Amendment, 2026-07-26 — email verification is modelled in the Domain, not delegated to a bundle
+
+The Decision section above names `symfonycasts/verify-email-bundle` as the tool for email
+verification. That naming was made in Phase 0 as part of a stack survey, before any Domain code
+existed. When `identity-email-verification` came to implement it, the bundle turned out to solve a
+different problem: it is **stateless**, HMAC-signing a URL rather than storing anything, so *single
+use*, *revocation* and *auditability* — three properties that slice's spec requires — are not
+expressible with it.
+
+**The bundle is therefore not installed.** [ADR-0009](./0009-email-verification-tokens-modelled-in-the-domain.md)
+records the replacement: a stored, hashed, single-use, expiring `EmailVerificationRequest` aggregate
+inside `Identity`. Everything else in this ADR stands — passwords still hash with Symfony's `auto`
+hasher, login is still throttled, credential checking still crosses the Security layer rather than the
+Domain.
+
+`symfonycasts/reset-password-bundle` is **not** covered by this amendment and remains the plan of
+record for `identity-password-reset`; that slice must make its own call, and ADR-0009's decision 5
+explains why the two flows do *not* share a precedent on token invalidation.
+
+The 2026-07-26 amendment above is likewise discharged by that slice: `VerifiedAccountUserChecker` plus
+one `user_checker:` line in `security.yaml` now enforce `User::isUsable()` at authentication, exactly
+as predicted and with no change to `Domain` or `Application`. The check runs in `checkPostAuth()`, so
+it fires only after the correct password has been presented and can never become an
+account-enumeration oracle.
