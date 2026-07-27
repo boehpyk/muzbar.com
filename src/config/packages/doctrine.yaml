@@ -24,6 +24,12 @@ doctrine:
             identity_email: App\Infrastructure\Identity\Persistence\Doctrine\Type\EmailType
             identity_password_hash: App\Infrastructure\Identity\Persistence\Doctrine\Type\HashedPasswordType
             identity_role_set: App\Infrastructure\Identity\Persistence\Doctrine\Type\RoleSetType
+            # Added by `identity-email-verification` for the context's second aggregate. Registered
+            # here rather than beside the mapping because a DBAL type is global to the connection:
+            # the name is what the XML refers to, and an unregistered name is an "Unknown column
+            # type" at cache warm-up, not at the query that needed it.
+            identity_email_verification_request_id: App\Infrastructure\Identity\Persistence\Doctrine\Type\EmailVerificationRequestIdType
+            identity_verification_token_hash: App\Infrastructure\Identity\Persistence\Doctrine\Type\HashedVerificationTokenType
     orm:
         validate_xml_mapping: true
         naming_strategy: doctrine.orm.naming_strategy.underscore

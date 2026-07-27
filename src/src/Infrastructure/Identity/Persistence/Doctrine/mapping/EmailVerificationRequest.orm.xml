@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Doctrine mapping for the `Identity` context's SECOND aggregate root.
+
+    It needs no config change: `config/packages/doctrine.yaml` maps the whole
+    `Infrastructure/Identity/Persistence/Doctrine/mapping` directory under the `Identity` block, so
+    dropping a file in here is all it takes. That is one mapping block per bounded context
+    (ADR-0007 decision 3) paying off the first time it is tested.
+
+    Everything ADR-0007 established for `User.orm.xml` applies unchanged — XML so that no
+    `use Doctrine\...` lands in `Domain/`, explicit table and column names so that renaming a PHP
+    property can never silently rename a production column, `<generator strategy="NONE"/>` because
+    ids are minted by the repository, `datetimetz_immutable` so a stored instant is absolute. What
+    follows is only what is *new* here.
+
+    WHY `user_id` IS A PLAIN TYPED COLUMN AND NOT A `<many-to-one>` ASSOCIATION (AC-34).
+
+    The reflex — and what every Doctrine tutorial writes — is
+    `<many-to-one field="user" target-entity="User"/>`. It is wrong here, and for a modelling
+    reason rather than a performance one. `EmailVerificationRequest` holds a `UserId`, not a
+    `User`: aggregates reference each other **by identity**, so that no caller can reach across an
+    aggregate boundary and mutate a second root through the first. An association would put a real
+    `User` object (or a lazy proxy of one) on this aggregate and hand exactly that power to anyone
+    holding a request. It would also let Doctrine's cascade settings quietly decide transactional
+    semantics that ADR-0009 decision 3 argued out explicitly: the whole point of two aggregates
+    here is that redemption is *two* saves in a deliberate order, not one cascade.
+
+    The mapping therefore does what the Domain already does — stores the identity, typed. Reusing
+    the existing `identity_user_id` DBAL type (rather than a bare `guid`) means the column still
+    round-trips a real `UserId` value object, so nothing is lost except the association.
+
+    WHY THERE IS NO FOREIGN KEY TO `identity_user` (ADR-0009 decision 4).
+
+    Follows from the same idea, and is worth stating in the mapping because a future reader will
+    otherwise "fix" it in a migration. Referential integrity *between aggregates* is the
+    application's job, not the schema's. And a hand-added FK that Doctrine's mapping does not know
+    about is permanent noise: every subsequent `make migration.make` would diff it as an unwanted
+    constraint and offer to drop it, so it would be deleted-and-re-added forever by whoever ran the
+    generator last. The accepted cost is that orphan rows become possible if a user is ever
+    hard-deleted — nothing deletes users today, the pruning job owed later will sweep them, and the
+    GDPR-erasure conversation before public launch must not forget this table.
+-->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Domain\Identity\Entity\EmailVerificationRequest"
+            table="identity_email_verification_request">
+
+        <!--
+            The composite index behind `countIssuedForUserSince()` — the anti-abuse rule I-12.
+
+            Column order is the whole design: `user_id` leads because it is matched for equality,
+            `issued_at` follows because it is matched as a range. A B-tree can only use a range
+            predicate on the first column after all the equality ones, so `(user_id, issued_at)`
+            is an index scan over a narrow slice while `(issued_at, user_id)` would force a scan
+            across every user's rows in the window. AC-37 asserts this with `EXPLAIN`, which is
+            also why the index is named here rather than left to Doctrine's `IDX_<hash>` — an
+            assertion cannot refer to a name nobody chose.
+        -->
+        <indexes>
+            <index name="idx_identity_email_verification_request_user_issued" columns="user_id,issued_at"/>
+        </indexes>
+
+        <!--
+            The unique index on the digest does two jobs at once, which is why it is a unique
+            constraint and not a plain index.
+
+            It serves the only hot query on this table — `findByTokenHash()`, one lookup per click
+            on a verification link — and it makes a duplicate digest a database-level impossibility
+            rather than a hope. Note what the adapter deliberately does *not* do with it: unlike
+            `uniq_identity_user_email`, whose violation `DoctrineUserRepository::save()` translates
+            into `EmailAlreadyRegistered`, a violation here is not a business event. It would mean
+            two independent draws of 256 CSPRNG bits collided, and the honest answer to that is a
+            500 and an alert. See `EmailVerificationRequestRepository::save()`'s docblock for the
+            full argument.
+        -->
+        <unique-constraints>
+            <unique-constraint name="uniq_identity_email_verification_request_token_hash" columns="token_hash"/>
+        </unique-constraints>
+
+        <!--
+            `strategy="NONE"` — assigned by the application, minted by
+            `EmailVerificationRequestRepository::nextIdentity()` before `issue()` is called. That is
+            what lets the aggregate record `EmailVerificationRequested` carrying its own id without
+            waiting for a post-flush sequence value, and what lets a request be built and thrown
+            away on a rate-limit refusal having never met the database.
+        -->
+        <id name="id" type="identity_email_verification_request_id" column="id">
+            <generator strategy="NONE"/>
+        </id>
+
+        <!-- Reference by identity, not by association — see the header. -->
+        <field name="userId" column="user_id" type="identity_user_id" nullable="false"/>
+
+        <!-- Length mirrors `HashedVerificationToken::MAX_LENGTH`; the VO owns the rule, the column
+             enforces it. Deliberately not narrowed to SHA-256's 64 characters: the digest algorithm
+             is `RandomVerificationTokenGenerator`'s choice, and a column that encodes it would have
+             to be migrated the day that choice changes. -->
+        <field name="tokenHash" column="token_hash" type="identity_verification_token_hash" length="255" nullable="false"/>
+
+        <!--
+            `datetimetz_immutable`, as everywhere: Postgres `TIMESTAMP WITH TIME ZONE` stores an
+            absolute instant, so a value written by the UTC `Clock` reads back as the same moment
+            whatever timezone the writing container had. The type formats through `'Y-m-d H:i:sO'`
+            and therefore discards microseconds before column precision is ever consulted — which is
+            exactly why `Clock` mandates whole seconds (ADR-0007 decision 8) and why
+            `isExpiredAt()` compares with a strict `>`: at second granularity a `>=` would shorten
+            every link by up to a second.
+
+            Both are NOT NULL because `issue()` derives them together and neither can be absent from
+            a request that exists.
+        -->
+        <field name="issuedAt" column="issued_at" type="datetimetz_immutable" nullable="false"/>
+        <field name="expiresAt" column="expires_at" type="datetimetz_immutable" nullable="false"/>
+
+        <!--
+            `redeemed_at` is the single-use property, stored as a nullable instant rather than a
+            boolean flag: `NULL` means "still live" and any value means "burnt, and here is when".
+            A boolean would answer the invariant (I-9) and throw away the audit trail, and the audit
+            trail is half of why this challenge is an aggregate at all.
+        -->
+        <field name="redeemedAt" column="redeemed_at" type="datetimetz_immutable" nullable="true"/>
+
+    </entity>
+
+</doctrine-mapping>
