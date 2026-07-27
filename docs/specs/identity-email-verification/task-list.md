@@ -20,10 +20,10 @@ first, because an ADR written after the code it justifies is a rationalisation, 
       **ADR-0008**'s watched clause. Both arguments are already written in the technical plan — carry
       them over rather than re-deriving. *(Numbers and smaller calls: already confirmed — 24 h,
       5/user/hour, keep `EmailVerificationRequested`, no shared UUID VO, adopt `Referrer-Policy`.)*
-- [ ] **T1:** `composer require symfony/mailer symfony/messenger`. Review the recipes' generated
+- [x] **T1:** `composer require symfony/mailer symfony/messenger`. Review the recipes' generated
       config; commit `composer.json` / `composer.lock` / `config/packages/{mailer,messenger}.yaml`.
       Nothing else changes.
-- [ ] **T2 (devops):** `MAILER_DSN` / `MAILER_FROM` / `MESSENGER_TRANSPORT_DSN` in `src/.env`,
+- [x] **T2 (devops):** `MAILER_DSN` / `MAILER_FROM` / `MESSENGER_TRANSPORT_DSN` in `src/.env`,
       `.env.example` and the Compose files; `DEFAULT_URI` corrected per environment
       (`http://localhost:8080` dev, `https://muzbar.com` prod — this is what makes the links in mail
       point somewhere real, **AC-6**); a `messenger-worker` service with `restart: unless-stopped`;

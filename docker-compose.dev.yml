@@ -19,6 +19,17 @@ services:
       APP_ENV: dev
       XDEBUG_MODE: "off"             # set to "debug" to step-debug
 
+  messenger-worker:
+    # Same dev treatment as `app`: live-mounted source and the `development` build target, so a
+    # code change reaches the worker without a rebuild — otherwise every edit would need
+    # `up.dev --build` just to see it picked up by the consumer.
+    build:
+      target: development
+    volumes:
+      - ./src:/var/www/html
+    environment:
+      APP_ENV: dev
+
   nginx:
     ports:
       - "127.0.0.1:8080:80"          # http://localhost:8080

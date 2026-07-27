@@ -41,6 +41,41 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  messenger-worker:
+    # Runs the same code as `app` — same image, just a different entrypoint command — so it needs
+    # no separate build/image config, only its own `command:`.
+    image: ${MUZBAR_IMAGE:-muzbar-app:local}
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: production
+    env_file: .env
+    # The image's entrypoint exists to publish `public/` into the volume nginx serves. This
+    # container mounts no such volume and answers no HTTP, so running it would copy assets into the
+    # container's own filesystem for nobody to read — once an hour, forever, thanks to the restart
+    # loop below. Cleared rather than tolerated; `command:` is a full argv and needs no wrapper.
+    entrypoint: []
+    command: ["php", "bin/console", "messenger:consume", "async", "--time-limit=3600", "--memory-limit=128M"]
+    # No `ports:` and no `public_assets` volume: this process serves nothing over HTTP, it only
+    # drains the `async` transport (mail today; more later).
+    #
+    # `--time-limit=3600` + `restart: unless-stopped` is the supervisor-free pattern for a one-box
+    # budget: Messenger exits cleanly once an hour (bounding the effect of any slow memory leak
+    # between restarts — see infrastructure.md footgun #6) and Compose's restart policy brings it
+    # straight back up, with no separate supervisord/systemd unit to install and monitor.
+    #
+    # Watched consequence (ADR-0010): a stopped or crash-looping worker looks *exactly* like a
+    # healthy system to every check this stack has today. `/health/ready` probes Postgres and
+    # Redis, not queue depth — so this container can sit down silently and nothing here will turn
+    # red. Accepted for this slice; teaching `/health/ready` to notice a stale queue is Phase 2
+    # work (docs/specs/identity-email-verification/technical-plan.md, Risks #2).
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     environment:
