@@ -1,0 +1,34 @@
+{# THE PLAIN-TEXT PART, AND IT IS WRITTEN FIRST ON PURPOSE.
+
+   Mail clients are not browsers: a `multipart/alternative` message with no text part scores badly
+   with every spam filter worth the name, and the text part is the version a filter can read without
+   executing anything. This is deliverability work (PRD validation #3), not a courtesy — which is
+   why it must say the *same* thing as the HTML part rather than being a stub.
+
+   Whitespace control matters here in a way it does not in an HTML template: what is between the tags
+   is literally what lands in the mailbox. `{%- ... -%}` and the file's exact line breaks are the
+   layout. #}
+Confirm your email address
+
+Somebody — we hope you — created a muzbar account with this address:
+
+    {{ recipientEmail }}
+
+Open the link below to confirm the address and finish setting the account up:
+
+{{ verificationUrl }}
+
+{# The second argument pins the timezone. Without it Twig's `date` filter renders in
+   `twig.date.timezone` (PHP's default, i.e. whatever the container happens to be set to), so the
+   same instant would print differently in the worker and in a test, and the word "UTC" next to it
+   would eventually be a lie. The Clock contract guarantees the value *is* UTC; this makes the
+   rendering say so truthfully rather than by luck. #}
+The link works once and expires in {{ lifetimeHours }} hours, at {{ expiresAt|date('Y-m-d H:i', 'UTC') }} UTC.
+If it has already expired you can ask for a new one at any time.
+
+If you did not create this account you do not need to do anything. Without the link above the
+account cannot be used to sign in, and it will simply sit there unverified.
+
+--
+muzbar
+This is an automated message. Replies to it are not read.
