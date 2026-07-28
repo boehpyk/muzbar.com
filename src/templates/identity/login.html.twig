@@ -37,4 +37,14 @@
     </form>
 
     <p><a href="{{ path('app_register') }}">Need an account? Register</a></p>
+
+    {# The escape hatch for the failure this page can now produce and could not before (AC-20).
+       `VerifiedAccountUserChecker` refuses an unverified account *after* a correct password, so a
+       user with the right credentials can be turned away by the error block above with no way
+       forward — the link they needed is in an inbox they cannot find. An unconditional link is
+       correct here rather than one shown only after that specific error: a condition would have to
+       inspect the exception, which is exactly the branching this template's main comment forbids,
+       and it would announce to anyone reading the page that verification state is a thing this form
+       distinguishes. Shown to everybody, it tells nobody anything. #}
+    <p><a href="{{ path('app_verify_email_resend') }}">Didn't get the verification email?</a></p>
 {% endblock %}

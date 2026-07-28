@@ -74,13 +74,22 @@ final class RegistrationControllerTest extends WebTestCase
     }
 
     /**
-     * AC-3: success redirects to /login with a flash, and does NOT authenticate the visitor.
+     * Success redirects to "check your inbox" with a flash, and does NOT authenticate the visitor.
+     *
+     * The redirect target changed: slice 1's AC-3 sent a new user to `/login`, and
+     * `identity-email-verification`'s AC-24 supersedes it with `/verify-email/sent`. Once the user
+     * checker enforces the verified-email rule, a login attempt at this moment is guaranteed to be
+     * refused, so telling the user to sign in would be instructing them to do something we have
+     * just made impossible.
+     *
+     * The second half of the assertion is unchanged and still slice 1's AC-3: registration does not
+     * start a session. That was always the more important half.
      */
-    public function testValidSubmissionRedirectsToLoginWithAFlashAndDoesNotAuthenticate(): void
+    public function testValidSubmissionRedirectsToVerifyEmailSentWithAFlashAndDoesNotAuthenticate(): void
     {
         $this->submitRegistration('flash-check@example.com', 'a-strong-password-1');
 
-        self::assertResponseRedirects('/login');
+        self::assertResponseRedirects('/verify-email/sent');
         $this->client->followRedirect();
         self::assertSelectorTextContains('.flash-success', 'Your account has been created');
 
