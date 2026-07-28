@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Check your inbox{% endblock %}
+
+{% block body %}
+    <h1>Check your inbox</h1>
+
+    {# DELIBERATELY STATIC, AND DELIBERATELY ADDRESS-FREE.
+
+       This page is the destination for two very different journeys — a successful registration and
+       *every* submission of the resend form — and it must look identical from both. "We sent a link
+       to name@example.com" would be friendlier and would break the design: the address would have to
+       arrive here somehow (session, flash, query string), and a page that varies at all between the
+       four AC-15 cases reintroduces the enumeration oracle the resend controller exists to close, at
+       the very last step. There is nothing dynamic in this file, so there is nothing to leak.
+
+       Unstyled, like the rest of slice 1 and 2. ADR-0006's SCSS system arrives with the first real
+       layout; marking this up by hand now would only be thrown away then. #}
+    <p>If an account needs verifying at the address you gave us, a message with a confirmation link
+        is on its way. Open the link to finish setting your account up, then sign in.</p>
+
+    <p>The link works once and expires after 24 hours.</p>
+
+    <p>Nothing arrived? It can take a minute, and it is worth checking your spam folder — then
+        <a href="{{ path('app_verify_email_resend') }}">ask us to send another one</a>.</p>
+
+    <p><a href="{{ path('app_login') }}">Back to sign in</a></p>
+{% endblock %}

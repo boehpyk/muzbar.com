@@ -1,0 +1,58 @@
+# The second anti-abuse layer on email verification, and deliberately a different *kind* of layer
+# from the first.
+#
+# TWO LIMITS, TWO SUBJECTS, TWO HOMES. `EmailVerificationRequest::MAX_ISSUES_PER_HOUR` caps issuances
+# **per user account** and lives in the Domain, because "an account may not be sent more than five
+# verification links an hour" is a policy statement about accounts that must hold for the resend
+# form, the registration listener, a console adapter and anything `identity-google-oauth` adds. The
+# limiter below caps POSTs **per client IP** and lives in config, because "one machine may not hammer
+# this endpoint" is a statement about HTTP traffic that the Domain has no vocabulary for and no
+# business knowing. Neither subsumes the other: the domain rule alone would let one attacker submit
+# ten thousand *different* addresses an hour to farm timing differences, and the IP rule alone would
+# let a botnet issue unlimited mail to one victim's inbox from a thousand hosts.
+#
+# The numbers deliberately match (5/hour) because they were chosen from the same premise — a real
+# human who has lost an email tries again a handful of times — not because the two limits are the
+# same limit.
+framework:
+    rate_limiter:
+        verification_email_resend:
+            # A sliding window rather than `fixed_window`, and the difference matters at exactly the
+            # moment an attacker cares about. A fixed window resets on the hour, so 5 requests at
+            # 10:59 plus 5 at 11:00 is ten requests in a minute while never technically breaching
+            # "5 per hour" — the classic boundary burst. A sliding window weights the previous
+            # window by how much of it is still in view, so the burst is refused. It costs one extra
+            # counter per key in Redis, which is nothing.
+            #
+            # Not `token_bucket`: a bucket models a sustained rate with an allowance for bursts, and
+            # bursty is the precise behaviour this endpoint should not tolerate.
+            policy: 'sliding_window'
+            limit: 5
+            interval: '1 hour'
+
+            # `cache_pool` is NOT set here on purpose. The framework's default for a limiter is the
+            # `cache.rate_limiter` pool, and `config/packages/cache.yaml` already pins that pool to
+            # the Redis adapter explicitly — slice 1 did that for `login_throttling`, with the
+            # argument that a throttle which resets on every deploy is not a throttle. The same
+            # argument covers this limiter for free, and naming the pool again here would be a
+            # second place to keep in step for no benefit. Both limiters share one pool and one
+            # Redis; nothing lands on the container filesystem (AC-18).
+            #
+            # THE TEST-SUITE CONSEQUENCE, WHICH IS NOT OBVIOUS AND HAS ALREADY BITTEN ONCE.
+            # DAMA wraps each test in a Postgres transaction and rolls it back, so database state
+            # never leaks between tests. **It does not roll back Redis** — nothing does. Every
+            # `POST /verify-email/resend` in the suite therefore leaves a counter behind under the
+            # test client's IP, and since every test client shares one IP, the sixth resend test to
+            # run in a given hour gets a 429 it never asked for. The failure looks like flakiness
+            # with no diff to blame, and it moves around as tests are reordered. The fix is to clear
+            # the pool in `setUp()` — the `ClearsRateLimiters` trait, generalised from slice 1's
+            # `ClearsLoginRateLimiter` for exactly this reason, now that there are two limiters
+            # sharing one pool.
+            #
+            # `lock_factory` is likewise left at its `auto` default, which resolves to no lock
+            # because symfony/lock is not installed and not configured. A lock would make concurrent
+            # consumption of the same key strictly serialisable; without one, two simultaneous
+            # requests can both read the same count and both be accepted. That race can leak a
+            # single extra email in the worst case, which is not worth a new component and a new
+            # failure mode on a one-box budget — the same asymmetry the Domain rule accepts for
+            # invariant I-12.

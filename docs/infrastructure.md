@@ -30,6 +30,10 @@ rails.
    └─────────┘   └──────────┘   └──────────┘   └──────────┘   └───────────┘
 ```
 
+- **The `worker` box is real as of 2026-07-28** (`messenger-worker`, added by
+  `identity-email-verification`); the `scheduler` box is still a plan. The worker runs the same image
+  as `app` with a different command, publishes no ports and mounts no assets volume — see
+  *Outgoing mail & the queue* below, and note footgun #7: **nothing currently alerts when it stops.**
 - **Analytics is not in this stack.** muzbar reuses the Umami container already running on the VDS
   (its own compose stack); the public layout just embeds muzbar's tracking snippet. Nothing to deploy.
 - **Prod ports:** only `nginx` joins the `traefik` network. **Postgres, Redis, app expose no host
@@ -56,6 +60,8 @@ rails.
 | 4 | Bare `redis` hostname resolves to redis.com | intermittent cache failures / wrong host | Redis **password** + explicit Docker **network alias** |
 | 5 | Health check returns 200 because PHP runs | outages hidden behind a green check | Separate **liveness** (process up) from **readiness** (probe Postgres + Redis) |
 | 6 | PHP-FPM `max_children` / Doctrine hydration OOM | worker/app OOM under load on the shared box | Cap FPM children; partial hydration / batching in Doctrine; `--memory` on Messenger consume |
+| 7 | **Messenger worker stopped** (crashed, never restarted, wrong transport name) | mail simply never arrives; **every automated check stays green**, because `/health/ready` probes Postgres and Redis, not queue depth | `restart: unless-stopped` + `--time-limit=3600`; check `messenger_messages` depth and `messenger:failed:show` in the runbook below. Real fix (Phase 2): teach readiness about queue age |
+| 8 | Two dev containers sharing one live-mounted `var/cache/` | `require(var/cache/dev/ContainerXXXX/getSomeService.php): Failed to open stream` — a 500 on **every** route including the error page, from correct code with a green test suite | `docker-compose.dev.yml` gives `messenger-worker` an anonymous volume over `var/cache`. Prod is unaffected: no bind mount, so each container has its own `var/` |
 
 A **pre-commit hook** greps compose files for public `ports:` on `postgres`/`redis` and for a missing
 Traefik network pin, and blocks the commit (see [tooling.md](./tooling.md)).
@@ -65,6 +71,36 @@ Traefik network pin, and blocks the commit (see [tooling.md](./tooling.md)).
 - `GET /health/live` → process is up (no dependency calls). For Docker/Traefik liveness.
 - `GET /health/ready` → actively probes Postgres (`SELECT 1`) and Redis (`PING`); returns per-check
   status and a non-200 if any dependency is down. Never a bare `return 'ok'`.
+- **What readiness does NOT cover, stated so nobody is surprised by it:** the `messenger-worker`
+  container. A worker that crashed an hour ago leaves `/health/ready` at 200, Traefik happy and
+  every uptime ping green, while no verification mail reaches anybody. Until readiness learns about
+  queue age (Phase 2), **the worker is monitored by the runbook below and by nothing else.**
+
+## Outgoing mail & the queue (runbook)
+
+Mail is asynchronous ([ADR-0010](./adr/0010-event-delivery-and-transactional-mail.md)): the app
+writes a `SendEmailMessage` into `messenger_messages` on `doctrine://default` and the
+**`messenger-worker`** service drains it. Nothing is delivered while that container is down.
+
+```bash
+docker compose ps messenger-worker                        # is it even up?
+docker compose logs messenger-worker --tail=50            # it exits hourly by design (--time-limit)
+make console cmd="messenger:failed:show"                  # exhausted retries land here
+make console cmd="messenger:failed:retry"                 # after fixing the cause
+# queue depth — a number that only ever grows means the worker is not consuming
+docker compose exec -T postgres psql -U "$DB_USERNAME" -d "$DB_DATABASE" \
+  -c "select queue_name, count(*) from messenger_messages group by queue_name;"
+```
+
+Two things to know before debugging:
+
+- **The worker exits on purpose, once an hour.** `--time-limit=3600` plus `restart: unless-stopped`
+  is the supervisor-free way to bound a slow memory leak. A log ending in a clean shutdown is
+  healthy; a container in a *restart loop* is not.
+- **`messenger_messages` is created by a migration, not by Messenger.** `MESSENGER_TRANSPORT_DSN`
+  carries `auto_setup=0` in every environment, so a missing table is a missed `make migrate` and
+  will not be papered over at runtime — which is deliberate, since auto-setup is a schema change
+  nobody reviewed, applied by a worker process at an arbitrary moment.
 
 ## Secrets & configuration
 
@@ -87,7 +123,11 @@ Traefik network pin, and blocks the commit (see [tooling.md](./tooling.md)).
 - **Umami** for product analytics — the **shared instance already running on the VDS**, not a muzbar
   container. Register muzbar as a website in it and embed the tracking snippet in the public layout.
   Directly feeds the PRD's Form-Completion-Rate and Time-to-Publish metrics and the MRR-vs-cost goal.
-- **Sentry** (or equivalent) for error tracking — add in Phase 0/1; cheap insurance for a solo dev.
+- **Sentry** (or equivalent) for error tracking — **overdue as of 2026-07-28**, and the case is now
+  stronger than "cheap insurance". `identity-email-verification` introduced two paths that fail
+  *silently by design*: `IssueVerificationOnUserRegistered` swallows its own exceptions so a dead
+  mail relay cannot 500 an already-committed registration, and the Messenger failure transport is a
+  queue nobody opens. Both are the correct designs. Both write a log line that nothing reads.
 - Structured application logs to `storage/logs`, mounted out of the container.
 - Uptime ping against `/health/ready`.
 

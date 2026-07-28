@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Identity;
 
-use App\Tests\Support\ClearsLoginRateLimiter;
+use App\Tests\Support\ClearsRateLimiters;
 use App\Tests\Support\RegistersAUserWithKnownCredentials;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -12,7 +12,7 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 /**
  * Functional tests for `/login`, `/logout` and the `/account` gate.
  *
- * `ClearsLoginRateLimiter` is used because the throttle counters live in the real Redis
+ * `ClearsRateLimiters` is used because the throttle counters live in the real Redis
  * `cache.rate_limiter` pool in every environment, test included — Redis is not rolled back by
  * DAMA the way Postgres is, so a stale counter from an earlier test (or an earlier suite run)
  * would otherwise make an unrelated test's login attempt fail with the throttling message instead
@@ -21,7 +21,7 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
  */
 final class LoginLogoutTest extends WebTestCase
 {
-    use ClearsLoginRateLimiter;
+    use ClearsRateLimiters;
     use RegistersAUserWithKnownCredentials;
 
     private KernelBrowser $client;
@@ -29,17 +29,22 @@ final class LoginLogoutTest extends WebTestCase
     protected function setUp(): void
     {
         $this->client = static::createClient();
-        $this->clearLoginRateLimiterPool();
+        $this->clearRateLimiterPool();
     }
 
     /**
      * AC-11: correct credentials redirect to /account, which then shows that user's own email.
-     * Also reinforces AC-24: this user is deliberately left unverified, and this slice installs no
-     * `UserCheckerInterface`, so login must still succeed.
+     *
+     * This test used to reinforce slice 1's AC-24 by leaving the user *unverified* and asserting
+     * that login succeeded anyway — the whole point being that the Domain held the `isUsable()`
+     * opinion and nothing acted on it. `identity-email-verification` installed
+     * `VerifiedAccountUserChecker`, which inverts that (its AC-20), so the fixture is now verified
+     * and this test is back to asserting only what its name says. The inverted behaviour is not
+     * lost: it is asserted directly in the new login-enforcement tests, where it belongs.
      */
     public function testSuccessfulLoginRedirectsToAccountAndShowsOwnEmail(): void
     {
-        $this->registerUserWithKnownCredentials('login-success@example.com', 'a-correct-password-1');
+        $this->registerUserWithKnownCredentials('login-success@example.com', 'a-correct-password-1', verified: true);
 
         $this->login('login-success@example.com', 'a-correct-password-1');
 
@@ -55,7 +60,7 @@ final class LoginLogoutTest extends WebTestCase
      */
     public function testWrongPasswordShowsInvalidCredentialsAndEstablishesNoSession(): void
     {
-        $this->registerUserWithKnownCredentials('wrong-password@example.com', 'the-correct-password-1');
+        $this->registerUserWithKnownCredentials('wrong-password@example.com', 'the-correct-password-1', verified: true);
 
         $this->login('wrong-password@example.com', 'totally-the-wrong-password');
 
@@ -74,7 +79,7 @@ final class LoginLogoutTest extends WebTestCase
      */
     public function testUnknownEmailProducesAByteIdenticalErrorToWrongPassword(): void
     {
-        $this->registerUserWithKnownCredentials('real-account@example.com', 'the-correct-password-1');
+        $this->registerUserWithKnownCredentials('real-account@example.com', 'the-correct-password-1', verified: true);
 
         $this->login('real-account@example.com', 'totally-the-wrong-password');
         $wrongPasswordResponse = $this->client->getResponse();
@@ -99,7 +104,7 @@ final class LoginLogoutTest extends WebTestCase
      */
     public function testSessionIdRotatesAcrossASuccessfulLogin(): void
     {
-        $this->registerUserWithKnownCredentials('rotation-check@example.com', 'a-correct-password-1');
+        $this->registerUserWithKnownCredentials('rotation-check@example.com', 'a-correct-password-1', verified: true);
 
         // Establish a pre-login session by visiting a page that reads it (CSRF does).
         $this->client->request('GET', '/login');
@@ -123,7 +128,7 @@ final class LoginLogoutTest extends WebTestCase
      */
     public function testLogoutInvalidatesTheSessionAndAccountThenRedirects(): void
     {
-        $this->registerUserWithKnownCredentials('logout-check@example.com', 'a-correct-password-1');
+        $this->registerUserWithKnownCredentials('logout-check@example.com', 'a-correct-password-1', verified: true);
         $this->login('logout-check@example.com', 'a-correct-password-1');
         self::assertResponseRedirects('/account');
 
@@ -144,7 +149,7 @@ final class LoginLogoutTest extends WebTestCase
      */
     public function testUntokenisedLogoutIsRejectedAndLeavesTheSessionIntact(): void
     {
-        $this->registerUserWithKnownCredentials('logout-no-token@example.com', 'a-correct-password-1');
+        $this->registerUserWithKnownCredentials('logout-no-token@example.com', 'a-correct-password-1', verified: true);
         $this->login('logout-no-token@example.com', 'a-correct-password-1');
         self::assertResponseRedirects('/account');
         $this->client->followRedirect();
@@ -166,7 +171,7 @@ final class LoginLogoutTest extends WebTestCase
      */
     public function testLogoutRejectsAValidCsrfTokenIssuedForADifferentTokenId(): void
     {
-        $this->registerUserWithKnownCredentials('logout-wrong-token@example.com', 'a-correct-password-1');
+        $this->registerUserWithKnownCredentials('logout-wrong-token@example.com', 'a-correct-password-1', verified: true);
         $this->login('logout-wrong-token@example.com', 'a-correct-password-1');
         self::assertResponseRedirects('/account');
         $this->client->followRedirect();
@@ -200,7 +205,7 @@ final class LoginLogoutTest extends WebTestCase
      */
     public function testNoPasswordHashOrRoleStringAppearsInAnyRenderedPage(): void
     {
-        $user = $this->registerUserWithKnownCredentials('privacy-check@example.com', 'a-correct-password-1');
+        $user = $this->registerUserWithKnownCredentials('privacy-check@example.com', 'a-correct-password-1', verified: true);
         $storedHash = $user->passwordHash()->toString();
 
         $registerHtml = (string) $this->client->request('GET', '/register')->outerHtml();

@@ -1,0 +1,12 @@
+framework:
+    mailer:
+        dsn: '%env(MAILER_DSN)%'
+        # Both point at MAILER_FROM on purpose: the envelope sender is the invisible bounce address
+        # (where the SMTP MAIL FROM / a delivery-failure NDR goes), while `headers.from` is the
+        # `From:` a human reads in their inbox. Deliverability wants the two aligned — a mismatch
+        # between them is a classic spam-filter signal — so one env var drives both rather than
+        # letting them drift apart.
+        envelope:
+            sender: '%env(MAILER_FROM)%'
+        headers:
+            From: '%env(MAILER_FROM)%'

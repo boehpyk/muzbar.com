@@ -46,13 +46,35 @@ final class RegistrationController extends AbstractController
                     (string) $data->plainPassword,
                 ));
 
-                $this->addFlash('success', 'Your account has been created. Please sign in.');
+                $this->addFlash('success', 'Your account has been created. Check your inbox for a link to confirm your email address.');
 
-                // 302 to the login page, and the user is deliberately NOT authenticated here
-                // (AC-3). Auto-login after registration is a real convenience and it belongs to
-                // `identity-login-overlay`, which owns the one-step flow end to end. Bolting it on
-                // now would mean two places deciding when a session starts.
-                return $this->redirectToRoute('app_login');
+                // 302 TO "CHECK YOUR INBOX", NOT TO THE LOGIN FORM — changed by
+                // `identity-email-verification` (its AC-24 supersedes slice 1's AC-3).
+                //
+                // Until this slice, sending a new user to `app_login` was the right answer: they
+                // could sign in immediately, because nothing enforced the verified-email rule.
+                // `VerifiedAccountUserChecker` now does, so a login attempt at this moment is
+                // *guaranteed* to be refused. Keeping the old redirect would mean instructing
+                // somebody to do something we have just made impossible, and then showing them
+                // "Please verify your email address before signing in." as if they had made a
+                // mistake. That is not a cosmetic issue: telling a user to take an action that
+                // cannot succeed is shipping a lie on purpose, and the resulting confusion arrives
+                // at the exact moment a new user is deciding whether this site works.
+                //
+                // The user is still deliberately NOT authenticated here. Auto-login after
+                // registration is a real convenience and it belongs to `identity-login-overlay`,
+                // which owns the one-step flow end to end. Bolting it on now would mean two places
+                // deciding when a session starts — and, since this slice, it would also mean
+                // handing out a session that `isUsable()` says should not exist.
+                //
+                // Note what this redirect does *not* wait for. The verification mail is issued by
+                // `IssueVerificationOnUserRegistered` listening on `UserRegistered`, which dispatches
+                // before this line runs but only queues the message (ADR-0010) — and which swallows
+                // its own failures, because the account is already committed and a broken relay must
+                // not turn a successful registration into a 500 (AC-5). So this page can honestly
+                // say "check your inbox" without knowing whether anything has been delivered; the
+                // resend form is the recovery path when it has not.
+                return $this->redirectToRoute('app_verify_email_sent');
             } catch (EmailAlreadyRegistered) {
                 // Both duplicate paths land here — the handler's `existsByEmail()` pre-check and
                 // the adapter's translation of the unique-index violation when that pre-check lost

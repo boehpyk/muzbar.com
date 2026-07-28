@@ -89,3 +89,19 @@ and future adapter over that handler inherits the guarantee rather than re-imple
     handler, so the fixture's `UserRegistered` sat unreleased and bled into a later test's event count.
     The factory now releases in `afterInstantiate()`. Worth remembering that any code path which
     persists an aggregate *without* going through a handler has the same hole.
+
+### Amendment, 2026-07-26 — the watched clause is discharged
+
+The first "Hard / watched" bullet above required `identity-email-verification` to revisit synchronous
+dispatch the moment a listener became load-bearing. It has.
+
+[ADR-0010](./0010-event-delivery-and-transactional-mail.md) records the outcome: **event publication
+stays synchronous PSR-14 dispatch after a successful save, with no outbox, while mail delivery moves
+to Messenger.** The reasoning is that the two failure windows are not equally bad — a lost mail is
+invisible and permanent, whereas a lost `UserRegistered` costs the user one click on the resend form
+that slice ships anyway. Decisions 1–7 above are unchanged; only the instruction to revisit is
+discharged.
+
+The second bullet — "the first listener that does I/O is the trigger to go asynchronous" — is
+discharged by the same decision: `IssueVerificationOnUserRegistered` does no I/O of its own beyond
+queueing, because `SendEmailMessage` is routed to an async transport.

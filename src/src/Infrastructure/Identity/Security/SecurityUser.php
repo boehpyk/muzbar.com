@@ -31,12 +31,14 @@ final readonly class SecurityUser implements UserInterface, PasswordAuthenticate
      * @param non-empty-string $email        the login identifier
      * @param list<string>     $roles        `Role` backed values, which are literally what Symfony expects
      * @param string           $passwordHash the opaque hash the firewall verifies against
+     * @param bool             $usable       `User::isUsable()` at the moment this snapshot was taken
      */
     private function __construct(
         private string $id,
         private string $email,
         private array $roles,
         private string $passwordHash,
+        private bool $usable,
     ) {
     }
 
@@ -55,6 +57,21 @@ final readonly class SecurityUser implements UserInterface, PasswordAuthenticate
             $email,
             array_map(static fn (Role $role): string => $role->value, $user->roles()),
             $user->passwordHash()->toString(),
+
+            // `isUsable()`, NOT `isEmailVerified()` — and the difference is the entire point of the
+            // line. The two methods return the same boolean today, so picking either one passes
+            // every test in the suite. They stop agreeing in `identity-google-oauth`, which widens
+            // `User::isUsable()` to `isEmailVerified() || hasVerifiedOAuthIdentity()` *inside the
+            // aggregate*, exactly where ADR-0005's invariant I-5 lives. Read `isUsable()` here and
+            // `VerifiedAccountUserChecker` inherits that widening for free, with no Infrastructure
+            // diff at all. Read `isEmailVerified()` and the checker silently keeps refusing users
+            // who signed up with Google and have no password to verify an address with — a bug that
+            // ships in a slice whose diff does not contain this file.
+            //
+            // The general rule worth taking away: an adapter should copy the *decision* the Domain
+            // exposes, never re-derive it from the facts underneath. `isUsable()` is the decision;
+            // `emailVerifiedAt` is a fact it happens to be made of today.
+            $user->isUsable(),
         );
     }
 
@@ -90,6 +107,27 @@ final readonly class SecurityUser implements UserInterface, PasswordAuthenticate
     public function getPassword(): string
     {
         return $this->passwordHash;
+    }
+
+    /**
+     * Whether the account behind this snapshot may authenticate at all — ADR-0005's invariant I-5,
+     * carried across the layer boundary so `VerifiedAccountUserChecker` can enforce it without
+     * reaching into the Domain from a `UserCheckerInterface`.
+     *
+     * NO STALENESS WINDOW, AND IT IS WORTH KNOWING WHY RATHER THAN HOPING. This object is
+     * `readonly`, serialised into the session, and potentially sits in Redis for two weeks — which
+     * would normally make a cached authorisation flag a real hazard: an account verified (or, later,
+     * disabled) on Tuesday would keep answering with Monday's boolean until the session expired.
+     * It cannot happen here because `DomainUserProvider::refreshUser()` reloads the aggregate by
+     * `UserId` and rebuilds this whole object on **every** request that touches the firewall, so the
+     * flag is never older than the request reading it. That is also precisely why `refreshUser()`
+     * needed no change for this slice: a provider that reloads state gets new state for free, and
+     * one that patched fields onto a cached object would have needed one more line per field
+     * forever.
+     */
+    public function isUsable(): bool
+    {
+        return $this->usable;
     }
 
     /**

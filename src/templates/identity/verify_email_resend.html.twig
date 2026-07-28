@@ -1,0 +1,33 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Send a new verification link{% endblock %}
+
+{% block body %}
+    <h1>Send a new verification link</h1>
+
+    <p>Enter the address you registered with and we will send a fresh confirmation link. The previous
+        one keeps working until it expires.</p>
+
+    {# `form_start`/`form_end` render `resend_verification_form[_token]` and the single field with its
+       errors. Unstyled on purpose — see `register.html.twig`. #}
+    {{ form_start(resendForm) }}
+        {# Root-level errors: an invalid CSRF token and the `allow_extra_fields: false` rejection both
+           land on the form itself rather than on any field, and neither `form_start` nor `form_end`
+           renders them. Omit this line and a rejected submit looks like a page that silently did
+           nothing — which, on the one endpoint in the slice most likely to be probed, is also the
+           behaviour least likely to be noticed. #}
+        {{ form_errors(resendForm) }}
+
+        {{ form_row(resendForm.email) }}
+
+        <button type="submit">Send a new link</button>
+    {{ form_end(resendForm) }}
+
+    {# NOTHING ON THIS PAGE REPORTS STATE, AND THERE IS NOTHING HERE THAT COULD (AC-19). No "we last
+       sent you a link at…", no "that account is already verified", no request id, no token, no
+       timestamp. The controller's answer to every well-formed submission is one redirect with one
+       sentence; this template is the other half of that promise — a field error here for anything
+       other than syntax would undo it. #}
+
+    <p><a href="{{ path('app_login') }}">Back to sign in</a></p>
+{% endblock %}

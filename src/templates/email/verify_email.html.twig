@@ -1,0 +1,57 @@
+{# The HTML alternative. Its plain-text twin, `verify_email.txt.twig`, is the mandatory one — see
+   the comment at the top of that file and `TwigVerificationMailer`.
+
+   IT DOES NOT EXTEND `base.html.twig`, AND THAT IS NOT AN OVERSIGHT. The layout is a *web page*: it
+   emits an importmap, a favicon data-URI, a flash-message region and a hot-reload script. None of
+   that means anything in an inbox, and half of it is actively harmful there — an external `<script>`
+   is a spam signal and will be stripped, and `app.request` does not exist when a Messenger worker
+   renders this. An email is a different medium that happens to share a syntax.
+
+   Email HTML is also a decade behind web HTML on purpose: Gmail strips `<head>`, so styling is
+   inline; Outlook renders through Word's engine, so layout is tables when it is anything. This
+   message is a heading, three paragraphs and a link, so it needs none of that machinery — the
+   simplest markup that renders identically everywhere is the correct markup, and the first slice
+   that needs a real email design can introduce a proper mail layout template then.
+
+   No images, no tracking pixel, no web fonts, no CSS from anywhere. A message that fetches nothing
+   renders the same with remote content blocked (which is the default in most clients), and it has
+   nothing to leak the recipient's reading habits with. #}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Confirm your email address</title>
+    </head>
+    <body style="font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.5; color: #222;">
+        <h1 style="font-size: 20px;">Confirm your email address</h1>
+
+        {# The only address rendered anywhere in this message, and it is the recipient's own
+           (AC-4, AC-32). Twig autoescapes it, which matters more here than on a normal page: an
+           address is user-supplied and this is the one piece of dynamic text in the file. #}
+        <p>Somebody &mdash; we hope you &mdash; created a muzbar account with this address:
+            <strong>{{ recipientEmail }}</strong>.</p>
+
+        <p>Open the link below to confirm the address and finish setting the account up:</p>
+
+        {# The full URL is the visible link text, not "click here". Three reasons, all practical: a
+           recipient can see where the link goes before following it, which is precisely the habit
+           phishing relies on people not having; a client that strips the anchor still leaves
+           something copy-pasteable; and a link whose text and href differ is a spam-filter signal.
+           It is long and slightly ugly. That is a fair price. #}
+        <p><a href="{{ verificationUrl }}">{{ verificationUrl }}</a></p>
+
+        <p>The link works once and expires in {{ lifetimeHours }} hours, at
+            {# Timezone pinned explicitly — see the identical note in the text template for why the
+               filter's default would eventually make the word "UTC" a lie. #}
+            {{ expiresAt|date('Y-m-d H:i', 'UTC') }} UTC.
+            If it has already expired you can ask for a new one at any time.</p>
+
+        <p>If you did not create this account you do not need to do anything. Without the link above
+            the account cannot be used to sign in, and it will simply sit there unverified.</p>
+
+        <hr>
+
+        <p style="color: #666; font-size: 13px;">This is an automated message from muzbar. Replies to
+            it are not read.</p>
+    </body>
+</html>
