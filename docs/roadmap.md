@@ -56,6 +56,15 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 > 2. Sentry, deliberately deferred to the first Identity slice (see above).
 >    **Now due.** That trigger condition — "the first user-facing flow, which is when a silent 500
 >    starts costing a signup" — was met on 2026-07-26 when `/register` and `/login` shipped.
+>    **Overdue after slice 2 (2026-07-28), and the argument has changed shape.** Until now the worst
+>    case was a 500 somebody eventually notices. `identity-email-verification` adds an *asynchronous*
+>    failure path: `IssueVerificationOnUserRegistered` deliberately swallows its own exceptions so a
+>    dead mail relay cannot 500 a committed registration, and the Messenger worker's failure
+>    transport is a queue nobody looks at. Both are correct designs and both are silent by
+>    construction. The log lines exist; nothing reads them. This is now the highest-value
+>    `devops` item outstanding — see [ADR-0010](./adr/0010-event-delivery-and-transactional-mail.md).
+>    Related and cheaper: `/health/ready` still probes only Postgres and Redis, so **a stopped
+>    messenger worker looks exactly like a healthy system.**
 
 ## Phase 1 — Data model, dynamic schema & auth *(PRD Phase 1)*
 
@@ -70,12 +79,21 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         (persistence conventions) and [ADR-0008](./adr/0008-domain-events-recorded-on-the-aggregate.md)
         (domain events), and amended ADR-0005 to record that the usable-account invariant is modelled
         now and enforced in the next slice.
-  - [ ] `identity-email-verification` — `symfonycasts/verify-email-bundle`, the "usable account"
-        invariant (verified email **or** a linked verified OAuth identity). **Needs no migration on
-        `identity_user`** — `email_verified_at` already ships. Its job is to add the
-        `VerifiedAccountUserChecker` + one `security.yaml` line (inverting AC-24 of the previous
-        slice), a second adapter over the existing `VerifyUserEmailHandler`, and a deliberate decision
-        about event delivery once a listener on `UserRegistered` becomes load-bearing (ADR-0008).
+  - [x] `identity-email-verification` — **DONE 2026-07-28.** The context's **second aggregate**,
+        `EmailVerificationRequest`, with `VerificationToken` / `HashedVerificationToken` /
+        `EmailVerificationRequestId` VOs, the `EmailVerificationRequested` event, three ports
+        (repository, token generator, mailer), a second additive migration, and the verify / sent /
+        resend routes with their mail templates. `VerifiedAccountUserChecker` + one `security.yaml`
+        line invert the previous slice's AC-24, and **`Domain/Identity/Entity/User.php` is untouched
+        in the whole diff** — which was the point.
+        Established [ADR-0009](./adr/0009-email-verification-tokens-modelled-in-the-domain.md)
+        (the token is domain-modelled, and **`symfonycasts/verify-email-bundle` is not installed**:
+        it is stateless, so single use, revocation and auditability are not expressible with it —
+        ADR-0005 amended accordingly) and
+        [ADR-0010](./adr/0010-event-delivery-and-transactional-mail.md) (sync event dispatch, async
+        mail over Messenger + a worker container, no outbox — discharging ADR-0008's watched clause).
+        **Owed by this slice:** a pruning job for expired/redeemed requests, and the orphan-row
+        question when GDPR erasure is designed (there is deliberately no FK to `identity_user`).
   - [ ] `identity-password-reset` — `symfonycasts/reset-password-bundle` flow.
   - [ ] `identity-google-oauth` — `knpuniversity/oauth2-client-bundle`, `OAuthIdentity` VO, account
         linking by email (never a duplicate `User`).

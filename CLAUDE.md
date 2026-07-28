@@ -16,13 +16,18 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 slice 1 of 5 complete** (2026-07-26):
-> `identity-user-password-auth` shipped the repo's first Domain code — the `User` aggregate, value
-> objects, ports, two domain events, the first migration, and register/login/logout/`/account`.
-> Current work: the remaining `Identity` slices, starting with `identity-email-verification`.
+> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 slices 1–2 of 5 complete**.
+> `identity-user-password-auth` (2026-07-26) shipped the repo's first Domain code — the `User`
+> aggregate, value objects, ports, two domain events, the first migration, and
+> register/login/logout/`/account`. `identity-email-verification` (2026-07-28) added the **second
+> aggregate**, `EmailVerificationRequest`, the first cross-aggregate reference by identity, async
+> mail over Messenger, and the `VerifiedAccountUserChecker` that finally enforces `User::isUsable()`
+> at login — without touching `User` at all.
+> Current work: the remaining `Identity` slices, starting with `identity-password-reset`.
 > Two Phase 0 items still carry over — the Claude Code hooks from
-> [docs/tooling.md](./docs/tooling.md), and Sentry (deferred to the first user-facing flow, which now
-> exists). See [docs/roadmap.md](./docs/roadmap.md).
+> [docs/tooling.md](./docs/tooling.md), and **Sentry, now overdue**: slice 2 added an asynchronous
+> failure path (a swallowed listener exception, a failure transport nobody reads) that is silent by
+> construction. See [docs/roadmap.md](./docs/roadmap.md).
 
 ## Architecture — non-negotiable
 
@@ -65,10 +70,24 @@ established by the first slice, inherited by every context:
   `<generator strategy="NONE"/>`. Adapters implement the port and do **not** extend
   `ServiceEntityRepository`.
 
+**References between aggregates** ([ADR-0009](./docs/adr/0009-email-verification-tokens-modelled-in-the-domain.md)) —
+established by the second slice, inherited by every context:
+
+- An aggregate holds another's **id value object, never the object** (`UserId`, not `User`). The
+  mapping is a plain typed column, **never a `<many-to-one>`**: an association hands anyone holding
+  one root the power to mutate another, and lets Doctrine's cascades decide transactional semantics.
+- **No database foreign key between aggregates.** Referential integrity across roots is the
+  application's job, and an FK the mapping does not know about is diffed as unwanted on every
+  `make migration.make` — deleted and re-added forever. The cost is possible orphan rows; the
+  pruning job and the GDPR-erasure design own that.
+- Two aggregates changing in one use case means **two saves in a deliberate order**. Pick the order
+  whose crash window is benign, and write down why at the call site.
+
 **Domain events** ([ADR-0008](./docs/adr/0008-domain-events-recorded-on-the-aggregate.md)): the
 aggregate `recordThat()`s via the `RecordsEvents` trait and never dispatches; the Application handler
 calls `$this->events->dispatch(...$aggregate->releaseEvents())` **after** a successful `save()`.
-`releaseEvents()` empties the buffer. Events carry value objects, never the aggregate.
+`releaseEvents()` empties the buffer. Events carry value objects, never the aggregate — and **never a
+secret**: a token inside an event is a token in every listener, every log line and every queue row.
 
 ## Commands
 
@@ -100,8 +119,20 @@ make test                      # phpunit  (opts: filter=, file=)
 make check                     # cs + stan + deptrac + test — run before every commit
 
 # Identity operations
-make console cmd="muzbar:identity:verify-email <email>"   # mark an account's email verified
+make console cmd="muzbar:identity:verify-email <email>"   # break-glass: mark an email verified,
+                                                          #   bypassing the token flow entirely
+# Mail & queue (dev)
+open http://localhost:8025                                # Mailpit — every dev mail lands here
+make console cmd="messenger:failed:show"                  # the failure transport nobody looks at
+make console cmd="messenger:failed:retry"
 ```
+
+**Async mail** ([ADR-0010](./docs/adr/0010-event-delivery-and-transactional-mail.md)): `SendEmailMessage`
+is routed to a Doctrine-backed `async` transport drained by the **`messenger-worker`** Compose
+service. Nothing is delivered while that container is down — and **a stopped worker looks exactly
+like a healthy system**, because `/health/ready` probes Postgres and Redis, not queue depth. Under
+`APP_ENV=test` the same message is routed to `sync` so `MailerAssertionsTrait` works without a
+worker.
 
 ## Conventions
 
@@ -117,8 +148,15 @@ make console cmd="muzbar:identity:verify-email <email>"   # mark an account's em
   **dedicated test database** (`muzbar_test`) — **never** the dev DB. Descriptive test names. No
   assertions that cannot fail. Build aggregates via a Foundry factory that goes through the aggregate's
   own named constructor (`instantiateWith()`), never around it.
-  **DAMA rolls back Postgres, not Redis** — anything cached (notably the `cache.rate_limiter` pool
-  backing `login_throttling`) survives between tests and must be cleared in `setUp()`.
+  **DAMA rolls back Postgres, not Redis** — anything cached survives between tests and must be
+  cleared in `setUp()` via the `ClearsRateLimiters` trait. The `cache.rate_limiter` pool now backs
+  **two** limiters (`login_throttling` and `verification_email_resend`), so a test driving either
+  `/login` or `/verify-email/resend` needs it.
+- **Swapping an adapter inside a test needs two things, and each fails silently alone.** Target the
+  **concrete class's** service id, never the port alias — Symfony's `ResolveReferencesToAliasesPass`
+  rewrites alias references to their target at *compile* time, so a handler's constructor is already
+  wired to the adapter's id before the test runs. And call `$client->disableReboot()` first, because
+  `KernelBrowser` reboots the kernel before every request and discards container overrides.
 
 ## Infrastructure footguns (baked-in guards)
 
@@ -138,6 +176,19 @@ These are documented failure modes we design against (see [docs/infrastructure.m
 - The container writes into the live-mounted `./src` **as root**, so directories it creates (e.g.
   `src/translations/`) become un-manageable by host git and can block a `git pull`. Chown to `1000:1000`
   when it happens; a `user:` mapping in the dev override would fix it at the source.
+- **Two dev containers sharing one live-mounted `var/cache/` corrupts it.** `app` and
+  `messenger-worker` both bind `./src`, and Symfony warms the cache into a hash-named directory
+  before swapping it in — so two processes warming concurrently (which is what happens the first
+  time each serves a request after a code change) can leave one holding a container hash whose
+  service files the other already replaced. It presents as
+  `require(var/cache/dev/ContainerXXXX/getSomeService.php): Failed to open stream` on **every**
+  route including the error controller, from an application that is correct and a suite that is
+  green. `docker-compose.dev.yml` gives the worker an anonymous volume over `var/cache`. Prod is
+  unaffected — no bind mount, so each container already has its own `var/`.
+- **`DEFAULT_URI` decides every absolute URL built outside an HTTP request** — the Messenger worker
+  and every console command. Left at the skeleton's `http://localhost`, every link in every outgoing
+  mail points somewhere unreachable, and **no functional test catches it**, because a test runs
+  inside a simulated request where the fallback never fires. Set it per environment.
 
 ## SDLC
 

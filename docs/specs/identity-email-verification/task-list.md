@@ -117,41 +117,41 @@ first, because an ADR written after the code it justifies is a rationalisation, 
 
 ## Tests (qa — written after implementation, by the independent agent)
 
-- [ ] **T30:** `tests/Factory/EmailVerificationRequestFactory` (Foundry) through
+- [x] **T30:** `tests/Factory/EmailVerificationRequestFactory` (Foundry) through
       `EmailVerificationRequest::issue()` with `afterInstantiate()` releasing events; `expired()` and
       `redeemed()` states. Generalise `ClearsLoginRateLimiter` → `ClearsRateLimiters` (**DAMA does not
       roll back Redis**).
-- [ ] **T31:** Domain unit — the three value objects: bounds, charset, masking, absence of
+- [x] **T31:** Domain unit — the three value objects: bounds, charset, masking, absence of
       `__toString()`, `hash_equals` near-miss. **(AC-2, AC-12, AC-31)**
-- [ ] **T32:** Domain unit — `EmailVerificationRequest`: `issue()` derives +86400 s and records one
+- [x] **T32:** Domain unit — `EmailVerificationRequest`: `issue()` derives +86400 s and records one
       secret-free event; `redeem()` happy path, double redeem, expired-by-one-second, mismatch;
       `releaseEvents()` empties. **(AC-1, AC-9, AC-26)**
-- [ ] **T33:** Integration — the Doctrine adapter: full value-object round-trip after `clear()`,
+- [x] **T33:** Integration — the Doctrine adapter: full value-object round-trip after `clear()`,
       `countIssuedForUserSince` boundary behaviour, `nextIdentity()` uniqueness.
-- [ ] **T34:** Integration — `RequestEmailVerificationHandler` with `FrozenClock`, spy dispatcher and
+- [x] **T34:** Integration — `RequestEmailVerificationHandler` with `FrozenClock`, spy dispatcher and
       a fake mailer: happy path, already-verified, unknown email, and the 6th call in an hour.
       **(AC-17, AC-26)**
-- [ ] **T35:** Integration — `VerifyEmailWithTokenHandler`: happy path, replay, expired, unknown hash,
+- [x] **T35:** Integration — `VerifyEmailWithTokenHandler`: happy path, replay, expired, unknown hash,
       mismatch; assert `UserEmailVerified` counts. **(AC-7, AC-8, AC-27)**
-- [ ] **T36:** Functional — registration: one request row, one queued mail, redirect to
+- [x] **T36:** Functional — registration: one request row, one queued mail, redirect to
       `/verify-email/sent`; transport failure still commits the user. **(AC-1, AC-3, AC-5, AC-24, AC-28)**
-- [ ] **T37:** Functional — the link: happy path, replay, expired, unknown, malformed — the last three
+- [x] **T37:** Functional — the link: happy path, replay, expired, unknown, malformed — the last three
       asserted **byte-identical**; plus the `Referrer-Policy` header on success and failure.
       **(AC-7, AC-8, AC-10 … AC-13, AC-39)**
-- [ ] **T38:** Functional — resend: the four-way indistinguishability assertion, a new distinct token,
+- [x] **T38:** Functional — resend: the four-way indistinguishability assertion, a new distinct token,
       the IP limiter's 429, CSRF failure. **(AC-15, AC-16, AC-18, AC-19)**
-- [ ] **T39:** Functional — login enforcement: unverified + correct password blocked; unverified +
+- [x] **T39:** Functional — login enforcement: unverified + correct password blocked; unverified +
       wrong password shows the *ordinary* message; verified still logs in; throttle still wins at
       attempt 6. **(AC-20 … AC-23)**
 - [x] **T40:** Update slice-1 tests: `verified: true` in `LoginLogoutTest` / `ThrottlingTest`, new
       redirect target in `RegistrationControllerTest`. Record which tests failed **before** the fix —
       the list should be exactly the login-dependent ones. **(AC-25)**
-- [ ] **T41:** Infrastructure assertions — `EXPLAIN` shows Index Scans on both new indexes; the mail
+- [x] **T41:** Infrastructure assertions — `EXPLAIN` shows Index Scans on both new indexes; the mail
       renders a correct absolute URL with **no request context**. **(AC-6, AC-37)**
 
 ## Docs & verify
 
-- [ ] **T42:** Docs: `CLAUDE.md` (the mailer/Messenger commands and the worker, the second aggregate
+- [x] **T42:** Docs: `CLAUDE.md` (the mailer/Messenger commands and the worker, the second aggregate
       in `Identity`, the "DAMA does not roll back Redis" note now covering two limiters),
       `docs/roadmap.md` (tick the slice; note Sentry still outstanding), `docs/infrastructure.md` (the
       worker and the failure transport in the runbook), `FORboehpyk.md` (the story — the
