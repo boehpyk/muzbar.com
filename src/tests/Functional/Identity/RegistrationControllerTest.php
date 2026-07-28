@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Identity;
 
+use App\Domain\Identity\Entity\EmailVerificationRequest;
 use App\Infrastructure\Identity\Mail\TwigVerificationMailer;
 use App\Tests\Fixture\ThrowingVerificationMailer;
 use Doctrine\DBAL\Connection;
@@ -105,12 +106,14 @@ final class RegistrationControllerTest extends WebTestCase
     }
 
     /**
-     * AC-1, AC-3, AC-26: a successful registration creates exactly one
+     * AC-1, AC-3, AC-4, AC-26: a successful registration creates exactly one
      * `identity_email_verification_request` row for the new user and sends exactly one email
-     * containing an absolute link with a 43-character token in the path — the whole chain from
-     * `RegistrationController` through `IssueVerificationOnUserRegistered` to
-     * `RequestEmailVerificationHandler` to `TwigVerificationMailer`, driven end to end through HTTP
-     * rather than through any one handler in isolation.
+     * containing an absolute link with a 43-character token in the path, stating the expiry in
+     * human terms, sent from the configured no-reply sender and rendering no address anywhere in
+     * the body other than the recipient's own — the whole chain from `RegistrationController`
+     * through `IssueVerificationOnUserRegistered` to `RequestEmailVerificationHandler` to
+     * `TwigVerificationMailer`, driven end to end through HTTP rather than through any one handler
+     * in isolation.
      */
     public function testSuccessfulRegistrationCreatesExactlyOneVerificationRequestAndSendsOneEmail(): void
     {
@@ -127,10 +130,38 @@ final class RegistrationControllerTest extends WebTestCase
         self::assertNotNull($message);
         self::assertEmailAddressContains($message, 'To', 'one-link-one-mail@example.com');
 
+        // AC-4: the `From` a human reads is the configured no-reply sender — `config/packages/
+        // mailer.yaml` drives both `headers.From` and `envelope.sender` from the single `MAILER_FROM`
+        // env var, but nothing asserted the header actually carries it until now. Read back from the
+        // environment rather than hardcoded, for the same reason the AC-6 fix reads `DEFAULT_URI`
+        // back from the environment instead of from a service the mailer itself is wired from: the
+        // assertion must be able to fail if the configured value ever drifts from what is expected.
+        $mailerFrom = $_SERVER['MAILER_FROM'] ?? $_ENV['MAILER_FROM'] ?? null;
+        self::assertIsString($mailerFrom, 'Expected MAILER_FROM to be present in the test environment (see .env).');
+        self::assertEmailAddressContains($message, 'From', $mailerFrom);
+
         self::assertInstanceOf(MimeEmail::class, $message);
         $textBody = $message->getTextBody();
         self::assertIsString($textBody);
         self::assertMatchesRegularExpression('#/verify-email/[A-Za-z0-9_-]{43}#', $textBody);
+
+        // AC-3: the mail must state the expiry "in human terms", not just the absolute timestamp
+        // that already appears next to it — `verify_email.txt.twig` renders
+        // `EmailVerificationRequest::LIFETIME_SECONDS` as a round number of hours for exactly this
+        // reason. Derived from the aggregate's own constant, not hardcoded as "24", so this
+        // assertion tracks the same source of truth the template does rather than agreeing with it
+        // by coincidence.
+        $lifetimeHours = intdiv(EmailVerificationRequest::LIFETIME_SECONDS, 3600);
+        self::assertStringContainsString(\sprintf('expires in %d hours', $lifetimeHours), $textBody);
+
+        // AC-4, AC-32: no address anywhere in the body except the recipient's own — a regression
+        // here would mean some other user's or the sender's address leaking into a message the
+        // recipient did not consent to have that information disclosed through. Extracting every
+        // email-shaped substring and asserting the set is exactly `{recipient}` is stronger than a
+        // single `assertStringNotContainsString` for the sender address: it also catches an
+        // unrelated address nobody thought to check for.
+        preg_match_all('/[A-Za-z0-9.+_-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/', $textBody, $matches);
+        self::assertSame(['one-link-one-mail@example.com'], array_values(array_unique($matches[0])));
     }
 
     /**

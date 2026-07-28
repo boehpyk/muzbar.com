@@ -94,6 +94,95 @@ final class RequestEmailVerificationHandlerTest extends KernelTestCase
     }
 
     /**
+     * AC-1: the persisted row's own column values, not merely its count. `token_hash` must be a
+     * 64-character lower-case hex string (`RandomVerificationTokenGenerator`'s SHA-256, unsalted
+     * and deterministic — see its docblock for why that is safe here), `issued_at` must be exactly
+     * the frozen `Clock`'s instant, `expires_at` must be `issued_at` plus 24 hours to the second
+     * (`EmailVerificationRequest::LIFETIME_SECONDS`), and `redeemed_at` must be `NULL` because
+     * nothing has redeemed this request yet. The 24h *derivation* is already covered at the
+     * aggregate's own unit level and the Clock wiring is already covered by
+     * `testIssuedAtComesFromTheClockPortNotTheWallClock` below — but AC-1 is explicitly about the
+     * row a `SELECT` returns, and until this test existed nothing read the row back and checked it.
+     */
+    public function testHappyPathRequestRowColumnsMatchAC1(): void
+    {
+        $user = UserFactory::createOne(['email' => Email::fromString('ac1-columns@example.com')]);
+
+        ($this->handler)(new RequestEmailVerification('ac1-columns@example.com'));
+
+        $row = $this->connection->fetchAssociative(
+            'SELECT token_hash, issued_at, expires_at, redeemed_at FROM identity_email_verification_request WHERE user_id = ?',
+            [$user->id()->toString()],
+        );
+        self::assertIsArray($row);
+
+        self::assertIsString($row['token_hash']);
+        self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $row['token_hash']);
+
+        self::assertIsString($row['issued_at']);
+        self::assertEquals(new \DateTimeImmutable('2026-07-26T12:00:00+00:00'), new \DateTimeImmutable($row['issued_at']));
+
+        self::assertIsString($row['expires_at']);
+        self::assertEquals(new \DateTimeImmutable('2026-07-27T12:00:00+00:00'), new \DateTimeImmutable($row['expires_at']));
+
+        self::assertNull($row['redeemed_at']);
+    }
+
+    /**
+     * AC-2(a), AC-30: scans **every** column of the persisted request row for the plaintext token,
+     * not merely `token_hash` — the guarantee AC-2 asks for is that the plaintext appears in no
+     * column, and a test that only inspected `token_hash` would miss a future regression that
+     * accidentally routed the plaintext into some other column (`id`, a hypothetical debug field,
+     * anything added later). `RecordingVerificationMailer::lastToken()->reveal()` is the sanctioned
+     * way to get at the plaintext from a test — see that fixture's own docblock — mirroring
+     * `RequestEmailVerificationHandler`, the only other place in the system that legitimately holds
+     * one.
+     *
+     * WHY THIS TEST STILL EARNS ITS PLACE TODAY. `EmailVerificationRequest::issue()` only ever
+     * accepts a `HashedVerificationToken`, so there is currently no code path that could put the
+     * plaintext in any column — the type system makes this unwritable, full stop. But a type system
+     * only protects the code that exists today; it says nothing about a future
+     * `issue(string $token)` convenience overload that skips the value object and hashes inline.
+     * This test is what turns that guarantee into something that fails loudly the moment someone
+     * writes that overload, instead of relying on nobody ever adding it.
+     */
+    public function testNoColumnOfThePersistedRequestRowEverContainsThePlaintextToken(): void
+    {
+        $user = UserFactory::createOne(['email' => Email::fromString('ac2-plaintext-scan@example.com')]);
+
+        ($this->handler)(new RequestEmailVerification('ac2-plaintext-scan@example.com'));
+
+        $plaintext = $this->mailer->lastToken()->reveal();
+
+        $row = $this->connection->fetchAssociative(
+            'SELECT * FROM identity_email_verification_request WHERE user_id = ?',
+            [$user->id()->toString()],
+        );
+        self::assertIsArray($row);
+        self::assertNotSame([], $row, 'Expected the request row to have at least one column to scan.');
+
+        foreach ($row as $column => $value) {
+            // `fetchAssociative()` types every value `mixed`, so a bare `(string) $value` is a
+            // PHPStan `cast.string` error at max level. Every column this table can ever hold is a
+            // DBAL scalar (`uuid`, `varchar`, `timestamptz`) or `NULL`, never an object or array, so
+            // `is_scalar()` is a safe narrowing rather than a workaround — and the `default` arm
+            // turns a genuinely unexpected shape into a loud failure instead of a silently-skipped
+            // column.
+            $stringValue = match (true) {
+                null === $value => '',
+                \is_scalar($value) => (string) $value,
+                default => throw new \LogicException(\sprintf('Column "%s" held a non-scalar value the plaintext scan cannot inspect.', $column)),
+            };
+
+            self::assertStringNotContainsString(
+                $plaintext,
+                $stringValue,
+                \sprintf('Column "%s" must never contain the plaintext verification token.', $column),
+            );
+        }
+    }
+
+    /**
      * `issuedAt` comes from the `Clock` port, not the wall clock — a frozen instant far from "now"
      * ends up on the stored row.
      */

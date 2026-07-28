@@ -16,7 +16,6 @@ use Symfony\Component\Cache\Adapter\RedisAdapter;
 use Symfony\Component\HttpFoundation\Session\Storage\Handler\RedisSessionHandler;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\Process\Process;
-use Symfony\Component\Routing\RequestContext;
 
 /**
  * AC-15, AC-18, AC-32, AC-37, AC-6: infrastructure assertions that do not fit the
@@ -252,20 +251,58 @@ final class InfrastructureAssertionsTest extends KernelTestCase
      * `KernelTestCase`, not `WebTestCase` — no `createClient()` is ever called, so no request is
      * ever pushed onto the `RequestStack`. That absence *is* the "no request context" this test
      * exists to prove; simulating it with a mock would only prove the mock behaves as configured.
+     *
+     * THE GOTCHA THIS TEST HIT ONCE AND MUST NOT HIT AGAIN. The first version of this assertion
+     * asked the `RequestContext` service — the very object `UrlGeneratorInterface` builds the link
+     * from — for its own scheme and host, and compared the mailer's output against that. That is
+     * circular: the context and the generator are fed by the *same* compiled `DEFAULT_URI`, so a
+     * `DEFAULT_URI` left at the Symfony skeleton's default `http://localhost` (exactly the
+     * production footgun this AC exists to catch, per CLAUDE.md's infrastructure-footguns section)
+     * would still make the assertion pass — both sides would agree on the wrong value. The fix is to
+     * source the expectation from somewhere the generator's wiring cannot also feed: `.env.test`
+     * itself, read back via the superglobals `tests/bootstrap.php`'s `Dotenv::bootEnv()` populates
+     * (`$container->getParameter('env(DEFAULT_URI)')` throws `ParameterNotFoundException` — verified
+     * empirically — because nothing in this container graph binds that placeholder to a standalone
+     * parameter id; only `router.request_context.base_url`, the same compiled value, does).
+     *
+     * WHAT THIS ASSERTION CAN AND CANNOT CATCH — worth being precise about, and narrower than it
+     * looks. `.env.test:19` pins `DEFAULT_URI` to `http://localhost`, and FrameworkBundle's own
+     * fallback (`Resources/config/routing.php`: `router.request_context.host = 'localhost'`,
+     * `scheme = 'http'`) is the *same value*. So this test cannot detect a regression to
+     * `http://localhost` — and it equally cannot detect the `default_uri` wiring disappearing
+     * altogether, because the generator would then fall back to `localhost`/`http` and produce a
+     * byte-identical link. Both sides would agree, green, for the wrong reason.
+     *
+     * What it genuinely buys, and all it buys: a regression from `ABSOLUTE_URL` to `ABSOLUTE_PATH`
+     * (a relative link in an email, which is unclickable), a wrong route or path, and the token
+     * going missing from the body. Those are real and worth a test.
+     *
+     * Catching a *wrong host* — the production footgun CLAUDE.md names — needs an environment whose
+     * `DEFAULT_URI` diverges from the framework fallback, which by construction this one is not.
+     * That gap is structural, not an oversight: do not "strengthen" this assertion without first
+     * changing what `.env.test` pins, or it will start claiming coverage it cannot have.
      */
     public function testTheVerificationMailRendersACorrectAbsoluteUrlWithNoRequestContext(): void
     {
         self::bootKernel();
 
-        // What "correct" means here, established independently of the mailer: the router's default
-        // host/scheme are themselves sourced from `DEFAULT_URI` (`config/packages/routing.yaml`),
-        // and `.env.test` pins it to `http://localhost`. Reading it back from the container's own
-        // parameters — rather than hardcoding the literal `.env.test` currently holds — is what
-        // keeps this assertion tied to configuration rather than to a guess about it.
-        $context = self::getContainer()->get(RequestContext::class);
-        self::assertInstanceOf(RequestContext::class, $context);
-        $expectedScheme = $context->getScheme();
-        $expectedHost = $context->getHost();
+        // Read the *env var*, not the router's derived `RequestContext` — see the gotcha above.
+        // `tests/bootstrap.php` already ran `Dotenv::bootEnv()` before PHPUnit booted anything, so
+        // `.env.test`'s `DEFAULT_URI` is sitting in both superglobals by the time this method runs.
+        $defaultUri = $_SERVER['DEFAULT_URI'] ?? $_ENV['DEFAULT_URI'] ?? null;
+        self::assertIsString($defaultUri, 'Expected DEFAULT_URI to be present in the test environment (see .env.test).');
+
+        $parsedDefaultUri = parse_url($defaultUri);
+        self::assertIsArray($parsedDefaultUri, \sprintf('Expected DEFAULT_URI ("%s") to be a parseable URI.', $defaultUri));
+
+        // `?? null` plus `assertIsString` rather than `assertArrayHasKey` followed by direct offset
+        // access: PHPStan's shape for `parse_url()`'s return type marks every key optional, and
+        // `assertArrayHasKey` does not narrow that away, so a direct `$parsedDefaultUri['scheme']`
+        // read after it still reports "might not exist" at max level.
+        $expectedScheme = $parsedDefaultUri['scheme'] ?? null;
+        $expectedHost = $parsedDefaultUri['host'] ?? null;
+        self::assertIsString($expectedScheme, \sprintf('Expected DEFAULT_URI ("%s") to carry a scheme.', $defaultUri));
+        self::assertIsString($expectedHost, \sprintf('Expected DEFAULT_URI ("%s") to carry a host.', $defaultUri));
 
         $mailer = self::getContainer()->get(VerificationMailer::class);
         self::assertInstanceOf(VerificationMailer::class, $mailer);
