@@ -157,5 +157,26 @@ first, because an ADR written after the code it justifies is a rationalisation, 
       worker and the failure transport in the runbook), `FORboehpyk.md` (the story — the
       aggregate-boundary argument, the `checkPreAuth`-vs-`checkPostAuth` enumeration trap, and the
       `DEFAULT_URI` footgun are the three lessons worth telling).
-- [ ] **T43:** `/verify` → `make check` green, reviewer PASS (zero CRITICAL / MAJOR), all 39
+- [x] **T43:** `/verify` → `make check` green, reviewer PASS (zero CRITICAL / MAJOR), all 39
       acceptance criteria checked off, then open the PR.
+
+      Verified 2026-07-28 after three fix iterations (`af84a8a`, `4a9cf08`, `58168bf`). `make check`
+      green on all four gates — php-cs-fixer 0/115, PHPStan max 0 errors, Deptrac 0 violations and
+      0 uncovered, PHPUnit 196 tests / 837 assertions.
+
+      Thirty-four of the criteria are asserted by the suite and carry their `AC-n` in the test's own
+      docblock. The remaining five are not test-shaped and were checked by hand at tick time rather
+      than taken on trust: **AC-33** (`grep -rE '^use (Symfony|Doctrine)\\' src/src/Domain/` returns
+      nothing, Deptrac green under `--fail-on-uncovered`), **AC-34** (no association element in
+      `EmailVerificationRequest.orm.xml` — the `many-to-one` grep hits are the header comment
+      arguing against one — and zero `->user()->` traversals anywhere in `src/src/`), **AC-35** (the
+      mapping read against ADR-0007: explicit table and column names, `<generator strategy="NONE"/>`,
+      `datetimetz_immutable` throughout, value objects through custom DBAL types), **AC-36** (rolled
+      `muzbar_test` down two steps — the second is the one that owns this table — confirmed
+      `identity_email_verification_request` dropped while `identity_user` kept all 6 columns, then
+      re-migrated to `Version20260727211644` and re-ran the suite green), and **AC-38** (the gate run
+      above).
+
+      Note for the next slice: `migrate prev` steps back **one** migration, and the last one applied
+      here is Messenger's `messenger_messages`, not this slice's table. Rolling back "the new table"
+      takes two steps. Worth knowing before anyone reads a single `prev` as proof of reversibility.
