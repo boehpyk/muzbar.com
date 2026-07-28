@@ -18,7 +18,6 @@ use App\Domain\Identity\Exception\InvalidEmail;
 use App\Domain\Identity\Exception\InvalidVerificationToken;
 use App\Domain\Identity\Exception\TooManyVerificationRequests;
 use App\Domain\Identity\Exception\UserNotFound;
-use App\Domain\Identity\ValueObject\VerificationToken;
 use App\Infrastructure\Identity\Form\ResendVerificationFormData;
 use App\Infrastructure\Identity\Form\ResendVerificationFormType;
 use Psr\Log\LoggerInterface;
@@ -49,15 +48,24 @@ use Symfony\Component\Routing\Attribute\Route;
  * Making that collapse the Domain's job would have thrown the information away where it could never
  * be recovered.
  *
- * ROUTE ORDERING, WHICH LOOKS LIKE A TRAP AND IS DISARMED TWICE. `/verify-email/{token}` is a
- * pattern that could in principle swallow the literal paths `/verify-email/sent` and
- * `/verify-email/resend`, turning both into "invalid link" redirects — a bug that would look like a
- * routing mystery. It cannot happen here, because `{token}` carries a `requirements` regex demanding
- * exactly 43 characters and both literals are far shorter, so the router rejects the pattern and
- * falls through regardless of declaration order. The two literal routes are nonetheless declared
- * *first* in this file, because "the regex happens to exclude them" is a guarantee that quietly
- * evaporates the day somebody relaxes the requirement, and because a reader should not have to
- * reason about a regex to know which route wins. Verified with `debug:router`, not assumed.
+ * ROUTE ORDERING, WHICH IS A REAL TRAP AND IS DISARMED ON PURPOSE. `/verify-email/{token}` accepts
+ * any single non-empty path segment (`[^/]+`), so it genuinely *does* match the literal paths
+ * `/verify-email/sent` and `/verify-email/resend`. Nothing about the pattern excludes them. Two
+ * things stop it swallowing both and turning the whole flow into "invalid link" redirects:
+ *
+ *   1. The two literal routes are declared **first** in this file. Symfony's attribute loader adds
+ *      routes in method-declaration order, and the router matches first-wins, so order alone is
+ *      sufficient today.
+ *   2. They also carry an explicit `priority`, which the attribute loader sorts on before order is
+ *      considered. That is the belt to declaration order's braces: it survives somebody sorting the
+ *      methods alphabetically, extracting `verify()` into a trait, or moving one route to another
+ *      class — none of which a reader would expect to change routing, and all of which would.
+ *
+ * This was an accident waiting to happen and briefly *was* the design: the `{token}` requirement
+ * used to demand exactly 43 characters, which excluded both literals for free. That regex has been
+ * removed (it was also rejecting malformed tokens with a bare 404 instead of the resend form AC-12
+ * requires), and with it went the accidental protection. Hence the two explicit mechanisms above.
+ * Verified with `debug:router` and `router:match /verify-email/resend`, not assumed.
  */
 final class EmailVerificationController extends AbstractController
 {
@@ -86,8 +94,11 @@ final class EmailVerificationController extends AbstractController
      * said "we sent a link to name@example.com" would have to be told which address, which would put
      * the address in the session or the query string — and a page that varied at all between the
      * four AC-15 cases would break the byte-identical guarantee at the last possible moment.
+     *
+     * `priority: 10` because `/verify-email/{token}` below matches this exact path too. See the
+     * class docblock — do not remove it, and do not move this method below `verify()`.
      */
-    #[Route('/verify-email/sent', name: 'app_verify_email_sent', methods: ['GET'])]
+    #[Route('/verify-email/sent', name: 'app_verify_email_sent', methods: ['GET'], priority: 10)]
     public function sent(): Response
     {
         return $this->render('identity/verify_email_sent.html.twig');
@@ -102,8 +113,11 @@ final class EmailVerificationController extends AbstractController
      * simply cannot find. ADR-0010 leaned on this endpoint's existence to justify *not* building a
      * transactional outbox — a lost event costs one click here — so it is load-bearing infrastructure
      * wearing a very plain form.
+     *
+     * `priority: 10` for the same reason `sent()` has it: `/verify-email/{token}` matches this path.
+     * If this route ever loses, every failed verification redirects to a redirect loop into itself.
      */
-    #[Route('/verify-email/resend', name: 'app_verify_email_resend', methods: ['GET', 'POST'])]
+    #[Route('/verify-email/resend', name: 'app_verify_email_resend', methods: ['GET', 'POST'], priority: 10)]
     public function resend(
         Request $request,
         RequestEmailVerificationHandler $requestEmailVerification,
@@ -206,17 +220,30 @@ final class EmailVerificationController extends AbstractController
     /**
      * Redeem a verification link.
      *
-     * `requirements` pins `{token}` to exactly `VerificationToken::LENGTH` (43) characters of the
-     * base64url alphabet — the constant is interpolated rather than typed so the route and the value
-     * object cannot disagree. It is the cheap outer gate: a 10 kB junk path segment is a 404 from
-     * the router and never reaches PHP logic, a repository, or a log line. It is emphatically **not**
-     * the rule; `VerificationToken::fromString()` inside the handler is, because that is the version
-     * that also holds for the console, for a test, and for whatever adapter exists in a year. Two
-     * layers, two jobs — slice 1's form/value-object pattern, repeated.
+     * `requirements` deliberately accepts **any** single path segment (`[^/]+`) and does no format
+     * checking whatsoever. `VerificationToken::fromString()` inside the handler is the only gate,
+     * and it runs before the repository is touched — so a malformed token costs one `preg_match`
+     * and no database query, which is what the failure contract asks for.
      *
-     * (It is also, incidentally, what stops this route swallowing `/verify-email/sent` and
-     * `/verify-email/resend`. See the class docblock: that is a happy consequence, not the reason,
-     * and it is why those two are declared above this one anyway.)
+     * IT USED TO DUPLICATE THE VALUE OBJECT'S REGEX, AND THAT WAS THE BUG. The requirement was
+     * `[A-Za-z0-9_-]{43}`, byte-for-byte the same rule as `VerificationToken::FORMAT`, defended as
+     * a cheap outer gate that kept junk out of PHP. What it actually did was answer a mangled link
+     * with a **bare 404** — because the router rejected the path before this method existed as far
+     * as the request was concerned, making the `InvalidVerificationToken` catch below dead code.
+     * AC-12 requires the opposite: a malformed token gets the same 302-to-the-resend-form as a
+     * token that was never issued. The scenario the catch block itself names — mail clients wrap
+     * long lines, people paste badly — is the *common* one, and it was being sent to a dead end
+     * instead of to the one form that fixes it. A duplicated rule is not defence in depth when the
+     * outer copy has the wrong failure mode; it is just the wrong answer, delivered sooner.
+     *
+     * What was lost is small and priced: a 10 kB junk path segment now reaches PHP. It reaches
+     * exactly one regex against an unanchored-length string and a redirect, allocates nothing, and
+     * hits no repository — the same work any 404 costs, minus the error page. nginx caps the
+     * request line long before anything interesting arrives.
+     *
+     * The corollary is that this route now matches `/verify-email/sent` and `/verify-email/resend`
+     * too. That is handled by declaration order plus `priority` on those two — see the class
+     * docblock, which is where a reader tempted to reorder these methods will look.
      *
      * GET, and only GET. A verification link is followed by clicking it in a mail client, so it
      * cannot be anything else — which is worth stating because it means this is a state-changing
@@ -228,7 +255,7 @@ final class EmailVerificationController extends AbstractController
     #[Route(
         '/verify-email/{token}',
         name: 'app_verify_email',
-        requirements: ['token' => '[A-Za-z0-9_-]{'.VerificationToken::LENGTH.'}'],
+        requirements: ['token' => '[^/]+'],
         methods: ['GET'],
     )]
     public function verify(string $token, VerifyEmailWithTokenHandler $verifyEmail, LoggerInterface $logger): Response
@@ -241,6 +268,13 @@ final class EmailVerificationController extends AbstractController
             // are things that happen to real users on a normal day, so INFO is the honest level —
             // and all three get the identical response below, because the difference between "never
             // existed" and "expired" is precisely what an attacker probing tokens would want.
+            //
+            // `InvalidVerificationToken` is the *reachable* one, and only since the route stopped
+            // duplicating the value object's regex. While `requirements` demanded 43 base64url
+            // characters this branch could not fire through this route at all: the router 404'd the
+            // mangled link first, and the arm below it was decoration. AC-12 is what it satisfies —
+            // malformed and never-issued are indistinguishable to the visitor, and the value object
+            // refuses before `findByTokenHash()` runs, so a junk token still costs zero queries.
             $logger->info('A verification link could not be redeemed.', ['reason' => $e::class]);
 
             return $this->invalidLink();

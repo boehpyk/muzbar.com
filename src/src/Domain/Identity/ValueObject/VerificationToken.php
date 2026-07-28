@@ -13,9 +13,20 @@ use App\Domain\Identity\Exception\InvalidVerificationToken;
  * It is a value object because the **token policy is domain knowledge**: "a verification token is
  * 32 bytes of randomness rendered as 43 URL-safe characters" is a statement about how strong the
  * challenge is, and it must hold for the resend form, the registration listener and any future
- * adapter — not just for the one route that happens to exist. The route's `requirements` regex
- * duplicates it on purpose, exactly as slice 1's form constraints duplicate `PlainPassword`: the
- * route exists so a 10 kB junk segment never reaches PHP logic, this exists so the rule is *true*.
+ * adapter — not just for the one route that happens to exist.
+ *
+ * THIS IS THE ONLY PLACE THAT FORMAT IS CHECKED, AND THE ROUTE DELIBERATELY DOES NOT REPEAT IT.
+ * `app_verify_email` accepts any single path segment (`[^/]+`) and leaves the judgement here. This
+ * is the *opposite* call from slice 1's `PlainPassword`, where the form constraints duplicate the
+ * rule on purpose, and the difference is what the duplicate buys. A duplicated rule in a form
+ * constraint buys a friendly field-level error next to the input, rendered before the Domain is
+ * ever reached — real value, paid for with a copy. A duplicated rule in a route requirement buys
+ * nothing and costs the user their way out: the router's rejection is a bare 404 that no `catch`
+ * can turn into a redirect, so a mangled link — the mail client wrapped the line, someone pasted
+ * badly — dead-ends instead of landing on the resend form that fixes it. AC-12 requires a
+ * malformed token to answer exactly like an unknown one, and only this class can make that true.
+ * Re-adding the regex to the route would reintroduce that bug silently, because every test that
+ * exercises a *well-formed* token would still pass.
  *
  * The length is not arbitrary. 32 bytes is 256 bits of CSPRNG output; base64url encodes 3 bytes per
  * 4 characters, so 32 bytes becomes 43 characters plus one `=` of padding, which is stripped
@@ -37,9 +48,11 @@ use App\Domain\Identity\Exception\InvalidVerificationToken;
 final readonly class VerificationToken
 {
     /**
-     * Exactly 43 characters: 32 CSPRNG bytes, base64url, unpadded. Public because the route
-     * requirement and the token generator both need to quote the same number rather than each
-     * remembering it.
+     * Exactly 43 characters: 32 CSPRNG bytes, base64url, unpadded. Public because two call sites
+     * need to quote the same number rather than each remembering it — the failure message in
+     * `InvalidVerificationToken::malformed()` and the `RandomVerificationTokenGenerator` adapter,
+     * whose byte count is 43 characters' worth *because* of this constant. Notably **not** the
+     * route, which does no format checking at all; see the class docblock for why.
      */
     public const int LENGTH = 43;
 
