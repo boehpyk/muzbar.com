@@ -88,6 +88,24 @@ supervisor.
   - **A stopped worker looks exactly like a healthy system** to every automated check we currently
     have. `/health/ready` probes Postgres and Redis, not queue depth. Open question deferred to
     Phase 2: teach `/health/ready` to report a stale queue. The runbook line is written now.
+
+    **Confirmed empirically during this slice's `/verify` pass (2026-07-28), not merely predicted.**
+    A trusted-proxy fix introduced a bare `%env(TRUSTED_PROXIES)%` and set the variable on the `app`
+    service only; `messenger-worker` crash-looped on `EnvNotFoundException` for an entire session
+    while `make check` reported all four gates green (it only `exec`s into `app`) and `/health/ready`
+    returned 200. Async mail was dead the whole time and nothing said so. Two consequences worth
+    carrying: **the worker's environment is a separate surface from the web container's** — every new
+    required env var must be added to both, and to CI and the image build, since all four boot a
+    kernel; and **`make check` is a code gate that proves nothing about whether the system runs.**
+    Until `/health/ready` knows about queue depth, `docker compose ps` showing `messenger-worker`
+    **running, not restarting** is part of verifying any change that touches config or the boot path.
+  - **`pcntl` is absent from the PHP image, so the worker cannot shut down gracefully.**
+    `messenger:consume` installs SIGTERM/SIGINT handlers only when `pcntl_signal` exists, so
+    `docker compose stop` — every deploy — kills it mid-`handle()`. The message keeps its
+    `delivered_at` and the Doctrine transport will not reclaim it until `redeliver_timeout`
+    (default 3600s), so a verification mail can be delayed up to an hour per deploy, or double-sent
+    if SMTP had already completed. The `--time-limit=3600` + `restart: unless-stopped` path is
+    unaffected and correct; only the signal path is unhandled. Owed to `devops`.
   - **The failure transport is a queue nobody looks at** until someone is told to. It belongs in the
     infrastructure runbook, which is why this slice updates it.
   - **Sentry is now overdue.** The roadmap deferred it to "the first user-facing flow… when a silent

@@ -544,11 +544,18 @@ App\Domain\Identity\Port\VerificationMailer: '@App\Infrastructure\Identity\Mail\
 
 | Segment | Accepts | Rejects |
 |---|---|---|
-| `{token}` | exactly 43 characters of `[A-Za-z0-9_-]` — enforced twice: a route `requirements` regex, and `VerificationToken` | anything else → 404 from the router or the invalid-link redirect from the VO; never a 500 |
+| `{token}` | any non-empty single path segment (`[^/]+`) at the route; exactly 43 characters of `[A-Za-z0-9_-]` at `VerificationToken` | anything else → the invalid-link redirect from the VO, byte-identical to the unknown-token response; never a 500 |
 
-The route requirement is the cheap first gate (a 10 kB junk segment never reaches PHP logic); the
-value object is the one that actually holds the rule. Two layers, two jobs — slice 1's form/VO
-pattern, repeated.
+**Superseded on 2026-07-28 by `/verify`.** This section originally specified the requirement as
+`[A-Za-z0-9_-]{43}` — "enforced twice: a route `requirements` regex, and `VerificationToken`… two
+layers, two jobs — slice 1's form/VO pattern, repeated." That was wrong, and the analogy is where it
+went wrong. A duplicated rule in a *form constraint* buys a friendly field-level error before the
+Domain is reached. A duplicated rule in a *route requirement* buys a bare 404 that no `catch` can
+turn into anything useful — so it made AC-12 unsatisfiable and rendered the controller's
+`InvalidVerificationToken` arm unreachable. Since mail clients hard-wrap long lines, the users hitting
+it are exactly the ones needing the resend form. The value object is now the **only** format gate; the
+route matches any single segment. Do not re-add the regex — every test using a well-formed token still
+passes with it in place, so nothing will tell you.
 
 **`GET|POST /verify-email/resend`** — `resend_verification_form[email]`, `resend_verification_form[_token]`.
 `allow_extra_fields: false`. Response: **always** 302 → `app_verify_email_sent` with the same flash,

@@ -23,11 +23,15 @@ Docker Compose · Traefik · Nginx.
 > aggregate**, `EmailVerificationRequest`, the first cross-aggregate reference by identity, async
 > mail over Messenger, and the `VerifiedAccountUserChecker` that finally enforces `User::isUsable()`
 > at login — without touching `User` at all.
+> Slice 2 passed `/verify` on 2026-07-28 after three fix iterations; it also configured
+> `framework.trusted_proxies`, which retroactively makes slice 1's `login_throttling` limiter work.
 > Current work: the remaining `Identity` slices, starting with `identity-password-reset`.
 > Two Phase 0 items still carry over — the Claude Code hooks from
-> [docs/tooling.md](./docs/tooling.md), and **Sentry, now overdue**: slice 2 added an asynchronous
-> failure path (a swallowed listener exception, a failure transport nobody reads) that is silent by
-> construction. See [docs/roadmap.md](./docs/roadmap.md).
+> [docs/tooling.md](./docs/tooling.md), and **Sentry, no longer merely overdue**: slice 2 added
+> asynchronous failure paths that are silent by construction (a swallowed listener exception, a
+> failure transport nobody reads), and its verification pass then spent an entire session with
+> `messenger-worker` crash-looping while `make check` and `/health/ready` both reported green. The
+> gap is demonstrated, not theoretical. See [docs/roadmap.md](./docs/roadmap.md).
 
 ## Architecture — non-negotiable
 
@@ -157,6 +161,17 @@ worker.
   rewrites alias references to their target at *compile* time, so a handler's constructor is already
   wired to the adapter's id before the test runs. And call `$client->disableReboot()` first, because
   `KernelBrowser` reboots the kernel before every request and discards container overrides.
+- **A test encodes what the code *should* do — never what it was observed doing.** A test written by
+  running the code and recording the answer has no source of truth independent of the code, so it can
+  never disagree with it. Slice 2 shipped one: it asserted a 404 that directly contradicted an
+  approved AC, with a confident message documenting the bug as the design, and stayed green for two
+  commits. **When an AC and the implementation disagree, fix one of them on purpose and say which
+  won** — do not write the test that ratifies the accident. Where two responses must be
+  indistinguishable, assert them against *each other* live, not against two copies of a literal that
+  can drift apart while both stay green.
+- **A comment or docblock claiming coverage the assertion cannot deliver is the same defect one level
+  up.** If a test's docblock names a regression class, verify it actually fails on that regression —
+  twice this slice a docblock named a failure mode that was structurally invisible to its assertion.
 
 ## Infrastructure footguns (baked-in guards)
 
@@ -189,6 +204,34 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   and every console command. Left at the skeleton's `http://localhost`, every link in every outgoing
   mail points somewhere unreachable, and **no functional test catches it**, because a test runs
   inside a simulated request where the fallback never fires. Set it per environment.
+- **`getClientIp()` is the proxy's address until `framework.trusted_proxies` says otherwise** — so a
+  rate limiter keyed on it is one global bucket, not one per visitor. Behind Traefik → nginx →
+  php-fpm this made both limiters site-wide: five resend POSTs per hour from *anyone* would 429
+  *everyone*. No test can catch it — `KernelBrowser` synthesises `REMOTE_ADDR=127.0.0.1`, a value
+  that never occurs in production. Configured in `config/packages/framework.yaml`; dev and test
+  deliberately disable trust, because dev publishes nginx straight to `127.0.0.1:8080` with no proxy
+  in front, and trusting `X-Forwarded-For` there would let anyone reaching that port forge their own
+  client IP.
+- **Symfony owns client-IP/scheme/host reconstruction — nginx must NOT run `ngx_http_realip_module`.**
+  `set_real_ip_from`/`real_ip_header` rewrite `$remote_addr`, which is what `fastcgi_params` passes as
+  `REMOTE_ADDR`. Symfony then compares a *public* IP against the private-range trust list,
+  `isFromTrustedProxy()` returns false, and `X-Forwarded-Proto`/`-Host` are never read — so
+  `getClientIp()` comes out right by accident while `isSecure()` and `getSchemeAndHttpHost()` stay
+  wrong, silently un-meeting the precondition `csrf.yaml` depends on. nginx logs the header directly
+  (`xff=$http_x_forwarded_for`) instead. Two trust layers that each look right in isolation is the
+  trap.
+- **`private_ranges` cannot be passed through `%env()%`.** FrameworkBundle special-cases the keyword
+  in a `beforeNormalization()` that runs at *compile* time, over the raw value — which is the
+  unresolved placeholder. `.env.example` therefore spells the full `IpUtils::PRIVATE_SUBNETS` CIDR
+  list out literally. Do not "simplify" it back.
+- **A bare `%env(FOO)%` in config makes `FOO` a boot-time dependency of every kernel — including the
+  worker, console commands, CI, and `docker build`.** A missing var is `EnvNotFoundException`, not a
+  fallback. This took `messenger-worker` down while `make check` stayed green (it only `exec`s into
+  `app`) and `/health/ready` stayed 200 (it probes Postgres and Redis, not queue depth). Use
+  `%env(default::FOO)%` for optional infrastructure vars — then still set the var everywhere,
+  because the fallback converts a loud outage into a silent misconfiguration. **When you add a
+  required input to the boot path, enumerate every context that boots, not every context that serves
+  traffic.**
 
 ## SDLC
 
