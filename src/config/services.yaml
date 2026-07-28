@@ -37,6 +37,8 @@ services:
     App\Domain\Identity\Port\UserRepository: '@App\Infrastructure\Identity\Persistence\Doctrine\DoctrineUserRepository'
     App\Domain\Identity\Port\PasswordHasher: '@App\Infrastructure\Identity\Security\SymfonyPasswordHasher'
     App\Domain\Identity\Port\EmailVerificationRequestRepository: '@App\Infrastructure\Identity\Persistence\Doctrine\DoctrineEmailVerificationRequestRepository'
+    App\Domain\Identity\Port\VerificationTokenGenerator: '@App\Infrastructure\Identity\Security\RandomVerificationTokenGenerator'
+    App\Domain\Identity\Port\VerificationMailer: '@App\Infrastructure\Identity\Mail\TwigVerificationMailer'
 
     # Redis client (Predis) built from REDIS_URL; aliased for autowiring by interface.
     Predis\Client:

@@ -69,21 +69,20 @@ security:
                 max_attempts: 5
                 interval: '15 minutes'
 
-            # NO `user_checker` — AND THAT IS A DECISION, NOT AN OMISSION (AC-24).
+            # ADR-0005's invariant I-5 — *"a usable account has a verified email"* — enforced, at
+            # exactly one point. `identity-user-password-auth` left this key absent on purpose and
+            # said so at length here; `identity-email-verification` shipped the flow that lets a user
+            # become verified, so the debt is discharged and that comment is gone rather than left to
+            # contradict the line under it.
             #
-            # `User::isUsable()` already returns false for an account whose email has not been
-            # verified: the Domain holds the opinion. Nothing enforces it at login yet, because the
-            # flow that lets a user *become* verified — the verification email and its signed link —
-            # is the next slice, `identity-email-verification`. Enforcing now would ship a feature
-            # whose happy path only the box operator can reach.
-            #
-            # That slice flips this by adding a `VerifiedAccountUserChecker` (~15 lines) plus one
-            # `user_checker:` line here, and by inverting AC-24. Nothing in Domain or Application
-            # changes — which is the point: per ADR-0005 authentication policy belongs to the
-            # Security layer, so the enforcement point is a single Infrastructure class.
+            # Read `VerifiedAccountUserChecker` before changing anything about this: the class is
+            # ~10 lines of body and roughly all of its value is in the docblock explaining why
+            # `checkPreAuth()` is empty. Moving the check there would turn this login form into a
+            # free account-enumeration oracle.
             #
             # `hide_user_not_found` is left at its secure default (true) so an unknown email and a
             # wrong password stay indistinguishable (AC-13). Do not set it.
+            user_checker: App\Infrastructure\Identity\Security\VerifiedAccountUserChecker
 
             # https://symfony.com/doc/current/security/impersonating_user.html
             # switch_user: true
