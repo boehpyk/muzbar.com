@@ -2,6 +2,78 @@
 framework:
     secret: '%env(APP_SECRET)%'
 
+    # WHY THIS EXISTS: TOPOLOGY IS Traefik -> nginx -> php-fpm, ALL OVER DOCKER, AND NOTHING HERE
+    # WAS CONFIGURED UNTIL A REVIEW CAUGHT IT (feature/identity-email-verification).
+    #
+    # Without `trusted_proxies`, Symfony trusts nothing and reads the request's immediate TCP peer
+    # (`REMOTE_ADDR`) at face value for everything: `Request::getClientIp()`,
+    # `isSecure()`/`getScheme()` (TLS is terminated at Traefik, not here), and `getHttpHost()`. In
+    # prod that peer is always the Traefik container, in dev it is the Docker bridge gateway — never
+    # the visitor. Three concrete symptoms this caused or was about to cause:
+    #   - `EmailVerificationController::resend()` and `SecurityController`'s login throttle both key
+    #     a Symfony RateLimiter on `$request->getClientIp()` (AC-18). Unfixed, every visitor on earth
+    #     shared one 5-per-hour bucket, because they all resolved to "Traefik's IP".
+    #   - `csrf.yaml` already flags that `Request::getSchemeAndHttpHost()` — used by the CSRF
+    #     origin-check fallback — sees the *internal* http/nginx scheme+host, not
+    #     `https://muzbar.com`, without this.
+    #   - Any secure-cookie / HSTS / redirect-to-https logic that consults `isSecure()` would see
+    #     plain HTTP, because that's what nginx actually speaks to php-fpm.
+    #
+    # THE PROXY'S IP IS NOT A FIXED ADDRESS. Traefik's container IP on the shared `traefik` network
+    # (and nginx's own peer IP in dev) is assigned by Docker and changes on every recreation, so a
+    # literal IP here would work today and break silently on the next `docker compose up`. Symfony
+    # ships a named shortcut for exactly this — `trusted_proxies: private_ranges`, which expands to
+    # `Symfony\Component\HttpFoundation\IpUtils::PRIVATE_SUBNETS` — and it is safe precisely because
+    # `REMOTE_ADDR` is the kernel's own view of the TCP peer, not a header: no remote client can spoof
+    # their way into a private range from across the internet, so "trust anything that connects from
+    # a private subnet" only ever matches our own Docker network.
+    #
+    # THAT KEYWORD CANNOT BE HANDED THROUGH AN ENV VAR, THOUGH — A FOOTGUN WORTH RECORDING SO NOBODY
+    # "SIMPLIFIES" THIS TO `TRUSTED_PROXIES=private_ranges`. Symfony's config-tree normalizer (the
+    # code that special-cases the literal string `'private_ranges'` into the expanded CIDR list) runs
+    # at *compile* time, over the raw YAML value — which, when that value is `%env(TRUSTED_PROXIES)%`,
+    # is still the unresolved placeholder string, not whatever `.env` says. Env vars are only resolved
+    # later, when the compiled container hands the value to `Kernel::initializeContainer()`, which
+    # treats a non-array value as a literal comma-separated CIDR list. So the env var below spells out
+    # `IpUtils::PRIVATE_SUBNETS` by hand — same effective trust boundary, just expressed as the actual
+    # ranges instead of the keyword that only works hardcoded in YAML.
+    #
+    # DEV AND PROD DIFFER ON PURPOSE, DRIVEN BY THE `TRUSTED_PROXIES` ENV VAR (`.env.example` /
+    # `docker-compose.dev.yml`): prod always has exactly one real hop in front of nginx — Traefik — so
+    # trusting the private-range peer and reading `X-Forwarded-*` from it is correct. Dev has no
+    # reverse proxy in front of nginx at all; `docker-compose.dev.yml` publishes nginx's port straight
+    # to `127.0.0.1:8080`, so the "proxy" trusting a private-range peer would in fact be trusting
+    # *anyone who can reach that port* — a local script could hand-craft `X-Forwarded-For` and forge
+    # any client IP it likes, silently defeating the very rate limiters this is meant to protect and
+    # making dev an unfaithful place to test them. `docker-compose.dev.yml` pins `TRUSTED_PROXIES` to
+    # empty there, which disables the whole mechanism (see the falsy-check in
+    # `Kernel::initializeContainer()`) and leaves `REMOTE_ADDR` trusted as-is — exactly like today,
+    # for the one environment where "today" was never the bug.
+    #
+    # `default::` IS NOT OPTIONAL POLISH — A BARE `%env(TRUSTED_PROXIES)%` TOOK DOWN THE
+    # `messenger-worker` CONTAINER THE FIRST TIME THIS SHIPPED. Every `%env(...)%` is resolved on
+    # every kernel boot, HTTP or console, because `Kernel::initializeContainer()` reads
+    # `kernel.trusted_proxies` unconditionally (see the trace below) — so any process that boots this
+    # kernel without the var set hard-crashes with `EnvNotFoundException`, not a graceful "no trust".
+    # That happened here: `docker-compose.dev.yml` originally set `TRUSTED_PROXIES` on `app` but not
+    # on `messenger-worker`, which shares this same config, and the worker restart-looped instead of
+    # draining mail. `default::TRUSTED_PROXIES` (mirroring Symfony's own skeleton default for this
+    # exact node, `%env(default::SYMFONY_TRUSTED_PROXIES)%`) makes a missing var degrade to `null` —
+    # i.e. no trust, which is the same safe "act like this was never configured" fallback dev and CI
+    # already want — instead of an outage. It is a safety net, not a substitute for setting the var
+    # correctly everywhere a kernel boots: `src/.env` (the Symfony-level base default, read by every
+    # environment including CI, which runs `php` directly on the runner with no Docker and no
+    # `docker-compose.dev.yml` to fall back on), `src/.env.test`, and every Compose service that
+    # shares this container image and therefore this container — `app` **and** `messenger-worker` —
+    # all set it explicitly rather than leaning on the null fallback to paper over a gap.
+    trusted_proxies: '%env(default::TRUSTED_PROXIES)%'
+
+    # HEADER_X_FORWARDED_TRAEFIK is Symfony's own name for "every `X-Forwarded-*` header Traefik
+    # sends" (for/host/proto/port/prefix — not the RFC 7239 `Forwarded` header, which Traefik does not
+    # emit). Naming the proxy in the config value, not just in a comment, is the whole point: it is
+    # documentation that cannot drift out of sync with what actually sits in front of this app.
+    trusted_headers: ['x-forwarded-traefik']
+
     # Note that the session will be started ONLY if you read or write from it.
     session:
         # Sessions live in Redis, never on the container filesystem (Constitution §3, AC-18).

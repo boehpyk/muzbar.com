@@ -36,6 +36,11 @@ jobs:
       # PHPStan run in dev (the container XML they need); PHPUnit forces test itself.
       DATABASE_URL: "postgresql://muzbar:muzbar@127.0.0.1:5432/muzbar?serverVersion=16&charset=utf8"
       REDIS_URL: "redis://127.0.0.1:6379"
+      # TRUSTED_PROXIES (framework.yaml's `trusted_proxies`) is deliberately NOT set here. This job
+      # runs `php` directly on the runner — no Docker, no `docker-compose.dev.yml` — so every kernel
+      # boot below (`doctrine:database:create` onward) falls back to `src/.env`'s committed empty
+      # default, which is correct here for the same reason it's correct in dev: nothing puts a real
+      # reverse proxy in front of this process. Not an oversight; see `src/.env` and framework.yaml.
 
     steps:
       - uses: actions/checkout@v4

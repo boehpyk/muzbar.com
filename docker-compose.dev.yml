@@ -18,6 +18,14 @@ services:
       # to get a working laptop was also the file that would silently put the VDS in dev mode.
       APP_ENV: dev
       XDEBUG_MODE: "off"             # set to "debug" to step-debug
+      # Disables framework.trusted_proxies (see the falsy-check in Kernel::initializeContainer()).
+      # `.env.example` defaults TRUSTED_PROXIES to the prod-correct private-range list because there
+      # a real proxy (Traefik) always sits in front of nginx; here nginx's port is published straight
+      # to the host with nothing in front of it, so trusting a private-range peer would let anyone who
+      # can reach 127.0.0.1:8080 hand-craft X-Forwarded-For and forge any client IP, defeating the
+      # IP-keyed rate limiters (AC-18) this exists to protect and making dev unfaithful for testing
+      # them. Empty here means REMOTE_ADDR is trusted as-is, same as before this was configured.
+      TRUSTED_PROXIES: ""
 
   messenger-worker:
     # Same dev treatment as `app`: live-mounted source and the `development` build target, so a
@@ -44,6 +52,13 @@ services:
       - /var/www/html/var/cache
     environment:
       APP_ENV: dev
+      # NOT OPTIONAL — LEFT OFF ONCE, AND THE WORKER RESTART-LOOPED INSTEAD OF DRAINING MAIL. This
+      # container shares `framework.yaml` with `app`, which reads `%env(default::TRUSTED_PROXIES)%`
+      # unconditionally on every kernel boot (`Kernel::initializeContainer()` runs for console
+      # commands too, not just HTTP requests). `default::` now means a missing var degrades to "no
+      # trust" instead of a hard `EnvNotFoundException` crash, but that is a safety net, not a reason
+      # to omit the var here — see the `app` service above for why empty is the correct value in dev.
+      TRUSTED_PROXIES: ""
 
   nginx:
     ports:
