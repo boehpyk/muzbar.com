@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Identity;
 
+use App\Infrastructure\Identity\Mail\TwigVerificationMailer;
+use App\Tests\Fixture\ThrowingVerificationMailer;
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Bundle\FrameworkBundle\Test\MailerAssertionsTrait;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Mime\Email as MimeEmail;
 
 /**
  * Functional tests for `GET|POST /register` against the real `muzbar_test` database (DAMA
@@ -20,6 +24,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class RegistrationControllerTest extends WebTestCase
 {
+    use MailerAssertionsTrait;
+
     private KernelBrowser $client;
     private Connection $connection;
 
@@ -96,6 +102,90 @@ final class RegistrationControllerTest extends WebTestCase
         // Not auto-authenticated: a protected page still bounces to /login.
         $this->client->request('GET', '/account');
         self::assertResponseRedirects('/login');
+    }
+
+    /**
+     * AC-1, AC-3, AC-26: a successful registration creates exactly one
+     * `identity_email_verification_request` row for the new user and sends exactly one email
+     * containing an absolute link with a 43-character token in the path — the whole chain from
+     * `RegistrationController` through `IssueVerificationOnUserRegistered` to
+     * `RequestEmailVerificationHandler` to `TwigVerificationMailer`, driven end to end through HTTP
+     * rather than through any one handler in isolation.
+     */
+    public function testSuccessfulRegistrationCreatesExactlyOneVerificationRequestAndSendsOneEmail(): void
+    {
+        $this->submitRegistration('one-link-one-mail@example.com', 'a-strong-password-1');
+
+        $userRow = $this->connection->fetchAssociative('SELECT id FROM identity_user WHERE email = ?', ['one-link-one-mail@example.com']);
+        self::assertIsArray($userRow);
+        $userId = $this->asString($userRow['id']);
+
+        self::assertSame(1, $this->countVerificationRequestsFor($userId));
+
+        self::assertEmailCount(1);
+        $message = self::getMailerMessage();
+        self::assertNotNull($message);
+        self::assertEmailAddressContains($message, 'To', 'one-link-one-mail@example.com');
+
+        self::assertInstanceOf(MimeEmail::class, $message);
+        $textBody = $message->getTextBody();
+        self::assertIsString($textBody);
+        self::assertMatchesRegularExpression('#/verify-email/[A-Za-z0-9_-]{43}#', $textBody);
+    }
+
+    /**
+     * AC-5, AC-28: registration still succeeds — the `identity_user` row is committed and the
+     * response is the ordinary redirect — even when the verification mail's transport throws.
+     * `IssueVerificationOnUserRegistered` catches `\Throwable` precisely so a downstream mail
+     * failure can never turn an already-successful registration into a 500 (the account is
+     * committed by the time that listener runs; there is no transaction left to roll back).
+     *
+     * The `VerificationMailer` port is replaced with a double that always throws, bound over the
+     * real service via the test container `framework.test: true` exposes — see
+     * `ThrowingVerificationMailer`'s own docblock for why this is the sanctioned way to force a
+     * transport failure rather than trying to break the real SMTP relay.
+     *
+     * GOTCHA WORTH RECORDING: `self::getContainer()->set()` must target the *concrete adapter's*
+     * service id (`App\Infrastructure\Identity\Mail\TwigVerificationMailer`), not the port alias
+     * (`App\Domain\Identity\Port\VerificationMailer`). Symfony's compiler resolves an alias
+     * reference to its target id at *compile* time (`ResolveReferencesToAliasesPass`), so
+     * `RequestEmailVerificationHandler`'s constructor argument is already wired directly to the
+     * concrete class id before this test ever runs — overriding the alias id at runtime changes
+     * what `$container->get(VerificationMailer::class)` would return if asked, but not what was
+     * already injected into the handler. `ThrowingVerificationMailer` still satisfies the
+     * `VerificationMailer` type-hint the handler declares regardless of which id it was registered
+     * under, because PHP enforces the parameter's declared type, not the container id string used to
+     * fetch it.
+     *
+     * One more thing this proves along the way: `RequestEmailVerificationHandler` saves the request
+     * row *before* calling the mailer (its own "SAVE BEFORE SEND" comment), so the request row still
+     * exists even though no mail went out — a link that could never have reached anyone, rather than
+     * a mailed link with no row behind it.
+     *
+     * SECOND GOTCHA, AND THE ONE THAT ACTUALLY BIT FIRST: `KernelBrowser` reboots the kernel — and
+     * therefore rebuilds the container — before every request unless told not to
+     * (`KernelBrowser::$reboot`, default `true`). `submitRegistration()` below issues a GET then a
+     * POST; without `disableReboot()`, the second request would silently discard this test's
+     * container override and hit the real mailer, and the test would fail with "1 sent" for a
+     * reason that has nothing to do with the assertion it looks like it is making.
+     */
+    public function testTransportFailureStillCommitsTheUserAndReturnsTheNormalRedirect(): void
+    {
+        $this->client->disableReboot();
+        self::getContainer()->set(TwigVerificationMailer::class, new ThrowingVerificationMailer());
+
+        $response = $this->submitRegistration('mail-fails@example.com', 'a-strong-password-1');
+
+        self::assertSame(Response::HTTP_FOUND, $response->getStatusCode());
+        self::assertSame('/verify-email/sent', $response->headers->get('Location'));
+
+        $userRow = $this->connection->fetchAssociative('SELECT id FROM identity_user WHERE email = ?', ['mail-fails@example.com']);
+        self::assertIsArray($userRow, 'The user row must be committed even though the verification mail failed to send.');
+
+        $userId = $this->asString($userRow['id']);
+        self::assertSame(1, $this->countVerificationRequestsFor($userId), 'The request row must still be saved (save-before-send), even though the send itself threw.');
+
+        self::assertEmailCount(0);
     }
 
     /**
@@ -287,6 +377,17 @@ final class RegistrationControllerTest extends WebTestCase
     private function countUsers(): int
     {
         $count = $this->connection->fetchOne('SELECT COUNT(*) FROM identity_user');
+
+        if (!is_numeric($count)) {
+            self::fail('Expected COUNT(*) to return a numeric value.');
+        }
+
+        return (int) $count;
+    }
+
+    private function countVerificationRequestsFor(string $userId): int
+    {
+        $count = $this->connection->fetchOne('SELECT COUNT(*) FROM identity_email_verification_request WHERE user_id = ?', [$userId]);
 
         if (!is_numeric($count)) {
             self::fail('Expected COUNT(*) to return a numeric value.');

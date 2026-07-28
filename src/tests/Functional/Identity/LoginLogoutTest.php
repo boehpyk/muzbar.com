@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Identity;
 
-use App\Tests\Support\ClearsLoginRateLimiter;
+use App\Tests\Support\ClearsRateLimiters;
 use App\Tests\Support\RegistersAUserWithKnownCredentials;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -12,7 +12,7 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 /**
  * Functional tests for `/login`, `/logout` and the `/account` gate.
  *
- * `ClearsLoginRateLimiter` is used because the throttle counters live in the real Redis
+ * `ClearsRateLimiters` is used because the throttle counters live in the real Redis
  * `cache.rate_limiter` pool in every environment, test included — Redis is not rolled back by
  * DAMA the way Postgres is, so a stale counter from an earlier test (or an earlier suite run)
  * would otherwise make an unrelated test's login attempt fail with the throttling message instead
@@ -21,7 +21,7 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
  */
 final class LoginLogoutTest extends WebTestCase
 {
-    use ClearsLoginRateLimiter;
+    use ClearsRateLimiters;
     use RegistersAUserWithKnownCredentials;
 
     private KernelBrowser $client;
@@ -29,7 +29,7 @@ final class LoginLogoutTest extends WebTestCase
     protected function setUp(): void
     {
         $this->client = static::createClient();
-        $this->clearLoginRateLimiterPool();
+        $this->clearRateLimiterPool();
     }
 
     /**

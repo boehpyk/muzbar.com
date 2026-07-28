@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Identity;
 
-use App\Tests\Support\ClearsLoginRateLimiter;
+use App\Tests\Support\ClearsRateLimiters;
 use App\Tests\Support\RegistersAUserWithKnownCredentials;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -13,13 +13,13 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
  * AC-14: five failed login attempts for the same (username, IP) are allowed to fail normally; the
  * sixth is rejected before any password verification, with the throttling message.
  *
- * See `ClearsLoginRateLimiter` for why the pool is cleared in `setUp()` — without it, this is the
+ * See `ClearsRateLimiters` for why the pool is cleared in `setUp()` — without it, this is the
  * single most likely test in the whole slice to fail non-deterministically, because the counter
  * this test depends on lives in real Redis and survives both other tests and repeated suite runs.
  */
 final class ThrottlingTest extends WebTestCase
 {
-    use ClearsLoginRateLimiter;
+    use ClearsRateLimiters;
     use RegistersAUserWithKnownCredentials;
 
     private KernelBrowser $client;
@@ -27,7 +27,7 @@ final class ThrottlingTest extends WebTestCase
     protected function setUp(): void
     {
         $this->client = static::createClient();
-        $this->clearLoginRateLimiterPool();
+        $this->clearRateLimiterPool();
     }
 
     /**
