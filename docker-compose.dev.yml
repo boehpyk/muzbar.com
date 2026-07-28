@@ -27,6 +27,21 @@ services:
       target: development
     volumes:
       - ./src:/var/www/html
+      # ...but NOT a shared container cache, and this line was paid for in debugging.
+      #
+      # The live mount means `app` and this container see one `var/cache/dev`. Symfony warms the
+      # cache into a hash-named directory and only then swaps it in, so two processes warming
+      # concurrently — which is exactly what happens the first time each container serves a request
+      # after a code change — can leave one of them holding a container hash whose service files the
+      # other has already replaced. It surfaces as
+      # `require(var/cache/dev/ContainerXXXX/getSomeService.php): Failed to open stream`, a hard 500
+      # on every route including the error controller, from an application that is completely
+      # correct and a test suite that is entirely green.
+      #
+      # An anonymous volume here gives the worker its own cache directory while keeping the source
+      # live. Prod needs nothing equivalent: there is no bind mount, so each container already has
+      # its own copy of `var/`.
+      - /var/www/html/var/cache
     environment:
       APP_ENV: dev
 

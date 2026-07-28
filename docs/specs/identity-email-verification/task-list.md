@@ -31,86 +31,86 @@ first, because an ADR written after the code it justifies is a rationalisation, 
 
 ## Domain — value objects
 
-- [ ] **T3:** `ValueObject/VerificationToken` + `Exception/InvalidVerificationToken`. Exactly 43
+- [x] **T3:** `ValueObject/VerificationToken` + `Exception/InvalidVerificationToken`. Exactly 43
       chars of `[A-Za-z0-9_-]`, `#[\SensitiveParameter]` constructor, `__debugInfo()` masking,
       deliberately **no** `__toString()`. **(AC-2, AC-12)**
-- [ ] **T4:** `ValueObject/HashedVerificationToken`. Opaque: non-empty, ≤ 255, **no format check**;
+- [x] **T4:** `ValueObject/HashedVerificationToken`. Opaque: non-empty, ≤ 255, **no format check**;
       `equals()` via `hash_equals`. **(AC-31)**
-- [ ] **T5:** `ValueObject/EmailVerificationRequestId` + `Exception/InvalidEmailVerificationRequestId`
+- [x] **T5:** `ValueObject/EmailVerificationRequestId` + `Exception/InvalidEmailVerificationRequestId`
       — UUID-layout regex, hex-case normalisation, `equals()`. **No generation here.**
 
 ## Domain — aggregate, event, ports
 
-- [ ] **T6:** `Event/EmailVerificationRequested` — request id, user id, `issuedAt`, `expiresAt`.
+- [x] **T6:** `Event/EmailVerificationRequested` — request id, user id, `issuedAt`, `expiresAt`.
       **No token, no email address.** **(AC-26)**
-- [ ] **T7:** `Entity/EmailVerificationRequest` — private constructor, `issue()` deriving `expiresAt`
+- [x] **T7:** `Entity/EmailVerificationRequest` — private constructor, `issue()` deriving `expiresAt`
       from `LIFETIME_SECONDS`, `RecordsEvents`, readers. Invariants I-7, I-8. **(AC-1)**
-- [ ] **T8:** `EmailVerificationRequest::redeem()` + `isRedeemed()` / `isExpiredAt()` and
+- [x] **T8:** `EmailVerificationRequest::redeem()` + `isRedeemed()` / `isExpiredAt()` and
       `Exception/{EmailVerificationLinkExpired, EmailVerificationLinkAlreadyRedeemed,
       EmailVerificationTokenMismatch}`. Invariants I-9, I-10, I-11 — checks in that order.
       **(AC-9, AC-10, AC-31)**
-- [ ] **T9:** `Port/EmailVerificationRequestRepository` — `nextIdentity`, `save`, `findByTokenHash`,
+- [x] **T9:** `Port/EmailVerificationRequestRepository` — `nextIdentity`, `save`, `findByTokenHash`,
       `countIssuedForUserSince` — plus `Exception/EmailVerificationRequestNotFound`. The repository
       does **not** filter on business state; document why.
-- [ ] **T10:** `Port/VerificationTokenGenerator` (`generate()`, `hash()`) — one port, two methods,
+- [x] **T10:** `Port/VerificationTokenGenerator` (`generate()`, `hash()`) — one port, two methods,
       with the "don't let a strong generator pair with a weak digest" note.
-- [ ] **T11:** `Port/VerificationMailer` (`sendVerificationLink(Email, VerificationToken,
+- [x] **T11:** `Port/VerificationMailer` (`sendVerificationLink(Email, VerificationToken,
       \DateTimeImmutable)`), plus `Exception/{EmailAlreadyVerified, TooManyVerificationRequests}` and
       the `MAX_ISSUES_PER_HOUR` constant.
-- [ ] **T12:** Checkpoint — `make stan deptrac`, confirm zero framework imports under `Domain/` and
+- [x] **T12:** Checkpoint — `make stan deptrac`, confirm zero framework imports under `Domain/` and
       that **`Domain/Identity/Entity/User.php` is unchanged in the diff**. That "no diff" is the
       slice's headline result, not an accident. **(AC-33)**
 
 ## Application
 
-- [ ] **T13:** `Command/RequestEmailVerification` + `Handler/RequestEmailVerificationHandler` — the
+- [x] **T13:** `Command/RequestEmailVerification` + `Handler/RequestEmailVerificationHandler` — the
       9-step flow: save **before** send, send **before** dispatch. **(AC-1, AC-17, AC-26)**
-- [ ] **T14:** `Command/VerifyEmailWithToken` (+ `VerificationOutcome` enum) +
+- [x] **T14:** `Command/VerifyEmailWithToken` (+ `VerificationOutcome` enum) +
       `Handler/VerifyEmailWithTokenHandler` — the replay short-circuit **before** `redeem()`, then
       user-save **before** request-save. **(AC-7, AC-8, AC-27)**
 
 ## Infrastructure — persistence
 
-- [ ] **T15:** DBAL types `EmailVerificationRequestIdType` and `HashedVerificationTokenType`;
+- [x] **T15:** DBAL types `EmailVerificationRequestIdType` and `HashedVerificationTokenType`;
       register both under `doctrine.dbal.types`.
-- [ ] **T16:** `Persistence/Doctrine/mapping/EmailVerificationRequest.orm.xml` — explicit table and
+- [x] **T16:** `Persistence/Doctrine/mapping/EmailVerificationRequest.orm.xml` — explicit table and
       column names, `<generator strategy="NONE"/>`, `datetimetz_immutable`, the unique index on
       `token_hash` and the composite `(user_id, issued_at)`, **no association to `User`**.
       `doctrine:mapping:info` must list the new entity. **(AC-34, AC-35)**
-- [ ] **T17:** `Persistence/Doctrine/DoctrineEmailVerificationRequestRepository` + its DI alias. No
+- [x] **T17:** `Persistence/Doctrine/DoctrineEmailVerificationRequestRepository` + its DI alias. No
       unique-constraint translation — a hash collision is a 500, not a business case.
-- [ ] **T18:** Migration creating `identity_email_verification_request` + both indexes — generated
+- [x] **T18:** Migration creating `identity_email_verification_request` + both indexes — generated
       with `make migration.make`, then **hand-reviewed**: correct types, working `down()`, and
       **`identity_user` untouched**. `make migrate` + `make test.db`. **(AC-36)**
-- [ ] **T19:** Messenger's `messenger_messages` migration + `messenger.yaml` routing
+- [x] **T19:** Messenger's `messenger_messages` migration + `messenger.yaml` routing
       (`SendEmailMessage` → `async`, `sync` under `when@test`, failure transport).
 
 ## Infrastructure — security, mail, HTTP
 
-- [ ] **T20:** `Security/RandomVerificationTokenGenerator` (32 CSPRNG bytes → base64url; SHA-256 hex)
+- [x] **T20:** `Security/RandomVerificationTokenGenerator` (32 CSPRNG bytes → base64url; SHA-256 hex)
       + DI alias. Both crypto choices in one class.
-- [ ] **T21:** `SecurityUser` carries `isUsable()` from the Domain `User`; `DomainUserProvider`
+- [x] **T21:** `SecurityUser` carries `isUsable()` from the Domain `User`; `DomainUserProvider`
       unchanged (it rebuilds the object on every refresh).
-- [ ] **T22:** `Security/VerifiedAccountUserChecker` — **empty `checkPreAuth()` with the
+- [x] **T22:** `Security/VerifiedAccountUserChecker` — **empty `checkPreAuth()` with the
       enumeration-oracle comment**, `checkPostAuth()` throwing
       `CustomUserMessageAccountStatusException`. Implement the optional `?TokenInterface` parameter.
       **(AC-20, AC-21)**
-- [ ] **T23:** `security.yaml` — add `user_checker:` to `firewalls.main` and **replace** slice 1's
+- [x] **T23:** `security.yaml` — add `user_checker:` to `firewalls.main` and **replace** slice 1's
       "NO user_checker — and that is a decision" comment with a note pointing here. **(AC-20)**
-- [ ] **T24:** `rate_limiter.yaml` — the `verification_email_resend` sliding window (5/hour), over the
+- [x] **T24:** `rate_limiter.yaml` — the `verification_email_resend` sliding window (5/hour), over the
       existing Redis-backed pool. **(AC-18)**
-- [ ] **T25:** `Mail/TwigVerificationMailer` + DI alias + `templates/email/verify_email.{html,txt}.twig`
+- [x] **T25:** `Mail/TwigVerificationMailer` + DI alias + `templates/email/verify_email.{html,txt}.twig`
       — absolute URL via `ABSOLUTE_URL`, **text part mandatory** for deliverability. **(AC-3, AC-4, AC-6)**
-- [ ] **T26:** `EventListener/IssueVerificationOnUserRegistered` (`#[AsEventListener]` on
+- [x] **T26:** `EventListener/IssueVerificationOnUserRegistered` (`#[AsEventListener]` on
       `UserRegistered`) dispatching `RequestEmailVerification`; log at error level if it fails, since
       the user is already committed. **(AC-1, AC-28)**
-- [ ] **T27:** `Http/Controller/EmailVerificationController::verify` (`/verify-email/{token}` with the
+- [x] **T27:** `Http/Controller/EmailVerificationController::verify` (`/verify-email/{token}` with the
       43-char route requirement) — outcome → flash, every failure → the **one** invalid-link redirect,
       and `Referrer-Policy: no-referrer` on both responses.
       **(AC-7, AC-8, AC-10 … AC-13, AC-39)**
-- [ ] **T28:** `::sent` (`/verify-email/sent`) + template, and `RegistrationController` redirecting
+- [x] **T28:** `::sent` (`/verify-email/sent`) + template, and `RegistrationController` redirecting
       here with new flash copy. **(AC-24)**
-- [ ] **T29:** `Form/ResendVerificationForm{Data,Type}` + `::resend` (`/verify-email/resend`) +
+- [x] **T29:** `Form/ResendVerificationForm{Data,Type}` + `::resend` (`/verify-email/resend`) +
       template — rate-limiter consume → 429, and **one** neutral response for success, unknown,
       already-verified and over-limit. Add the "Didn't get the email?" link to the login template.
       **(AC-14 … AC-19)**
@@ -143,7 +143,7 @@ first, because an ADR written after the code it justifies is a rationalisation, 
 - [ ] **T39:** Functional — login enforcement: unverified + correct password blocked; unverified +
       wrong password shows the *ordinary* message; verified still logs in; throttle still wins at
       attempt 6. **(AC-20 … AC-23)**
-- [ ] **T40:** Update slice-1 tests: `verified: true` in `LoginLogoutTest` / `ThrottlingTest`, new
+- [x] **T40:** Update slice-1 tests: `verified: true` in `LoginLogoutTest` / `ThrottlingTest`, new
       redirect target in `RegistrationControllerTest`. Record which tests failed **before** the fix —
       the list should be exactly the login-dependent ones. **(AC-25)**
 - [ ] **T41:** Infrastructure assertions — `EXPLAIN` shows Index Scans on both new indexes; the mail
