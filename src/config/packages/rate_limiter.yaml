@@ -1,3 +1,12 @@
+# Explicitly declared rate limiters, one block per flow. A fourth limiter, `login_throttling`, shares
+# the same `cache.rate_limiter` pool but is **not** declared here — `security.yaml`'s
+# `login_throttling` key makes the framework build it — so the number of limiters sharing that pool
+# is the number of blocks below plus one. That total is load-bearing for the test suite; see the note
+# at the end of the file.
+#
+# ------------------------------------------------------------------
+# EMAIL VERIFICATION (slice 2)
+#
 # The second anti-abuse layer on email verification, and deliberately a different *kind* of layer
 # from the first.
 #
@@ -56,3 +65,90 @@ framework:
             # single extra email in the worst case, which is not worth a new component and a new
             # failure mode on a one-box budget — the same asymmetry the Domain rule accepts for
             # invariant I-12.
+
+        # ------------------------------------------------------------------
+        # Password reset (slice 3). Two limiters, both per client IP, both over the same Redis-backed
+        # pool as the two above — which now brings that pool to FOUR limiters. See the note on the
+        # test suite at the bottom of this block; it is the part that bites.
+        #
+        # WHY THERE IS NO PER-ACCOUNT LIMITER HERE, AND WHY THAT IS A SECURITY DECISION RATHER THAN
+        # AN OMISSION. The obvious third entry — a limiter keyed on the submitted email address —
+        # would be **an enumeration oracle in its own right**, and a good one. `/forgot-password`
+        # exists precisely so that its answer is identical whether or not the address has an account
+        # (AC-5): every outcome falls out of one `try` into one 302. Key a limiter on the address and
+        # that guarantee is gone through a side door: an attacker submits each candidate address six
+        # times and reads the difference between a 429 (the address was throttled, therefore the
+        # address is *known* to a limiter someone bothered to feed) and a 302. That sorts a list into
+        # "has an account here" and "does not" without the attacker ever needing to read a mailbox,
+        # which is the entire attack the neutral response was built to prevent.
+        #
+        # The per-account rule therefore lives inside the handler, as
+        # `PasswordResetRequest::MAX_ISSUES_PER_HOUR` (3/hour), **behind** the neutral response —
+        # exceeding it throws, the controller catches it alongside "no such user", and the visible
+        # result is the same 302 as everything else. Its effect is real and invisible, which is the
+        # only shape a per-account limit on this endpoint may take.
+        #
+        # So: two limits, two subjects, two homes — the same argument the verification block above
+        # makes, with the extra twist that here the domain half *must not* surface at the boundary.
+        # The IP limiter caps how hard one machine may hammer the endpoint; the domain rule caps how
+        # much mail one victim's inbox can be made to receive. Neither subsumes the other.
+        #
+        # WHY THESE LIMITERS ARE PER-VISITOR AT ALL — AND THE DEPENDENCY THAT MAKES THEM SO. Both are
+        # keyed on `Request::getClientIp()`, and that method returns **the proxy's address** until
+        # `framework.trusted_proxies` says otherwise. Behind Traefik → nginx → php-fpm every request
+        # arrives from a private-range hop, so an untrusted setup collapses each limiter into one
+        # global bucket: five `/forgot-password` POSTs an hour from *anyone* would 429 *everyone*,
+        # and account recovery would be down site-wide for the rest of the hour. That is configured
+        # (slice 2 fixed it in `framework.yaml`, and nginx deliberately does not run
+        # `ngx_http_realip_module` so that Symfony stays the only layer reconstructing the client
+        # IP). **No test can catch a regression here**: `KernelBrowser` synthesises
+        # `REMOTE_ADDR=127.0.0.1`, a value that never occurs in production, so a limiter reads
+        # per-visitor in the suite no matter how the trust list is configured. If someone ever
+        # removes `trusted_proxies`, this file is one of the things that quietly stops working.
+        #
+        # WHY 5 AND 10 RATHER THAN ONE NUMBER FOR BOTH. They are not the same kind of endpoint and a
+        # matching pair would be a coincidence dressed as consistency.
+        #
+        #   `/forgot-password` is a POST from an anonymous stranger that causes **mail to be sent to
+        #   a third party**. It is the one an attacker uses to flood a victim's inbox with alarming
+        #   "someone tried to reset your password" messages, and it is the one whose response is
+        #   load-bearingly neutral, so it is also the endpoint worth probing address-by-address. It
+        #   must be the tight one. A human who has genuinely lost access tries a handful of times —
+        #   mistyped address, checked spam, tried the other mailbox — and 5 covers that with room.
+        #
+        #   The reset routes are reached by someone who **already holds a valid token**, so the
+        #   limiter is not what is protecting the account; the 256-bit token is. What this limit
+        #   protects is the endpoint, and the legitimate person behind it does surprisingly many
+        #   requests: they click the link, get redirected, reload because the page looked odd, mistype
+        #   the new password, fail `NotCompromisedPassword`, try again, and their mail client or
+        #   browser may have prefetched the link before any of that. 10 gives that person room
+        #   without giving an attacker anything they could use — without a token, ten attempts buys
+        #   the same nothing as five.
+        password_reset_request:
+            # Sliding, for the reason spelled out above: a fixed window resets on the hour, so 5 at
+            # 10:59 plus 5 at 11:00 is ten POSTs in a minute while never technically breaching
+            # "5 per hour". The extra counter per key in Redis is nothing.
+            policy: 'sliding_window'
+            limit: 5
+            interval: '1 hour'
+
+        password_reset_submit:
+            policy: 'sliding_window'
+            limit: 10
+            interval: '1 hour'
+
+            # `cache_pool` is NOT set on either of these, for the same reason it is not set above:
+            # the framework default for a limiter is `cache.rate_limiter`, and `cache.yaml` already
+            # pins that pool to Redis explicitly. Naming it here would be a second place to keep in
+            # step, and the two would drift the first time someone changed one of them.
+            #
+            # THE TEST-SUITE CONSEQUENCE, NOW FOUR TIMES AS LIKELY TO BITE. One pool now backs FOUR
+            # limiters — `login_throttling`, `verification_email_resend`, and these two. DAMA wraps
+            # each test in a Postgres transaction and rolls it back; **it does not roll back Redis**,
+            # and nothing does. Every test client shares one synthesised IP, so counters accumulate
+            # across the whole suite under a single key per limiter. Any functional test that touches
+            # `/login`, `/verify-email/resend`, `/forgot-password`, `/reset-password/{token}` or
+            # `/reset-password` must clear the pool in `setUp()` via the `ClearsRateLimiters` trait.
+            # The failure mode when it does not is a 429 nobody asked for, in a test with no diff to
+            # blame, that moves around as tests are reordered — and with four limiters sharing one
+            # pool it is now four separate ways to arrive there.

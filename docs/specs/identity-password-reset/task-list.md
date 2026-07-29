@@ -125,7 +125,7 @@ a bug.
 
 - [x] **T22:** `Security/RandomResetTokenGenerator` (32 CSPRNG bytes → base64url; SHA-256 hex) + DI
       alias. Both crypto choices in one class.
-- [ ] **T23:** `rate_limiter.yaml` — `password_reset_request` (5/hour) and `password_reset_submit`
+- [x] **T23:** `rate_limiter.yaml` — `password_reset_request` (5/hour) and `password_reset_submit`
       (10/hour), both sliding windows over the existing Redis-backed pool. The comment must record
       **why per-account limiting is not done here** (a limiter keyed on the submitted address is
       itself an enumeration oracle) and that the pool now backs **four** limiters.
