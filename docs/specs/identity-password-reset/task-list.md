@@ -140,7 +140,7 @@ a bug.
       **before the body does anything else** (429 with `Retry-After`), the four-way collapse into
       **one** exit reached by falling out of the `try`, and INFO logging with `['reason' => $e::class]`
       and **no address**. **(AC-1, AC-5, AC-6, AC-8, AC-36)**
-- [ ] **T26:** `Form/NewPasswordForm{Data,Type}` — `RepeatedType` of `PasswordType`, constraints
+- [x] **T26:** `Form/NewPasswordForm{Data,Type}` — `RepeatedType` of `PasswordType`, constraints
       **quoted from `PlainPassword`, not retyped**, `NotCompromisedPassword(skipOnError: true)`,
       `allow_extra_fields: false`, CSRF on, and **no token field of any kind**. **(AC-14, AC-22)**
 - [ ] **T27:** `PasswordResetController::check` (`/reset-password/{token}`, GET only, route
