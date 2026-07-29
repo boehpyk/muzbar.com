@@ -185,22 +185,22 @@ a bug.
       verified and two events are dispatched**; verified user dispatches one; expired / unknown /
       mismatched / invalidated / replayed / **stale** each throw; a weak password throws and leaves
       `redeemed_at` NULL. **(AC-23, AC-26, AC-28, AC-29, AC-30)**
-- [ ] **T38:** Functional — `/forgot-password`: the **four-way** assertion with the responses compared
+- [x] **T38:** Functional — `/forgot-password`: the **four-way** assertion with the responses compared
       **against each other in one run** (never against four copies of a literal); a mail with a
       working absolute link; a new request kills the old link; the IP limiter's 429; CSRF failure.
       **(AC-1, AC-3, AC-5, AC-8, AC-9)**
-- [ ] **T39:** Functional — the link: a GET **burns nothing** and the token still works afterwards;
+- [x] **T39:** Functional — the link: a GET **burns nothing** and the token still works afterwards;
       302 to the token-less path; the form page contains the token **nowhere**; `Referrer-Policy` on
       success *and* failure; and all nine invalid-link causes asserted **byte-identical to each
       other**. **(AC-12 … AC-17)**
-- [ ] **T40:** Functional — the reset: the password changes and the request is redeemed; **the old
+- [x] **T40:** Functional — the reset: the password changes and the request is redeemed; **the old
       password fails and the new one succeeds at `/login`** in the same test; no auto-login; a weak
       password gives 422 with the token surviving; a replay is refused. **(AC-18, AC-20, AC-21,
       AC-23, AC-25)**
-- [ ] **T41:** Functional — **session invalidation** (log in → 200 on `/account` → reset → 302 on
+- [x] **T41:** Functional — **session invalidation** (log in → 200 on `/account` → reset → 302 on
       `/account`) and the **unverified-account** path (reset, then log in without touching the
       verification flow at all). **(AC-24, AC-28)**
-- [ ] **T42:** Infrastructure assertions — `EXPLAIN` shows Index Scans for all three new queries; the
+- [x] **T42:** Infrastructure assertions — `EXPLAIN` shows Index Scans for all three new queries; the
       mail renders a correct absolute URL with **no request context**; `symfonycasts/reset-password-bundle`
       is absent from `composer.json` and `composer.lock`. **(AC-11, AC-38, AC-43)**
 
