@@ -99,7 +99,7 @@ a bug.
 - [x] **T16:** `Query/CheckPasswordResetToken` + `Handler/CheckPasswordResetTokenHandler` — returns
       `void`, throws, and **mutates nothing**. Docblock explains why a `bool` would be wrong.
       **(AC-12, AC-16)**
-- [ ] **T17:** `Command/ResetPasswordWithToken` + `Handler/ResetPasswordWithTokenHandler` — the
+- [x] **T17:** `Command/ResetPasswordWithToken` + `Handler/ResetPasswordWithTokenHandler` — the
       stale-request guard (I-23); `PlainPassword` built **after** the token checks; then
       **request-save FIRST, user-save SECOND**, with a call-site comment stating that this is the
       *inversion* of `VerifyEmailWithTokenHandler` and why the crash windows differ.
