@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Domain\Identity\Entity;
 
 use App\Domain\Identity\Entity\User;
 use App\Domain\Identity\Event\UserEmailVerified;
+use App\Domain\Identity\Event\UserPasswordChanged;
 use App\Domain\Identity\Event\UserRegistered;
 use App\Domain\Identity\Exception\CannotRevokeBaseRole;
 use App\Domain\Identity\ValueObject\Email;
@@ -118,6 +119,137 @@ final class UserTest extends TestCase
 
         self::assertSame([], $events);
         self::assertEquals($firstVerifiedAt, $user->emailVerifiedAt());
+    }
+
+    public function testChangePasswordReplacesTheHashAndSetsPasswordChangedAt(): void
+    {
+        $user = $this->registerUser();
+        $newHash = HashedPassword::fromString('a-different-opaque-hash');
+        $changedAt = new \DateTimeImmutable('2026-07-28T09:00:00+00:00');
+
+        $user->changePassword($newHash, $changedAt);
+
+        self::assertTrue($user->passwordHash()->equals($newHash));
+        self::assertEquals($changedAt, $user->passwordChangedAt());
+    }
+
+    /**
+     * AC-33: a successful `changePassword()` dispatches exactly one `UserPasswordChanged`, carrying
+     * a `UserId` and an instant — and, per the event's own docblock, no hash and certainly no
+     * plaintext. Asserted by exhaustively reading the event's declared properties rather than only
+     * checking the two fields we expect, since the thing worth catching is a *future* property
+     * quietly reintroducing the secret.
+     */
+    public function testChangePasswordRecordsExactlyOneUserPasswordChangedEventCarryingNoSecret(): void
+    {
+        $id = UserId::fromString('018f5b2a-0000-7000-8000-000000000000');
+        $user = User::register($id, Email::fromString(self::EMAIL), $this->aHash(), new \DateTimeImmutable('2026-07-25T10:00:00+00:00'));
+        $user->releaseEvents(); // discard the UserRegistered event so this test isolates changePassword()
+
+        $changedAt = new \DateTimeImmutable('2026-07-28T09:00:00+00:00');
+        $user->changePassword(HashedPassword::fromString('a-different-opaque-hash'), $changedAt);
+        $events = $user->releaseEvents();
+
+        self::assertCount(1, $events);
+        self::assertInstanceOf(UserPasswordChanged::class, $events[0]);
+        self::assertTrue($events[0]->userId()->equals($id));
+        self::assertEquals($changedAt, $events[0]->occurredAt());
+
+        $properties = (new \ReflectionClass(UserPasswordChanged::class))->getProperties();
+        self::assertCount(2, $properties);
+
+        $propertyTypeNames = array_map(
+            static fn (\ReflectionProperty $p): ?string => $p->getType() instanceof \ReflectionNamedType ? $p->getType()->getName() : null,
+            $properties,
+        );
+
+        self::assertNotContains(HashedPassword::class, $propertyTypeNames);
+
+        // No accessor returns a HashedPassword either — the property check above rules out a
+        // field, this rules out a computed reader that only wraps one.
+        foreach ((new \ReflectionClass(UserPasswordChanged::class))->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+            $returnType = $method->getReturnType();
+            $returnTypeName = $returnType instanceof \ReflectionNamedType ? $returnType->getName() : null;
+
+            self::assertNotSame(HashedPassword::class, $returnTypeName);
+        }
+    }
+
+    /**
+     * `changePassword()` is deliberately **not** idempotent (the aggregate's own docblock, point 3):
+     * unlike `verifyEmail()`, a repeat is the dangerous case, and it is a new fact each time rather
+     * than a re-announcement of an old one. Two calls therefore record two events, not one.
+     */
+    public function testChangePasswordTwiceRecordsTwoEvents(): void
+    {
+        $user = $this->registerUser();
+        $user->releaseEvents();
+
+        $user->changePassword(HashedPassword::fromString('first-new-hash'), new \DateTimeImmutable('2026-07-28T09:00:00+00:00'));
+        $user->changePassword(HashedPassword::fromString('second-new-hash'), new \DateTimeImmutable('2026-07-28T09:05:00+00:00'));
+        $events = $user->releaseEvents();
+
+        self::assertCount(2, $events);
+        self::assertInstanceOf(UserPasswordChanged::class, $events[0]);
+        self::assertInstanceOf(UserPasswordChanged::class, $events[1]);
+    }
+
+    /**
+     * AC-31: `changePassword()` deliberately does not verify the email — that coupling belongs to
+     * `ResetPasswordWithTokenHandler`, not to the aggregate (the aggregate's own docblock, point 1).
+     * This is the assertion that would catch someone "tidying" the `verifyEmail()` call out of the
+     * handler and into `changePassword()`: an unverified account must still be unverified after a
+     * password change, because only the handler knows whether the channel that produced this call
+     * actually proved control of the mailbox.
+     */
+    public function testChangePasswordDoesNotVerifyTheEmail(): void
+    {
+        $user = $this->registerUser();
+
+        self::assertFalse($user->isEmailVerified());
+
+        $user->changePassword(HashedPassword::fromString('a-different-opaque-hash'), new \DateTimeImmutable('2026-07-28T09:00:00+00:00'));
+
+        self::assertFalse($user->isEmailVerified());
+        self::assertNull($user->emailVerifiedAt());
+    }
+
+    /**
+     * AC-30: `verifyEmail()` remains idempotent even after a password change has happened in
+     * between — a call on a still-unverified account records exactly one `UserEmailVerified`.
+     */
+    public function testVerifyEmailAfterChangePasswordStillRecordsExactlyOneEventOnAnUnverifiedUser(): void
+    {
+        $id = UserId::fromString('018f5b2a-0000-7000-8000-000000000000');
+        $user = User::register($id, Email::fromString(self::EMAIL), $this->aHash(), new \DateTimeImmutable('2026-07-25T10:00:00+00:00'));
+        $user->changePassword(HashedPassword::fromString('a-different-opaque-hash'), new \DateTimeImmutable('2026-07-28T09:00:00+00:00'));
+        $user->releaseEvents(); // discard UserRegistered + UserPasswordChanged
+
+        $verifiedAt = new \DateTimeImmutable('2026-07-28T09:05:00+00:00');
+        $user->verifyEmail($verifiedAt);
+        $events = $user->releaseEvents();
+
+        self::assertCount(1, $events);
+        self::assertInstanceOf(UserEmailVerified::class, $events[0]);
+        self::assertTrue($user->isEmailVerified());
+    }
+
+    /**
+     * AC-30, the other half: `verifyEmail()` after a password change on an **already-verified**
+     * account still records nothing — the password change has no bearing on the idempotency
+     * `verifyEmail()` already guarantees on its own.
+     */
+    public function testVerifyEmailAfterChangePasswordRecordsNothingOnAnAlreadyVerifiedUser(): void
+    {
+        $user = $this->registerUser();
+        $user->verifyEmail(new \DateTimeImmutable('2026-07-26T09:30:00+00:00'));
+        $user->changePassword(HashedPassword::fromString('a-different-opaque-hash'), new \DateTimeImmutable('2026-07-28T09:00:00+00:00'));
+        $user->releaseEvents();
+
+        $user->verifyEmail(new \DateTimeImmutable('2026-07-28T09:05:00+00:00'));
+        $events = $user->releaseEvents();
+
+        self::assertSame([], $events);
     }
 
     /**

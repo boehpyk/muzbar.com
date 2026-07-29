@@ -161,15 +161,15 @@ a bug.
       `PasswordResetRequest::issue()` with `afterInstantiate()` releasing events; states `expired()`,
       `redeemed()`, `invalidated()`, `issuedAt()`. **Update the `ClearsRateLimiters` docblock** —
       the body does not change, but it currently names two limiters and now protects four.
-- [ ] **T31:** Domain unit — the three value objects: bounds, charset, masking, absence of
+- [x] **T31:** Domain unit — the three value objects: bounds, charset, masking, absence of
       `__toString()` by reflection, `hash_equals` near-miss. **(AC-10, AC-17, AC-27)**
-- [ ] **T32:** Domain unit — `PasswordResetRequest`: `issue()` derives +3600 s and records one
+- [x] **T32:** Domain unit — `PasswordResetRequest`: `issue()` derives +3600 s and records one
       secret-free event; `redeem()` happy path records **nothing**; double redeem; redeem-after-
       invalidate and invalidate-after-redeem (I-17); double invalidate is a no-op; **valid at
       `expiresAt` and expired at `expiresAt + 1 s` — both sides**, or the test proves nothing about
       which operator is in the code; mismatch; `assertRedeemableWith()` mutates nothing;
       `releaseEvents()` empties. **(AC-2, AC-12, AC-18, AC-27, AC-32)**
-- [ ] **T33:** Domain unit — `User::changePassword()`: replaces the hash, sets `passwordChangedAt`,
+- [x] **T33:** Domain unit — `User::changePassword()`: replaces the hash, sets `passwordChangedAt`,
       records exactly one `UserPasswordChanged` carrying no secret; `verifyEmail()` afterwards is
       still idempotent. **(AC-30, AC-33)**
 - [ ] **T34:** Integration — the Doctrine adapter: full value-object round-trip after `clear()`;
