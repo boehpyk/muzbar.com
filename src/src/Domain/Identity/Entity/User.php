@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Identity\Entity;
 
 use App\Domain\Identity\Event\UserEmailVerified;
+use App\Domain\Identity\Event\UserPasswordChanged;
 use App\Domain\Identity\Event\UserRegistered;
 use App\Domain\Identity\Exception\CannotRevokeBaseRole;
 use App\Domain\Identity\ValueObject\Email;
@@ -33,6 +34,29 @@ use App\Domain\Shared\Event\RecordsEvents;
 final class User
 {
     use RecordsEvents;
+
+    /**
+     * When this account's password was last changed — `null` for an account that still has the one
+     * it registered with (invariant I-22).
+     *
+     * Declared here rather than promoted into the constructor on purpose: it is derived state that
+     * no creation path supplies, so a constructor parameter would force `register()` and every
+     * future named constructor to pass `null` through a signature that gains nothing from it. Plain
+     * `private` with a `null` default, not `readonly`, for the same reason as every other property
+     * on this class — see the constructor's note below.
+     *
+     * IT IS LOAD-BEARING, NOT AUDIT GARNISH, and that distinction is worth spelling out because a
+     * "last changed at" column is exactly the kind of field that looks like decoration and gets
+     * dropped in a cleanup. Without it, invariant **I-23** — *"a request issued strictly before its
+     * user's last password change is not redeemable"* — is not expressible at all, and I-23 is the
+     * only thing standing between a lost invalidation write and a **replayable account-takeover
+     * primitive**. The reissue sweep (ADR-0011 decision 4) is the primary defence and it can lose a
+     * race; this column is the second layer that makes losing that race safe rather than merely
+     * unlikely, and it does it with one comparison and no cross-row write. That a future *"your
+     * password was changed on X"* notification also reads it is a bonus, not the justification — if
+     * it were only the bonus, this would be speculative state and should be cut.
+     */
+    private ?\DateTimeImmutable $passwordChangedAt = null;
 
     /**
      * Properties are plain `private`, not `readonly`, even where nothing ever reassigns them
@@ -69,6 +93,59 @@ final class User
         $user->recordThat(new UserRegistered($id, $email, $registeredAt));
 
         return $user;
+    }
+
+    /**
+     * Replace this account's credential (invariant I-22).
+     *
+     * It takes a `HashedPassword`, never a string — the same type-system enforcement `register()`
+     * relies on: there is no signature on this class through which plaintext could reach the
+     * aggregate, so "the Domain never saw the password" is a property of the code's shape rather
+     * than of anyone's discipline.
+     *
+     * THREE THINGS IT DELIBERATELY DOES NOT DO. Each of them is a line someone will eventually want
+     * to add, and each would be wrong.
+     *
+     * 1. **It does not verify the email.** A successful password reset *does* also verify the
+     *    address (ADR-0011 decision 6) — but that coupling belongs to *that use case*, not to this
+     *    aggregate, and `ResetPasswordWithTokenHandler` calls `verifyEmail()` itself, one line
+     *    later, with a comment saying why (AC-31). Putting it here would look like tidying and would
+     *    be a security hole: a future authenticated "change my password" screen proves nothing at
+     *    all about the mailbox — the person is already logged in, no mail was sent, no link was
+     *    clicked — so an aggregate method that verified an address would silently turn that screen
+     *    into a verification bypass. The proof came from the *channel*, not from the password
+     *    change, and only the caller knows which channel it used.
+     *
+     * 2. **It does not compare `$at` against the current `passwordChangedAt`.** Invariant I-22
+     *    deliberately claims only that the timestamp is `null` until the first change and set
+     *    thereafter; it does **not** claim monotonicity, and the omission is the point. Whether
+     *    instants arrive in order is a property of the `Clock`, not something this class can enforce
+     *    without ordering instants it has no business ordering — it sees one parameter at a time and
+     *    has no idea whether two clocks, two processes or two timezone-shifted callers are involved.
+     *    Stating the weaker true thing beats stating the stronger false one, and a guard here would
+     *    be an unreachable branch that no test could exercise honestly: the only way to reach it is
+     *    to hand-build a clock that goes backwards, which proves the guard works and nothing about
+     *    the system.
+     *
+     * 3. **It is not idempotent, and does not need to be** — the sharp contrast with
+     *    `verifyEmail()` directly below. Verification is idempotent because mail scanners pre-fetch
+     *    links and humans click twice, so a repeat is the *normal* case; a password change is
+     *    destructive and repeatable, so a repeat is the *dangerous* case, and it is refused
+     *    upstream rather than absorbed here. Two mechanisms do that, in this order: the reset
+     *    request is redeemed **before** the user is saved (ADR-0011 decision 5's inverted save
+     *    order), so a replayed token is already burnt; and the `passwordChangedAt` staleness guard
+     *    (I-23) catches the pathological case where an invalidation write was lost. An
+     *    "already-changed" short-circuit here would be strictly worse than either — it would have
+     *    to guess what "already" means for an operation whose whole nature is to happen again.
+     *
+     * Every successful call records `UserPasswordChanged`, on every call, because every change is a
+     * new fact rather than a re-announcement of an old one.
+     */
+    public function changePassword(HashedPassword $newHash, \DateTimeImmutable $at): void
+    {
+        $this->passwordHash = $newHash;
+        $this->passwordChangedAt = $at;
+        $this->recordThat(new UserPasswordChanged($this->id, $at));
     }
 
     /**
@@ -157,6 +234,18 @@ final class User
     public function passwordHash(): HashedPassword
     {
         return $this->passwordHash;
+    }
+
+    /**
+     * `null` means "never changed since registration", which is a different statement from
+     * "changed at the moment of registration" — and the difference is why this is nullable rather
+     * than defaulted to `registeredAt`. `ResetPasswordWithTokenHandler` reads it for invariant I-23
+     * and treats `null` as "no request can be stale", which is exactly right: an account whose
+     * password has never changed has nothing for an outstanding request to be older than.
+     */
+    public function passwordChangedAt(): ?\DateTimeImmutable
+    {
+        return $this->passwordChangedAt;
     }
 
     /**

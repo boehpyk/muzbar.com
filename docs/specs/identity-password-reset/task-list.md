@@ -61,7 +61,7 @@ a bug.
       **No token, no email address.** **(AC-32)**
 - [x] **T6:** `Event/UserPasswordChanged` — `UserId`, `occurredAt`. **No hash, no plaintext.**
       **(AC-33)**
-- [ ] **T7:** `Entity/User` — `changePassword(HashedPassword, \DateTimeImmutable)`, the
+- [x] **T7:** `Entity/User` — `changePassword(HashedPassword, \DateTimeImmutable)`, the
       `passwordChangedAt` property and its reader. **One method, one property, one reader, one event
       import — nothing else in the diff.** The docblock must state that it deliberately does *not*
       verify the email (that is this use case's business, not the aggregate's — **AC-31**) and does
