@@ -107,7 +107,7 @@ a bug.
 
 ## Infrastructure — persistence
 
-- [ ] **T18:** DBAL types `PasswordResetRequestIdType` and `HashedResetTokenType`; register both
+- [x] **T18:** DBAL types `PasswordResetRequestIdType` and `HashedResetTokenType`; register both
       under `doctrine.dbal.types`.
 - [ ] **T19:** `Persistence/Doctrine/mapping/PasswordResetRequest.orm.xml` — explicit table and
       column names, `<generator strategy="NONE"/>`, `datetimetz_immutable`, the unique index on

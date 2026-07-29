@@ -30,6 +30,13 @@ doctrine:
             # type" at cache warm-up, not at the query that needed it.
             identity_email_verification_request_id: App\Infrastructure\Identity\Persistence\Doctrine\Type\EmailVerificationRequestIdType
             identity_verification_token_hash: App\Infrastructure\Identity\Persistence\Doctrine\Type\HashedVerificationTokenType
+            # Added by `identity-password-reset` for the context's third aggregate. Note that this
+            # list, unlike the mapping block below, does NOT pick up new files by itself: the
+            # directory scan finds `PasswordResetRequest.orm.xml` on its own, but the type names it
+            # refers to exist only because they are written here. An unregistered name fails at cache
+            # warm-up with "Unknown column type", not at the query that needed it.
+            identity_password_reset_request_id: App\Infrastructure\Identity\Persistence\Doctrine\Type\PasswordResetRequestIdType
+            identity_reset_token_hash: App\Infrastructure\Identity\Persistence\Doctrine\Type\HashedResetTokenType
     orm:
         validate_xml_mapping: true
         naming_strategy: doctrine.orm.naming_strategy.underscore
