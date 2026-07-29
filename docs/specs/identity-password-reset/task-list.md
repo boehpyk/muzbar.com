@@ -57,9 +57,9 @@ a bug.
 
 ## Domain — events, aggregate, ports
 
-- [ ] **T5:** `Event/PasswordResetRequested` — request id, user id, `issuedAt`, `expiresAt`.
+- [x] **T5:** `Event/PasswordResetRequested` — request id, user id, `issuedAt`, `expiresAt`.
       **No token, no email address.** **(AC-32)**
-- [ ] **T6:** `Event/UserPasswordChanged` — `UserId`, `occurredAt`. **No hash, no plaintext.**
+- [x] **T6:** `Event/UserPasswordChanged` — `UserId`, `occurredAt`. **No hash, no plaintext.**
       **(AC-33)**
 - [ ] **T7:** `Entity/User` — `changePassword(HashedPassword, \DateTimeImmutable)`, the
       `passwordChangedAt` property and its reader. **One method, one property, one reader, one event
