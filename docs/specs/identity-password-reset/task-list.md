@@ -135,7 +135,7 @@ a bug.
       mandatory**, the expiry rendered both as a duration and an instant (derived from
       `LIFETIME_SECONDS`, never hardcoded), and the *"if you did not request this, your password has
       not been changed"* line. No `->from(...)`. **(AC-3, AC-4, AC-11)**
-- [ ] **T25:** `Form/ForgotPasswordForm{Data,Type}` + `PasswordResetController::request`
+- [x] **T25:** `Form/ForgotPasswordForm{Data,Type}` + `PasswordResetController::request`
       (`/forgot-password`) + `::sent` (`/forgot-password/sent`) + templates — limiter consumed
       **before the body does anything else** (429 with `Retry-After`), the four-way collapse into
       **one** exit reached by falling out of the `try`, and INFO logging with `['reason' => $e::class]`
@@ -143,12 +143,12 @@ a bug.
 - [x] **T26:** `Form/NewPasswordForm{Data,Type}` — `RepeatedType` of `PasswordType`, constraints
       **quoted from `PlainPassword`, not retyped**, `NotCompromisedPassword(skipOnError: true)`,
       `allow_extra_fields: false`, CSRF on, and **no token field of any kind**. **(AC-14, AC-22)**
-- [ ] **T27:** `PasswordResetController::check` (`/reset-password/{token}`, GET only, route
+- [x] **T27:** `PasswordResetController::check` (`/reset-password/{token}`, GET only, route
       requirement `[^/]+` and **no format regex**) — validate, stash the plaintext in the session,
       302 to the token-less route; `Referrer-Policy: no-referrer` on **both** the success and the
       invalid-link responses. Verify with `router:match` that no literal is shadowed.
       **(AC-12, AC-13, AC-15, AC-16, AC-17)**
-- [ ] **T28:** `PasswordResetController::reset` (`/reset-password`, GET + POST) + template — read the
+- [x] **T28:** `PasswordResetController::reset` (`/reset-password`, GET + POST) + template — read the
       stashed token; success clears the session key and 302s to `/login`; any domain failure gives the
       **one** invalid-link response and also clears the key; a *validation* failure re-renders at 422
       and **keeps** the key. **(AC-14, AC-16, AC-18, AC-20, AC-23, AC-25)**
