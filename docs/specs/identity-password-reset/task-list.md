@@ -66,15 +66,15 @@ a bug.
       import — nothing else in the diff.** The docblock must state that it deliberately does *not*
       verify the email (that is this use case's business, not the aggregate's — **AC-31**) and does
       *not* claim monotonicity (I-22).
-- [ ] **T8:** `Entity/PasswordResetRequest` — private constructor, `issue()` deriving `expiresAt`
+- [x] **T8:** `Entity/PasswordResetRequest` — private constructor, `issue()` deriving `expiresAt`
       from `LIFETIME_SECONDS`, both policy constants, `RecordsEvents`, readers. Invariants I-14, I-15.
       **(AC-2, AC-32)**
-- [ ] **T9:** `PasswordResetRequest::assertRedeemableWith()` + `redeem()` +
+- [x] **T9:** `PasswordResetRequest::assertRedeemableWith()` + `redeem()` +
       `isRedeemed()/isExpiredAt()` and `Exception/{PasswordResetLinkExpired,
       PasswordResetLinkAlreadyUsed, PasswordResetTokenMismatch}`. Invariants I-16, I-18, I-19 —
       checks in the documented order. **`assertRedeemableWith()` mutates nothing**, and its docblock
       says that the GET path depends on that. **(AC-12, AC-16, AC-18, AC-27)**
-- [ ] **T10:** `PasswordResetRequest::invalidate()` + `isInvalidated()` / `isLiveAt()` +
+- [x] **T10:** `PasswordResetRequest::invalidate()` + `isInvalidated()` / `isLiveAt()` +
       `Exception/PasswordResetLinkInvalidated`. Invariant I-17 (never both), idempotent second call,
       **records no event** with the reason written down. **(AC-9, AC-34)**
 - [ ] **T11:** `Port/PasswordResetRequestRepository` (`nextIdentity`, `save`, `findByTokenHash`,
