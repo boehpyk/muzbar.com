@@ -42,15 +42,15 @@ a bug.
 
 ## Domain — value objects
 
-- [ ] **T2:** `ValueObject/ResetToken` + `Exception/InvalidResetToken`. Exactly 43 characters of
+- [x] **T2:** `ValueObject/ResetToken` + `Exception/InvalidResetToken`. Exactly 43 characters of
       `[A-Za-z0-9_-]`, case-sensitive, not trimmed; `#[\SensitiveParameter]` on constructor and
       factory; `__debugInfo()` masking; a single `reveal()`; deliberately **no** `__toString()`.
       **(AC-10, AC-17)**
-- [ ] **T3:** `ValueObject/HashedResetToken` + `Exception/InvalidHashedResetToken`. Opaque:
+- [x] **T3:** `ValueObject/HashedResetToken` + `Exception/InvalidHashedResetToken`. Opaque:
       non-empty, ≤ 255, **no format check**; `equals()` via `hash_equals`. Docblock must say why the
       digest is fast rather than Argon2 — the word "password" in this slice makes the wrong reflex
       stronger than it was in slice 2. **(AC-27, AC-35)**
-- [ ] **T4:** `ValueObject/PasswordResetRequestId` + `Exception/InvalidPasswordResetRequestId` —
+- [x] **T4:** `ValueObject/PasswordResetRequestId` + `Exception/InvalidPasswordResetRequestId` —
       UUID-layout regex, hex-case normalisation, `equals()`. **No generation here.** Docblock records
       that this is the *third* near-clone and points at the technical plan's argument for why nothing
       is extracted.
