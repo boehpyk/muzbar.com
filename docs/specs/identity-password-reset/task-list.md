@@ -116,7 +116,7 @@ a bug.
       **(AC-40, AC-41)**
 - [x] **T20:** `Persistence/Doctrine/DoctrinePasswordResetRequestRepository` + its DI alias. No
       unique-constraint translation — a hash collision is a 500, not a business case.
-- [ ] **T21:** Migration — `identity_password_reset_request` + both indexes **and**
+- [x] **T21:** Migration — `identity_password_reset_request` + both indexes **and**
       `identity_user.password_changed_at` (nullable). Generated with `make migration.make`, then
       **hand-reviewed**: correct types, **no FK to `identity_user`**, working `down()` that reverses
       both halves. `make migrate` + `make test.db`. **(AC-42)**
