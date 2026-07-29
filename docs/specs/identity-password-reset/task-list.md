@@ -114,7 +114,7 @@ a bug.
       `token_hash` and the composite `(user_id, issued_at)`, **no association to `User`**. Add
       `password_changed_at` to `User.orm.xml`. `doctrine:mapping:info` must list the new entity.
       **(AC-40, AC-41)**
-- [ ] **T20:** `Persistence/Doctrine/DoctrinePasswordResetRequestRepository` + its DI alias. No
+- [x] **T20:** `Persistence/Doctrine/DoctrinePasswordResetRequestRepository` + its DI alias. No
       unique-constraint translation — a hash collision is a 500, not a business case.
 - [ ] **T21:** Migration — `identity_password_reset_request` + both indexes **and**
       `identity_user.password_changed_at` (nullable). Generated with `make migration.make`, then
