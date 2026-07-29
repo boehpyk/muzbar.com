@@ -96,7 +96,7 @@ a bug.
       for the whole use case; **cap check before the invalidation sweep** (so a spammed form cannot
       kill a victim's live link); sweep through the aggregate, not a bulk `UPDATE`; save before send;
       send before dispatch. **(AC-2, AC-7, AC-9, AC-32)**
-- [ ] **T16:** `Query/CheckPasswordResetToken` + `Handler/CheckPasswordResetTokenHandler` — returns
+- [x] **T16:** `Query/CheckPasswordResetToken` + `Handler/CheckPasswordResetTokenHandler` — returns
       `void`, throws, and **mutates nothing**. Docblock explains why a `bool` would be wrong.
       **(AC-12, AC-16)**
 - [ ] **T17:** `Command/ResetPasswordWithToken` + `Handler/ResetPasswordWithTokenHandler` — the
