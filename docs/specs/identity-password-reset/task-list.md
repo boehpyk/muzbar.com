@@ -152,7 +152,7 @@ a bug.
       stashed token; success clears the session key and 302s to `/login`; any domain failure gives the
       **one** invalid-link response and also clears the key; a *validation* failure re-renders at 422
       and **keeps** the key. **(AC-14, AC-16, AC-18, AC-20, AC-23, AC-25)**
-- [ ] **T29:** Add the *"Forgot your password?"* link to the login template. One line, its own commit,
+- [x] **T29:** Add the *"Forgot your password?"* link to the login template. One line, its own commit,
       because it is the only thing that makes the whole flow reachable.
 
 ## Tests (qa — written after implementation, by the independent agent)

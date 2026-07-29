@@ -38,6 +38,11 @@
 
     <p><a href="{{ path('app_register') }}">Need an account? Register</a></p>
 
+    {# The only thing that makes the whole reset flow reachable. Unconditional, for the reason the
+       verification link below spells out: a link shown only after a specific error would have to
+       inspect the exception, and would announce that this form distinguishes account state. #}
+    <p><a href="{{ path('app_forgot_password') }}">Forgot your password?</a></p>
+
     {# The escape hatch for the failure this page can now produce and could not before (AC-20).
        `VerifiedAccountUserChecker` refuses an unverified account *after* a correct password, so a
        user with the right credentials can be turned away by the error block above with no way
