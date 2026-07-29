@@ -4,9 +4,10 @@
 > commit on `feature/identity-password-reset`. Run `make check` before each commit. Check off as
 > you go.
 
-**BLOCKED.** Eleven decisions are enumerated in the [technical plan](./technical-plan.md)
-§*Decisions needing sign-off*; **decisions 1–4 block T0**, and T0 blocks everything else. An ADR
-written after the code it justifies is a rationalisation, not a decision.
+**UNBLOCKED 2026-07-28.** All eleven decisions in the [technical plan](./technical-plan.md)
+§*Decisions needing sign-off* were accepted as recommended, with two conditions attached: `/verify`
+runs `/security-review` as well as the standard reviewer pass, and decision 11 (no selector/verifier
+split, no HMAC pepper) is flagged to the reviewer as the designated place to disagree.
 
 **Rule for this slice:** tasks T1–T13 must not contain the strings `use Symfony\` or `use Doctrine\`.
 `make deptrac` proves it under `--fail-on-uncovered`.
@@ -20,7 +21,7 @@ a bug.
 
 ## Decisions & prerequisites
 
-- [ ] **T0:** Write **ADR-0011** with `/adr` — *"Password-reset challenges are modelled in the Domain"*
+- [x] **T0:** Write **ADR-0011** with `/adr` — *"Password-reset challenges are modelled in the Domain"*
       — carrying the argument from the technical plan rather than re-deriving it, including: the
       honest case *for* `symfonycasts/reset-password-bundle` and why it still loses (ADR-0007 §7,
       ADR-0009 §4, Constitution §2); the 1-hour lifetime and 3/hour cap with their reasoning; the
