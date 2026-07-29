@@ -34,7 +34,7 @@ a bug.
       third example" consequence is restated as a criterion rather than a headcount), and a
       **correction to `docs/roadmap.md` line 97**.
       **No code in this commit.**
-- [ ] **T1 (checkpoint, not a change):** confirm this slice needs **no new Composer package, no new
+- [x] **T1 (checkpoint, not a change):** confirm this slice needs **no new Composer package, no new
       env var, no new Compose service, no new Messenger transport**. Record it in the commit message.
       *Stated as a task because ADR-0010's amendment makes a new required boot-path env var a
       four-place change — `app`, `messenger-worker`, CI, image build — and the way that bites is by
