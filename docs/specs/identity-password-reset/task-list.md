@@ -109,7 +109,7 @@ a bug.
 
 - [x] **T18:** DBAL types `PasswordResetRequestIdType` and `HashedResetTokenType`; register both
       under `doctrine.dbal.types`.
-- [ ] **T19:** `Persistence/Doctrine/mapping/PasswordResetRequest.orm.xml` — explicit table and
+- [x] **T19:** `Persistence/Doctrine/mapping/PasswordResetRequest.orm.xml` — explicit table and
       column names, `<generator strategy="NONE"/>`, `datetimetz_immutable`, the unique index on
       `token_hash` and the composite `(user_id, issued_at)`, **no association to `User`**. Add
       `password_changed_at` to `User.orm.xml`. `doctrine:mapping:info` must list the new entity.
