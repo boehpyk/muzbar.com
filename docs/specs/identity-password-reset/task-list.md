@@ -86,7 +86,7 @@ a bug.
       with `VerificationTokenGenerator`.
 - [x] **T13:** `Port/PasswordResetMailer` (`sendResetLink(Email, ResetToken, \DateTimeImmutable)`)
       plus `Exception/{TooManyPasswordResetRequests, StalePasswordResetRequest}`.
-- [ ] **T14:** Checkpoint — `make stan deptrac`; confirm zero framework imports under `Domain/`, and
+- [x] **T14:** Checkpoint — `make stan deptrac`; confirm zero framework imports under `Domain/`, and
       confirm the **`User` diff is exactly** one property, one method, one reader, one import.
       **(AC-39)**
 
