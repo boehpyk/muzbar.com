@@ -92,7 +92,7 @@ a bug.
 
 ## Application
 
-- [ ] **T15:** `Command/RequestPasswordReset` + `Handler/RequestPasswordResetHandler` — one `now()`
+- [x] **T15:** `Command/RequestPasswordReset` + `Handler/RequestPasswordResetHandler` — one `now()`
       for the whole use case; **cap check before the invalidation sweep** (so a spammed form cannot
       kill a victim's live link); sweep through the aggregate, not a bulk `UPDATE`; save before send;
       send before dispatch. **(AC-2, AC-7, AC-9, AC-32)**
