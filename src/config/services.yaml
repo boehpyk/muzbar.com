@@ -41,6 +41,7 @@ services:
     App\Domain\Identity\Port\VerificationMailer: '@App\Infrastructure\Identity\Mail\TwigVerificationMailer'
     App\Domain\Identity\Port\PasswordResetRequestRepository: '@App\Infrastructure\Identity\Persistence\Doctrine\DoctrinePasswordResetRequestRepository'
     App\Domain\Identity\Port\ResetTokenGenerator: '@App\Infrastructure\Identity\Security\RandomResetTokenGenerator'
+    App\Domain\Identity\Port\PasswordResetMailer: '@App\Infrastructure\Identity\Mail\TwigPasswordResetMailer'
 
     # Redis client (Predis) built from REDIS_URL; aliased for autowiring by interface.
     Predis\Client:

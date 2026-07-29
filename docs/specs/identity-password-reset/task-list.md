@@ -130,7 +130,7 @@ a bug.
       **why per-account limiting is not done here** (a limiter keyed on the submitted address is
       itself an enumeration oracle) and that the pool now backs **four** limiters.
       **(AC-8, AC-19)**
-- [ ] **T24:** `Mail/TwigPasswordResetMailer` + DI alias +
+- [x] **T24:** `Mail/TwigPasswordResetMailer` + DI alias +
       `templates/email/reset_password.{html,txt}.twig` — absolute URL via `ABSOLUTE_URL`, **text part
       mandatory**, the expiry rendered both as a duration and an instant (derived from
       `LIFETIME_SECONDS`, never hardcoded), and the *"if you did not request this, your password has
