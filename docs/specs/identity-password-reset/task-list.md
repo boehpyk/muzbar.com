@@ -172,16 +172,16 @@ a bug.
 - [x] **T33:** Domain unit — `User::changePassword()`: replaces the hash, sets `passwordChangedAt`,
       records exactly one `UserPasswordChanged` carrying no secret; `verifyEmail()` afterwards is
       still idempotent. **(AC-30, AC-33)**
-- [ ] **T34:** Integration — the Doctrine adapter: full value-object round-trip after `clear()`;
+- [x] **T34:** Integration — the Doctrine adapter: full value-object round-trip after `clear()`;
       `countIssuedForUserSince` boundary behaviour; `findOutstandingForUser` excludes redeemed **and**
       invalidated rows and **includes** expired ones; `nextIdentity()` uniqueness.
-- [ ] **T35:** Integration — `RequestPasswordResetHandler` with `FrozenClock`, spy dispatcher and a
+- [x] **T35:** Integration — `RequestPasswordResetHandler` with `FrozenClock`, spy dispatcher and a
       recording mailer: happy path persists one row, sends one message and invalidates the previous
       outstanding request; unknown email throws; the **4th** call inside the hour throws, persists
       nothing **and leaves the existing request outstanding**. **(AC-7, AC-9, AC-32)**
-- [ ] **T36:** Integration — `CheckPasswordResetTokenHandler`: happy path returns and the row is
+- [x] **T36:** Integration — `CheckPasswordResetTokenHandler`: happy path returns and the row is
       **byte-for-byte unchanged** on re-read; each failure cause throws its own class. **(AC-12)**
-- [ ] **T37:** Integration — `ResetPasswordWithTokenHandler`: happy path; **unverified user is also
+- [x] **T37:** Integration — `ResetPasswordWithTokenHandler`: happy path; **unverified user is also
       verified and two events are dispatched**; verified user dispatches one; expired / unknown /
       mismatched / invalidated / replayed / **stale** each throw; a weak password throws and leaves
       `redeemed_at` NULL. **(AC-23, AC-26, AC-28, AC-29, AC-30)**
