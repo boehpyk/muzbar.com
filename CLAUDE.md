@@ -16,7 +16,7 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 slices 1–2 of 5 complete**.
+> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 slices 1–3 of 5 complete**.
 > `identity-user-password-auth` (2026-07-26) shipped the repo's first Domain code — the `User`
 > aggregate, value objects, ports, two domain events, the first migration, and
 > register/login/logout/`/account`. `identity-email-verification` (2026-07-28) added the **second
@@ -25,7 +25,15 @@ Docker Compose · Traefik · Nginx.
 > at login — without touching `User` at all.
 > Slice 2 passed `/verify` on 2026-07-28 after three fix iterations; it also configured
 > `framework.trusted_proxies`, which retroactively makes slice 1's `login_throttling` limiter work.
-> Current work: the remaining `Identity` slices, starting with `identity-password-reset`.
+> `identity-password-reset` (2026-07-29) added the **third aggregate**, `PasswordResetRequest` —
+> the same *shape* as slice 2's with **four rules deliberately inverted** (a replay is refused, a
+> reissue invalidates outstanding links, the GET mutates nothing, and the two saves go in the
+> opposite order). Established [ADR-0011](./docs/adr/0011-password-reset-challenges-modelled-in-the-domain.md).
+> It is the first slice to touch `User` since slice 1, by exactly one property, one method, one
+> reader and one import — and the first where a successful use case in one context (reset) also
+> discharges a fact owned by another use case (email verification).
+> Current work: the remaining `Identity` slices — next is `identity-challenge-pruning`, which now
+> has **two** challenge tables to sweep.
 > Two Phase 0 items still carry over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md), and **Sentry, no longer merely overdue**: slice 2 added
 > asynchronous failure paths that are silent by construction (a swallowed listener exception, a
@@ -85,7 +93,21 @@ established by the second slice, inherited by every context:
   `make migration.make` — deleted and re-added forever. The cost is possible orphan rows; the
   pruning job and the GDPR-erasure design own that.
 - Two aggregates changing in one use case means **two saves in a deliberate order**. Pick the order
-  whose crash window is benign, and write down why at the call site.
+  whose crash window is benign, and write down why at the call site. **This rule has now produced two
+  opposite answers, which is the evidence that it is a rule and not a habit**: verification saves
+  user-first (a surviving token is inert once the account is verified), reset saves *request-first*
+  (a surviving token is another chance to set a password —
+  [ADR-0011](./docs/adr/0011-password-reset-challenges-modelled-in-the-domain.md) decision 5). Both
+  call sites name the other one, so a reader who spots the contradiction finds the reason instead of
+  "aligning" them.
+
+**Structurally identical aggregates still do not share a base class.** `PasswordResetRequest` is ~80%
+the same file as `EmailVerificationRequest` and shares no supertype with it. They share a *shape*,
+not *behaviour*, and they differ on **four** rules — replay refused vs absorbed, reissue invalidating
+vs not, the GET mutating vs burning, and the save order. Any guess a base class made on those would
+be right for one subclass and a latent security bug in the other. **Every one of the four carries a
+comment at its call site saying *why* it is inverted**, and that rule generalises: when a new file
+deliberately contradicts an existing one, the contradiction is the thing that needs the comment.
 
 **Domain events** ([ADR-0008](./docs/adr/0008-domain-events-recorded-on-the-aggregate.md)): the
 aggregate `recordThat()`s via the `RecordsEvents` trait and never dispatches; the Application handler
@@ -154,8 +176,18 @@ worker.
   own named constructor (`instantiateWith()`), never around it.
   **DAMA rolls back Postgres, not Redis** — anything cached survives between tests and must be
   cleared in `setUp()` via the `ClearsRateLimiters` trait. The `cache.rate_limiter` pool now backs
-  **two** limiters (`login_throttling` and `verification_email_resend`), so a test driving either
-  `/login` or `/verify-email/resend` needs it.
+  **four** limiters (`login_throttling`, `verification_email_resend`, `password_reset_request` and
+  `password_reset_submit`), so a test driving `/login`, `/verify-email/resend`, `/forgot-password`
+  or either reset route needs it. The cheap proof that you got it right is to **run `make test`
+  twice in a row** — a second run that fails is the classic symptom.
+  **The session is load-bearing in a functional test now**, because the reset flow stashes its token
+  there. Test sessions use `session.storage.factory.mock_file`, which persists across requests within
+  **one** `KernelBrowser` — so a test that creates a second client, or reboots the kernel, silently
+  loses the flow. Keep a reset scenario inside one client.
+  **A repository fetched once in `setUp()` serves entities from Doctrine's identity map**, so a read
+  taken after an HTTP-driven mutation can hand back the pre-request object rather than the committed
+  row. Fetch a fresh repository from the container immediately before any assertion that must reflect
+  a request that just finished.
 - **Swapping an adapter inside a test needs two things, and each fails silently alone.** Target the
   **concrete class's** service id, never the port alias — Symfony's `ResolveReferencesToAliasesPass`
   rewrites alias references to their target at *compile* time, so a handler's constructor is already
@@ -232,6 +264,22 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   because the fallback converts a loud outage into a silent misconfiguration. **When you add a
   required input to the boot path, enumerate every context that boots, not every context that serves
   traffic.**
+- **Redis is now load-bearing for account recovery, not merely for its throttling.** The reset flow
+  stashes the plaintext token in the **session** between `GET /reset-password/{token}` and the form
+  it redirects to, so that a live account-takeover credential never sits in the URL of a page the
+  user types into ([ADR-0011](./docs/adr/0011-password-reset-challenges-modelled-in-the-domain.md)
+  decision 8). Sessions are Redis-backed, so **Redis down breaks password reset outright** — the
+  route answers with the neutral invalid-link redirect, which is indistinguishable from a bad token,
+  so the failure presents to the user as "your link doesn't work" and to the operator as nothing at
+  all. Accepted knowingly; recorded here because it is the cost side of that decision and is easy to
+  forget when reading only the benefit.
+- **A route requirement's failure mode is a bare 404 that no `catch` can convert.** `{token}` on
+  `/reset-password/{token}` is deliberately only `[^/]+`, with the format gate living in the
+  `ResetToken` value object, so a mangled token reaches the controller and gets the same neutral
+  invalid-link response as an unknown one. A stricter `requirements` regex would dead-end exactly the
+  people who need the form (mail clients hard-wrap long lines) and would make the controller's
+  `InvalidResetToken` arm dead code. **Nothing will tell you**: every test using a well-formed token
+  passes with the strict regex in place.
 
 ## SDLC
 

@@ -94,12 +94,25 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         mail over Messenger + a worker container, no outbox — discharging ADR-0008's watched clause).
         **Owed by this slice:** a pruning job for expired/redeemed requests, and the orphan-row
         question when GDPR erasure is designed (there is deliberately no FK to `identity_user`).
-  - [ ] `identity-password-reset` — a domain-modelled `PasswordResetRequest` aggregate;
+  - [x] `identity-password-reset` — **DONE 2026-07-29.** The context's **third aggregate**,
+        `PasswordResetRequest`, with `ResetToken` / `HashedResetToken` / `PasswordResetRequestId`
+        VOs, the `PasswordResetRequested` and `UserPasswordChanged` events, three more ports
+        (repository, token generator, mailer), a third additive migration, and the
+        forgot-password / sent / link-check / reset routes with their mail templates.
         **`symfonycasts/reset-password-bundle` is not installed**
         ([ADR-0011](./adr/0011-password-reset-challenges-modelled-in-the-domain.md), which also
         amends ADR-0005 and ADR-0009). *This line previously named the bundle. It was written in
         Phase 0 as part of a stack survey, and it is corrected rather than quietly outvoted — a
         roadmap line that survives contradicting an accepted ADR is how documentation starts lying.*
+        The slice is the **same shape as slice 2 with four rules inverted** — a replay is refused,
+        reissuing invalidates outstanding links, the GET mutates nothing, and the two saves go in
+        the opposite order — and each inversion carries a call-site comment saying *why*, because
+        two files that differ four times without stated reasons is how one of them eventually gets
+        "fixed". `User` **is** touched, unlike slice 2: one property, one method, one reader, one
+        import, and no more (AC-39). A successful reset also verifies the email, which is what stops
+        an unverified account being stranded with no recovery path at all.
+        **Owed by this slice:** nothing new — it *adds to* the pruning debt rather than paying it,
+        which is why `identity-challenge-pruning` is scheduled next.
   - [ ] `identity-challenge-pruning` — one Scheduler task sweeping expired/redeemed/invalidated rows
         from **both** challenge tables (`identity_email_verification_request`,
         `identity_password_reset_request`), plus the orphan-row answer that ADR-0009 decision 4 left

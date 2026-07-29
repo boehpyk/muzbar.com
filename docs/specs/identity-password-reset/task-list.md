@@ -206,7 +206,7 @@ a bug.
 
 ## Docs & verify
 
-- [ ] **T43:** Docs: `CLAUDE.md` (the third aggregate, the four limiters now sharing
+- [x] **T43:** Docs: `CLAUDE.md` (the third aggregate, the four limiters now sharing
       `cache.rate_limiter`, and the reset flow's new session dependency), `docs/roadmap.md` (tick the
       slice; the line-97 correction from T0 should already be in; **add the `identity-challenge-pruning`
       slice** before `identity-google-oauth`; add the password-changed notification), `FORboehpyk.md`
