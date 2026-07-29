@@ -77,14 +77,14 @@ a bug.
 - [x] **T10:** `PasswordResetRequest::invalidate()` + `isInvalidated()` / `isLiveAt()` +
       `Exception/PasswordResetLinkInvalidated`. Invariant I-17 (never both), idempotent second call,
       **records no event** with the reason written down. **(AC-9, AC-34)**
-- [ ] **T11:** `Port/PasswordResetRequestRepository` (`nextIdentity`, `save`, `findByTokenHash`,
+- [x] **T11:** `Port/PasswordResetRequestRepository` (`nextIdentity`, `save`, `findByTokenHash`,
       `countIssuedForUserSince`, `findOutstandingForUser`) + `Exception/PasswordResetRequestNotFound`
       (whose factory takes **no** argument). Document the distinction that `findByTokenHash` filters
       on **nothing** while `findOutstandingForUser` filters on **structure, never judgement**.
-- [ ] **T12:** `Port/ResetTokenGenerator` (`generate()`, `hash()`) — one port, two methods, with the
+- [x] **T12:** `Port/ResetTokenGenerator` (`generate()`, `hash()`) — one port, two methods, with the
       "don't let a strong generator pair with a weak digest" note and the reason it is *not* merged
       with `VerificationTokenGenerator`.
-- [ ] **T13:** `Port/PasswordResetMailer` (`sendResetLink(Email, ResetToken, \DateTimeImmutable)`)
+- [x] **T13:** `Port/PasswordResetMailer` (`sendResetLink(Email, ResetToken, \DateTimeImmutable)`)
       plus `Exception/{TooManyPasswordResetRequests, StalePasswordResetRequest}`.
 - [ ] **T14:** Checkpoint — `make stan deptrac`; confirm zero framework imports under `Domain/`, and
       confirm the **`User` diff is exactly** one property, one method, one reader, one import.
