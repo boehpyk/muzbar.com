@@ -157,7 +157,7 @@ a bug.
 
 ## Tests (qa — written after implementation, by the independent agent)
 
-- [ ] **T30:** `tests/Factory/PasswordResetRequestFactory` (Foundry) through
+- [x] **T30:** `tests/Factory/PasswordResetRequestFactory` (Foundry) through
       `PasswordResetRequest::issue()` with `afterInstantiate()` releasing events; states `expired()`,
       `redeemed()`, `invalidated()`, `issuedAt()`. **Update the `ClearsRateLimiters` docblock** —
       the body does not change, but it currently names two limiters and now protects four.
