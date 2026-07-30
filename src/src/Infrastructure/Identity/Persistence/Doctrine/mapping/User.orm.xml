@@ -80,6 +80,26 @@
         <field name="emailVerifiedAt" column="email_verified_at" type="datetimetz_immutable" nullable="true"/>
         <field name="registeredAt" column="registered_at" type="datetimetz_immutable" nullable="false"/>
 
+        <!--
+            Added by `identity-password-reset` — the first change to this mapping since slice 1, and
+            the slice that added it could not avoid one: changing a password is a statement about the
+            account, and the account aggregate owns it.
+
+            **Nullable, and it stays nullable forever.** `NULL` does not mean "unknown"; it means
+            *"this account's password has never been changed since registration"*, which is the true
+            state of every row that exists today and of every account that never resets. There is no
+            backfill and there must never be one — writing `registered_at` in here would assert a
+            password change that did not happen, and the one rule that reads this column (I-23:
+            a reset request issued strictly before the user's last password change is refused) would
+            then start refusing legitimate links issued in the same second as a registration.
+
+            It is **load-bearing, not audit garnish**. I-23 is the second layer behind the
+            invalidation sweep: if that sweep is ever lost to a crash or a race, a sibling reset
+            request stays live and redeemable, and this one column plus one comparison is what closes
+            it — with no cross-row write and no dependency on the sweep having succeeded.
+        -->
+        <field name="passwordChangedAt" column="password_changed_at" type="datetimetz_immutable" nullable="true"/>
+
     </entity>
 
 </doctrine-mapping>

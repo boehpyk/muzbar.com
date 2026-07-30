@@ -18,15 +18,23 @@ use Psr\Cache\CacheItemPoolInterface;
  * username").
  *
  * GENERALISED FROM `ClearsLoginRateLimiter` (identity-email-verification, T30). Slice 1's original
- * name described one limiter (`login_throttling`); this slice added a second,
- * `verification_email_resend` (`config/packages/rate_limiter.yaml`), sharing the *same*
- * `cache.rate_limiter` pool. Clearing the whole pool already cleared both — the method body below is
- * unchanged from the original — but a trait named after one limiter while silently protecting a
- * second is exactly the kind of drift that makes a reader distrust a docblock. Renaming it to name
- * the pool it actually clears is what keeps the trait honest as a third limiter, whenever it arrives,
- * needs nothing more than this same clear.
+ * name described one limiter (`login_throttling`); slice 2 added a second, `verification_email_resend`
+ * (`config/packages/rate_limiter.yaml`), sharing the *same* `cache.rate_limiter` pool. Clearing the
+ * whole pool already cleared both — the method body below is unchanged from the original — but a
+ * trait named after one limiter while silently protecting a second is exactly the kind of drift that
+ * makes a reader distrust a docblock. Renaming it to name the pool it actually clears is what keeps
+ * the trait honest as further limiters arrive and need nothing more than this same clear.
  *
- * Any Functional test that drives `/login` or `/verify-email/resend` uses this in `setUp()`.
+ * `identity-password-reset` (slice 3) added **two more**, `password_reset_request` and
+ * `password_reset_submit`, over the same pool — so the pool now backs **four** limiters in total:
+ * `login_throttling`, `verification_email_resend`, `password_reset_request` and
+ * `password_reset_submit`. Again, the body below does not change: `clear()` already clears
+ * everything in the pool regardless of how many limiters share it. Only this docblock's inventory
+ * needed updating, which is precisely the drift CLAUDE.md warns about — a docblock naming two
+ * limiters while the trait actually protects four.
+ *
+ * Any Functional test that drives `/login`, `/verify-email/resend`, `/forgot-password` or the
+ * `/reset-password*` routes uses this in `setUp()`.
  */
 trait ClearsRateLimiters
 {

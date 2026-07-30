@@ -115,3 +115,33 @@ one `user_checker:` line in `security.yaml` now enforce `User::isUsable()` at au
 as predicted and with no change to `Domain` or `Application`. The check runs in `checkPostAuth()`, so
 it fires only after the correct password has been presented and can never become an
 account-enumeration oracle.
+
+### Amendment, 2026-07-29 — password reset is modelled in the Domain too, and that open question is now closed
+
+The amendment above deliberately left one thing open: *"`symfonycasts/reset-password-bundle` is not
+covered by this amendment and remains the plan of record for `identity-password-reset`; that slice
+must make its own call."* `identity-password-reset` has made it.
+
+**The bundle is not installed.** [ADR-0011](./0011-password-reset-challenges-modelled-in-the-domain.md)
+records a stored, hashed, single-use, expiring, revocable `PasswordResetRequest` aggregate inside
+`Identity` instead.
+
+The reasoning is **not** the same as the verification bundle's, and ADR-0011 goes out of its way to
+say so. `verify-email-bundle` was rejected because it is stateless and therefore could not express
+the required properties at all. `reset-password-bundle` *is* stateful and *does* implement every
+property this slice's spec enumerates — several of them more carefully than a first attempt would.
+It is rejected on **structural** grounds: its entity requires an object reference and a foreign key
+to another aggregate root (ADR-0009 decision 4), its repository is expected to extend
+`ServiceEntityRepository` (ADR-0007 decision 7), its entity cannot live in `Domain/` at all, and its
+helper would own every rule worth modelling (Constitution §2).
+
+Everything else in this ADR still stands. Passwords still hash with Symfony's `auto` hasher; every
+cryptographic primitive in the reset flow — `random_bytes`, `hash('sha256')`, `hash_equals`, the
+password hasher — remains vendor code, so *"don't roll your own auth"* is honoured in the sense that
+maxim actually means. What this repository writes is the orchestration.
+
+**No bundle named in this ADR's Decision section is now installed.** Both were surveyed in Phase 0,
+before any Domain code existed, and both turned out to answer a question the Domain should answer
+itself. The remaining named dependency, `knpuniversity/oauth2-client-bundle`, is a *protocol client*
+rather than a model — a different kind of thing — and `identity-google-oauth` should still expect to
+use it.

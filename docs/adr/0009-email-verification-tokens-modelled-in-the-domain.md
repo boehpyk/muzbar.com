@@ -122,3 +122,55 @@ can be applied repeatedly. Recorded so slice 3 does not copy the wrong precedent
   - The plaintext token travels in a URL path, so it can reach nginx access logs and browser history.
     Single use and the 24 h lifetime are the real mitigations; `Referrer-Policy: no-referrer` on the
     verification responses is the cheap belt-and-braces one.
+
+## Amendment, 2026-07-29 — decision 5's forward-looking clause is discharged, and the shared-UUID trigger is restated
+
+`identity-password-reset` has landed, and it settles two things this ADR left pointing at the future.
+
+**Decision 5 is discharged, in the opposite direction.** This ADR said reissuing does *not* invalidate
+outstanding verification links, and added: *"This reasoning does not transfer to
+`identity-password-reset`, where a stale live token is dangerous because setting a new password can be
+applied repeatedly."* [ADR-0011](./0011-password-reset-challenges-modelled-in-the-domain.md) decision
+4 cashes that carve-out in: **issuing a reset challenge invalidates the account's outstanding ones**,
+swept through the aggregate rather than a bulk `UPDATE`, with the per-user cap checked *before* the
+sweep so a spammed form cannot kill a victim's in-flight link.
+
+The clause did its job. It was written so slice 3 would not copy the wrong precedent, and slice 3 did
+not. The general lesson is worth keeping: **when an ADR declines a safeguard because a specific
+property makes it unnecessary, name the property**, not the conclusion — that is what lets a later
+slice check whether it still holds.
+
+Decision 3's **save ordering** was discharged the same way. This ADR ordered user-first,
+request-second because that crash window is benign. ADR-0011 decision 5 applies the identical rule
+from decision 4 (*pick the order whose crash window is benign, and write down why at the call site*)
+and gets **request-first, user-second** — the inverse. A rule that produces different answers from
+different inputs is a rule; one that always produces the same answer is a habit.
+
+**The shared-UUID trigger is restated as a criterion rather than a headcount.** The consequence above
+reads: *"Two is a coincidence; three is a pattern. No `Domain/Shared/ValueObject/Uuid` yet — revisit
+when `Catalog` produces the third example."* `PasswordResetRequestId` is the third example, and it
+arrived early and from inside `Identity`. The answer is still **no**, so the trigger is replaced:
+
+> **Revisit at the first aggregate id outside `Identity`, and only if the extraction can preserve
+> cross-type comparison as a compile-time error.**
+
+Both halves matter, and the count never did:
+
+1. All three examples come from **one bounded context**. An abstraction induced from three samples of
+   `Identity` is an `Identity` abstraction wearing a `Shared/` namespace. `Catalog` was named as the
+   trigger precisely *because* it is a different context — that is what tests whether the commonality
+   is "an aggregate identity" or "how `Identity` happens to spell things".
+2. The naive extraction opens a **type hole**, and it is not obvious. A base class declaring
+   `public function equals(self $other): bool` resolves `self` to the **base**, so after extraction
+   `$userId->equals($passwordResetRequestId)` compiles and returns a meaningful-looking `false`.
+   Today that is a `TypeError` at the moment it is written. Trading a compile-time guarantee for forty
+   saved lines, in the context that holds the credentials, is a bad trade.
+
+The duplication being tolerated is cheap, local and non-viral: three ~40-line files that nothing else
+depends on, each with a docblock saying the sameness is an encoding coincidence.
+
+**One thing this ADR got right and should be read as precedent:** it kept `EmailVerificationRequested`
+with no listener, on the grounds that an event naming a fact a domain expert would recognise, whose
+payload is complete without a second query, is recorded history rather than speculative generality.
+ADR-0011 ships two more on the same basis, and declines a third (`PasswordResetRequestInvalidated`)
+that fails the test.
