@@ -232,6 +232,17 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   route including the error controller, from an application that is correct and a suite that is
   green. `docker-compose.dev.yml` gives the worker an anonymous volume over `var/cache`. Prod is
   unaffected — no bind mount, so each container already has its own `var/`.
+- **PHP scans `conf.d` alphabetically and last-write-wins, so an override file must sort *after* what
+  it overrides — and `-` (0x2D) sorts before `.` (0x2E).** `zz-app-dev.ini` therefore loaded *before*
+  `zz-app.ini` and every key both files set was silently reverted to the production value. The
+  casualty was `opcache.validate_timestamps`: dev ran with it **Off** against a live-mounted `./src`,
+  so edited code kept serving the previous version until the container was restarted. **Manual
+  verification then exercises code that is not on disk — in both directions**: during slice 3's
+  `/verify` it produced one false "the fix isn't working" (the code was already correct) and one
+  false pass. `make test` is immune (`opcache.enable_cli = 0`, fresh process per run), which is
+  exactly what made it dangerous — the automated gate stayed honest while hand-checks lied. Fixed
+  2026-07-30 by installing the dev overrides as `zzz-app-dev.ini`. **When a hand-check contradicts a
+  green suite, suspect the runtime before the code.**
 - **`DEFAULT_URI` decides every absolute URL built outside an HTTP request** — the Messenger worker
   and every console command. Left at the skeleton's `http://localhost`, every link in every outgoing
   mail points somewhere unreachable, and **no functional test catches it**, because a test runs
