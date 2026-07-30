@@ -266,6 +266,34 @@ final class DoctrinePasswordResetRequestRepositoryTest extends KernelTestCase
         self::assertTrue($outstanding[0]->id()->equals($mine->id()));
     }
 
+    /**
+     * `findOutstandingForUser()`'s `ORDER BY issued_at` is part of the port's contract (see the
+     * adapter's own docblock) rather than decoration, and the single-row tests above cannot exercise
+     * an order at all — three rows saved deliberately **out of `issuedAt` order** is what actually
+     * pins that the DQL sorts ascending rather than merely returning membership, and it is what would
+     * catch the `ORDER BY` clause being "optimised" away or reversed.
+     */
+    public function testFindOutstandingForUserOrdersByIssuedAtAscendingRegardlessOfSaveOrder(): void
+    {
+        $userId = $this->aUserId();
+        $middle = PasswordResetRequest::issue($this->repository->nextIdentity(), $userId, $this->aHash(), new \DateTimeImmutable('2026-07-28T10:05:00+00:00'));
+        $latest = PasswordResetRequest::issue($this->repository->nextIdentity(), $userId, $this->aHash(), new \DateTimeImmutable('2026-07-28T10:10:00+00:00'));
+        $earliest = PasswordResetRequest::issue($this->repository->nextIdentity(), $userId, $this->aHash(), new \DateTimeImmutable('2026-07-28T10:00:00+00:00'));
+
+        // Saved in an order that does NOT match `issuedAt` order, so a query with no `ORDER BY` (or
+        // one that merely reflects insertion order) would not accidentally pass this test.
+        $this->repository->save($middle);
+        $this->repository->save($latest);
+        $this->repository->save($earliest);
+
+        $outstanding = $this->repository->findOutstandingForUser($userId);
+
+        self::assertCount(3, $outstanding);
+        self::assertTrue($outstanding[0]->id()->equals($earliest->id()), 'The earliest-issued request must come first.');
+        self::assertTrue($outstanding[1]->id()->equals($middle->id()), 'The middle-issued request must come second.');
+        self::assertTrue($outstanding[2]->id()->equals($latest->id()), 'The latest-issued request must come last.');
+    }
+
     public function testNextIdentityReturnsDistinctValidIds(): void
     {
         $ids = array_map(

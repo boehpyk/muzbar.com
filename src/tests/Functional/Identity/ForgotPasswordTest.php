@@ -6,8 +6,12 @@ namespace App\Tests\Functional\Identity;
 
 use App\Domain\Identity\Entity\PasswordResetRequest;
 use App\Domain\Identity\ValueObject\Email;
+use App\Infrastructure\Identity\Mail\TwigPasswordResetMailer;
+use App\Infrastructure\Identity\Presentation\LifetimePhrase;
 use App\Tests\Factory\PasswordResetRequestFactory;
 use App\Tests\Factory\UserFactory;
+use App\Tests\Fixture\RecordingLogger;
+use App\Tests\Fixture\ThrowingPasswordResetMailer;
 use App\Tests\Support\ClearsRateLimiters;
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -179,6 +183,54 @@ final class ForgotPasswordTest extends WebTestCase
     }
 
     /**
+     * The defect `LifetimePhrase` exists to fix, caught at the actual surface: the reset mail's text
+     * body must state the lifetime derived from `PasswordResetRequest::LIFETIME_SECONDS`, never a
+     * literal typed in the template — follows `RegistrationControllerTest`'s precedent for slice 2's
+     * verification mail. `LifetimePhraseTest` already pins the helper's own arithmetic in isolation;
+     * this test is the other half — that `TwigPasswordResetMailer` is actually wired to call it with
+     * the real constant, which a hardcoded "1 hour" in the template would satisfy just as silently as
+     * it did before this class existed.
+     */
+    public function testTheResetMailStatesTheLifetimeDerivedFromTheDomainConstant(): void
+    {
+        UserFactory::createOne(['email' => Email::fromString('forgot-lifetime-mail@example.com')]);
+
+        $token = $this->fetchForgotPasswordCsrfToken();
+        $this->client->request('POST', '/forgot-password', [
+            'forgot_password_form' => ['email' => 'forgot-lifetime-mail@example.com', '_token' => $token],
+        ]);
+        self::assertResponseRedirects('/forgot-password/sent');
+
+        $message = self::getMailerMessage();
+        self::assertNotNull($message);
+        self::assertInstanceOf(\Symfony\Component\Mime\Email::class, $message);
+
+        $textBody = $message->getTextBody();
+        self::assertIsString($textBody);
+
+        $lifetime = LifetimePhrase::forSeconds(PasswordResetRequest::LIFETIME_SECONDS);
+        self::assertStringContainsString(\sprintf('expires in %s, at', $lifetime), $textBody);
+    }
+
+    /**
+     * The same defect, caught at the other surface `LifetimePhrase` was built to unify: the
+     * "check your inbox" page (AC-36's byte-identical-for-everyone page) states the same lifetime,
+     * reachable by a direct GET from anyone since the URL is anonymous — no form submission needed to
+     * observe it.
+     */
+    public function testTheSentPageStatesTheLifetimeDerivedFromTheDomainConstant(): void
+    {
+        $crawler = $this->client->request('GET', '/forgot-password/sent');
+
+        self::assertResponseIsSuccessful();
+        $lifetime = LifetimePhrase::forSeconds(PasswordResetRequest::LIFETIME_SECONDS);
+        self::assertStringContainsString(
+            \sprintf('expires after %s', $lifetime),
+            $crawler->filter('body')->text(),
+        );
+    }
+
+    /**
      * AC-9 (the inversion of ADR-0009 decision 5): issuing a second request for the same account
      * invalidates the first, and the first mail's link — which a real user may still be holding open
      * in another tab — now produces the invalid-link response. Everything happens inside one client,
@@ -261,6 +313,123 @@ final class ForgotPasswordTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
         self::assertEmailCount(0);
+    }
+
+    /**
+     * The fifth way the neutral response is reached (Finding 8), and the point of the catch: a mail
+     * transport that refuses a **known** address's message must still be indistinguishable from an
+     * **unknown** address's ordinary neutral response — without that catch arm a known address 500s
+     * where an unknown one 302s, which is a cleaner enumeration oracle than any timing channel.
+     *
+     * Both cases are driven through **one client with one container override**, exactly like the
+     * comparison AC-5's own test makes, so the two responses are asserted against each other rather
+     * than against two copies of a remembered literal.
+     *
+     * TWO GOTCHAS, EACH FAILS SILENTLY ALONE (CLAUDE.md). First, the override must target the
+     * **concrete** service id (`TwigPasswordResetMailer::class`), never the `PasswordResetMailer`
+     * port alias — Symfony's `ResolveReferencesToAliasesPass` has already rewritten
+     * `RequestPasswordResetHandler`'s constructor argument to the concrete id at compile time, so
+     * overriding the alias changes what asking the container for the port would return without
+     * touching what was actually injected. Second, `KernelBrowser` reboots the kernel (and rebuilds
+     * the container, discarding the override) before every request unless `disableReboot()` is
+     * called first — and it must be called before the *first* request this test makes, including the
+     * GET that fetches a CSRF token, not merely before the POST.
+     *
+     * `ThrowingPasswordResetMailer` throws a genuine `Symfony\Component\Mailer\Exception\TransportException`
+     * — the exact type `PasswordResetController::request()`'s `MailTransportFailure` catch arm names
+     * — rather than a bare `\RuntimeException`, so this test actually exercises that arm instead of
+     * an uncaught exception producing an unrelated 500.
+     *
+     * The row-count assertion is the other half of the failure contract this catch exists to keep:
+     * "the request row is committed but no link was delivered", never "nothing happened at all" —
+     * `RequestPasswordResetHandler` saves before it sends precisely so a link in an inbox always has
+     * a row behind it, and here the mail never left, but the row must still be there for the queue's
+     * retry story to mean anything.
+     *
+     * The only signal an operator actually gets out of this arm is the log line — the HTTP response
+     * is deliberately identical to the unknown-address case — so this test also swaps the "app"
+     * channel logger (`monolog.logger`, the concrete id `PasswordResetController` is compiled against;
+     * see the two-gotchas note below) for `RecordingLogger` and asserts the record the catch writes:
+     * `error`, not `info` (the level every other arm in this controller uses), and a context carrying
+     * the exception but never the submitted address. Both are exactly what the catch's own docblock
+     * argues for and neither was ever pinned before now — a regression on either stays green without
+     * this assertion.
+     */
+    public function testAMailTransportFailureForAKnownAddressStillProducesTheNeutralResponseByteIdenticallyWithAnUnknownAddress(): void
+    {
+        UserFactory::createOne(['email' => Email::fromString('forgot-transport-fails@example.com')]);
+
+        $this->client->disableReboot();
+        self::getContainer()->set(TwigPasswordResetMailer::class, new ThrowingPasswordResetMailer());
+        $logger = new RecordingLogger();
+        self::getContainer()->set('monolog.logger', $logger);
+
+        $rowsBefore = $this->countPasswordResetRequestRows();
+
+        $knownToken = $this->fetchForgotPasswordCsrfToken();
+        $this->client->request('POST', '/forgot-password', [
+            'forgot_password_form' => ['email' => 'forgot-transport-fails@example.com', '_token' => $knownToken],
+        ]);
+        $knownResponse = $this->client->getResponse();
+        $knownResult = [
+            'status' => $knownResponse->getStatusCode(),
+            'location' => $knownResponse->headers->get('Location'),
+        ];
+
+        // Captured before `followRedirect()` reboots-adjacent state (the message logger's history),
+        // exactly as the AC-3/AC-9 tests above do.
+        self::assertEmailCount(0, 'A failed transport must leave no mail behind in the message logger.');
+
+        $knownFlash = trim($this->client->followRedirect()->filter('.flash-success')->text());
+
+        // Save-before-send: the row is committed even though delivery failed.
+        self::assertSame(
+            $rowsBefore + 1,
+            $this->countPasswordResetRequestRows(),
+            'The request row must still be committed even though the transport refused the message.',
+        );
+
+        // The one signal an operator gets: `error`, not the `info` every other arm in this
+        // controller logs at, and no submitted address anywhere in the record — only the exception,
+        // which is what actually explains the failure. `assertSame` on the level (rather than a
+        // helper like `hasErrorRecords()`) is what catches a silent downgrade to `info`; checking the
+        // message, the `reason` string and the exception's own message is what catches the address
+        // being added back in anywhere, not merely under one particular key name.
+        self::assertSame(1, $logger->count(), 'Expected exactly one log record from the transport-failure arm.');
+        $record = $logger->last();
+        self::assertSame('error', $record['level'], 'A mail transport failure on the reset flow must log at error, not info.');
+
+        $context = $record['context'];
+        self::assertArrayHasKey('reason', $context);
+        self::assertArrayHasKey('exception', $context);
+        $reason = $context['reason'];
+        $recordedException = $context['exception'];
+        self::assertIsString($reason);
+        self::assertInstanceOf(\Throwable::class, $recordedException);
+
+        self::assertStringNotContainsString('forgot-transport-fails@example.com', $record['message']);
+        self::assertStringNotContainsString('forgot-transport-fails@example.com', $reason);
+        self::assertStringNotContainsString('forgot-transport-fails@example.com', $recordedException->getMessage());
+
+        $unknownToken = $this->fetchForgotPasswordCsrfToken();
+        $this->client->request('POST', '/forgot-password', [
+            'forgot_password_form' => ['email' => 'forgot-transport-fails-unknown@example.com', '_token' => $unknownToken],
+        ]);
+        $unknownResponse = $this->client->getResponse();
+        $unknownResult = [
+            'status' => $unknownResponse->getStatusCode(),
+            'location' => $unknownResponse->headers->get('Location'),
+        ];
+        $unknownFlash = trim($this->client->followRedirect()->filter('.flash-success')->text());
+
+        self::assertSame($knownResult['status'], $unknownResult['status'], 'Status differed between the transport-failure case and the unknown-address case.');
+        self::assertSame($knownResult['location'], $unknownResult['location'], 'Location differed between the transport-failure case and the unknown-address case.');
+        self::assertSame($knownFlash, $unknownFlash, 'Flash differed between the transport-failure case and the unknown-address case.');
+
+        // The concrete shape of the shared outcome, so a regression that broke both cases
+        // identically (leaving the comparison above green) still fails this test.
+        self::assertSame(Response::HTTP_FOUND, $knownResult['status']);
+        self::assertSame('/forgot-password/sent', $knownResult['location']);
     }
 
     private function fetchForgotPasswordCsrfToken(): string

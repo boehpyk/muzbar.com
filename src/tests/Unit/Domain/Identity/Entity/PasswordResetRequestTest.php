@@ -142,6 +142,23 @@ final class PasswordResetRequestTest extends TestCase
     }
 
     /**
+     * AC-34: `invalidate()` records no event — the docblock on `PasswordResetRequest::invalidate()`
+     * claims exactly this ("a link nobody will now click was quietly retired" is not a fact any
+     * listener needs), and `PasswordResetRequestFactory::invalidated()` cites it as already
+     * established, but nothing at the Domain unit level actually asserted it until this test. See
+     * `testRedeemRecordsNoEvent()` above for the mirror-image assertion on the other terminal state.
+     */
+    public function testInvalidateRecordsNoEvent(): void
+    {
+        $request = $this->issueRequest();
+        $request->releaseEvents(); // discard the PasswordResetRequested from issue()
+
+        $request->invalidate(new \DateTimeImmutable('2026-07-28T10:15:00+00:00'));
+
+        self::assertSame([], $request->releaseEvents());
+    }
+
+    /**
      * Invariant I-16 / AC-18, and the sharpest of the four inversions from `EmailVerificationRequest`:
      * a replay is **refused**, not absorbed. A second `redeem()` throws, even with the correct hash
      * and a valid instant — there is no un-redeem operation.
@@ -162,6 +179,13 @@ final class PasswordResetRequestTest extends TestCase
      * invalidated — `invalidate()` throws rather than silently superseding a spent link, because a
      * redeemed request must never carry an `invalidatedAt` too (the two columns would stop
      * answering "how many resets completed" on their own).
+     *
+     * THIS TEST AND `testRedeemAfterInvalidateThrowsPasswordResetLinkInvalidated` BELOW ARE A PAIR,
+     * AND BOTH MUST EXIST: neither guard can ever observe a request that is both redeemed and
+     * invalidated, so one assertion per direction would leave the other direction unpinned. Together
+     * they are what actually pins I-17's mutual exclusion — **not**
+     * `testInvalidateTwiceIsANoOp` below, which pins a different property (`invalidate()`'s own
+     * idempotency) and previously carried this claim by mistake.
      */
     public function testInvalidateAfterRedeemThrowsPasswordResetLinkAlreadyUsed(): void
     {
@@ -176,7 +200,9 @@ final class PasswordResetRequestTest extends TestCase
 
     /**
      * Invariant I-17, the other direction: a request that has been invalidated can never be
-     * redeemed, even with the correct hash and before it would otherwise have expired.
+     * redeemed, even with the correct hash and before it would otherwise have expired. See
+     * `testInvalidateAfterRedeemThrowsPasswordResetLinkAlreadyUsed` above — this test and that one
+     * are the pair that together pins "never both".
      */
     public function testRedeemAfterInvalidateThrowsPasswordResetLinkInvalidated(): void
     {
@@ -190,9 +216,17 @@ final class PasswordResetRequestTest extends TestCase
     }
 
     /**
-     * I-17's mutual exclusion never both ways: neither guard can ever observe a request that is
-     * both redeemed and invalidated, so this pair of tests is what actually pins "never both" — one
-     * assertion per direction would leave the other direction unpinned.
+     * `invalidate()`'s own idempotency: a second call on an already-invalidated request is a
+     * silent no-op rather than a thrown exception — unlike `redeem()`, which refuses a repeat
+     * (AC-18). It must tolerate being called twice because `RequestPasswordResetHandler`'s reissue
+     * sweep may legitimately run it against a row that a retried call, or a concurrent reissue,
+     * already invalidated.
+     *
+     * This test only pins that the second call does not throw and that `isInvalidated()` stays
+     * `true`. It deliberately does **not** also assert that `invalidatedAt` is unchanged by the
+     * repeat — that is a different property, already pinned by
+     * `testInvalidateTwiceKeepsTheFirstInvalidatedAt` below, and duplicating it here would just be
+     * two tests re-proving one fact.
      */
     public function testInvalidateTwiceIsANoOp(): void
     {

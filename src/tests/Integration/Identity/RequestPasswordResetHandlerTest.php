@@ -109,6 +109,86 @@ final class RequestPasswordResetHandlerTest extends KernelTestCase
     }
 
     /**
+     * AC-10(a): scans **every** column of the persisted request row for the plaintext token, not
+     * merely `token_hash` — the guarantee AC-10 asks for is that the plaintext appears in no column,
+     * and a test that only inspected `token_hash` would miss a future regression that accidentally
+     * routed the plaintext into some other column (`id`, a hypothetical debug field, anything added
+     * later). `RecordingPasswordResetMailer::lastToken()->reveal()` is the sanctioned way to get at
+     * the plaintext from a test — see that fixture's own docblock — mirroring
+     * `RequestPasswordResetHandler`, the only other place in the system that legitimately holds one.
+     * Ported from `RequestEmailVerificationHandlerTest::testNoColumnOfThePersistedRequestRowEverContainsThePlaintextToken()`
+     * (AC-2(a) of slice 2), which this AC and this test structure both mirror.
+     *
+     * WHY THIS TEST STILL EARNS ITS PLACE TODAY. `PasswordResetRequest::issue()` only ever accepts a
+     * `HashedResetToken`, so there is currently no code path that could put the plaintext in any
+     * column — the type system makes this unwritable, full stop. But a type system only protects the
+     * code that exists today; it says nothing about a future `issue(string $token)` convenience
+     * overload that skips the value object and hashes inline. This test is what turns that guarantee
+     * into something that fails loudly the moment someone writes that overload, instead of relying
+     * on nobody ever adding it.
+     */
+    public function testNoColumnOfThePersistedRequestRowEverContainsThePlaintextToken(): void
+    {
+        UserFactory::createOne(['email' => Email::fromString('ac10-plaintext-scan@example.com')]);
+
+        ($this->handler)(new RequestPasswordReset('ac10-plaintext-scan@example.com'));
+
+        $plaintext = $this->mailer->lastToken()->reveal();
+
+        $row = $this->connection->fetchAssociative(
+            'SELECT * FROM identity_password_reset_request WHERE user_id = (SELECT id FROM identity_user WHERE email = ?)',
+            ['ac10-plaintext-scan@example.com'],
+        );
+        self::assertIsArray($row);
+        self::assertNotSame([], $row, 'Expected the request row to have at least one column to scan.');
+
+        foreach ($row as $column => $value) {
+            // `fetchAssociative()` types every value `mixed`, so a bare `(string) $value` is a
+            // PHPStan `cast.string` error at max level. Every column this table can ever hold is a
+            // DBAL scalar (`uuid`, `varchar`, `timestamptz`) or `NULL`, never an object or array, so
+            // `is_scalar()` is a safe narrowing rather than a workaround — and the `default` arm
+            // turns a genuinely unexpected shape into a loud failure instead of a silently-skipped
+            // column.
+            $stringValue = match (true) {
+                null === $value => '',
+                \is_scalar($value) => (string) $value,
+                default => throw new \LogicException(\sprintf('Column "%s" held a non-scalar value the plaintext scan cannot inspect.', $column)),
+            };
+
+            self::assertStringNotContainsString(
+                $plaintext,
+                $stringValue,
+                \sprintf('Column "%s" must never contain the plaintext reset token.', $column),
+            );
+        }
+    }
+
+    /**
+     * AC-34, the handler-level half. The Domain unit test
+     * (`PasswordResetRequestTest::testInvalidateRecordsNoEvent()`) already pins that a single
+     * `invalidate()` call records nothing; this test pins the thing that would actually catch a
+     * regression here: a **second** request for a user with an outstanding one must dispatch
+     * **exactly one** more `PasswordResetRequested` (from the new `issue()`) and nothing extra from
+     * sweeping the superseded row. `testASecondRequestInvalidatesThePreviousOutstandingRequestAndItsTokenNoLongerRedeems()`
+     * above already asserts the row count and the swept row's `invalidatedAt`, but never the
+     * dispatched-event count — so a bug that made the sweep emit one event per invalidated row (N
+     * events for zero subscribers, AC-34) would stay green there. It would not stay green here.
+     */
+    public function testASecondRequestDispatchesExactlyOnePasswordResetRequestedAndNothingElse(): void
+    {
+        UserFactory::createOne(['email' => Email::fromString('reissue-event-count@example.com')]);
+
+        ($this->handler)(new RequestPasswordReset('reissue-event-count@example.com'));
+        self::assertCount(1, $this->events->dispatched(), 'The first issuance must dispatch exactly one event.');
+
+        ($this->handler)(new RequestPasswordReset('reissue-event-count@example.com'));
+
+        $dispatched = $this->events->dispatched();
+        self::assertCount(2, $dispatched, 'The second issuance must dispatch exactly one MORE event, not one per invalidated row.');
+        self::assertInstanceOf(PasswordResetRequested::class, $dispatched[1]);
+    }
+
+    /**
      * AC-32: `PasswordResetRequested` carries no token. `PasswordResetRequested` declares exactly
      * four constructor-promoted properties (`requestId`, `userId`, `issuedAt`, `expiresAt`), none
      * typed `ResetToken` or `HashedResetToken` — already pinned exhaustively at the Domain unit level
