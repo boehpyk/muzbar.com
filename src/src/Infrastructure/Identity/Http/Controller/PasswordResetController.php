@@ -10,6 +10,7 @@ use App\Application\Identity\Handler\CheckPasswordResetTokenHandler;
 use App\Application\Identity\Handler\RequestPasswordResetHandler;
 use App\Application\Identity\Handler\ResetPasswordWithTokenHandler;
 use App\Application\Identity\Query\CheckPasswordResetToken;
+use App\Domain\Identity\Entity\PasswordResetRequest;
 use App\Domain\Identity\Exception\InvalidEmail;
 use App\Domain\Identity\Exception\InvalidResetToken;
 use App\Domain\Identity\Exception\PasswordResetLinkAlreadyUsed;
@@ -25,6 +26,7 @@ use App\Infrastructure\Identity\Form\ForgotPasswordFormData;
 use App\Infrastructure\Identity\Form\ForgotPasswordFormType;
 use App\Infrastructure\Identity\Form\NewPasswordFormData;
 use App\Infrastructure\Identity\Form\NewPasswordFormType;
+use App\Infrastructure\Identity\Presentation\LifetimePhrase;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormError;
@@ -32,6 +34,13 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
+// ALIASED, BECAUSE THE TWO COMPONENTS EACH CALL THEIR FAILURE A "TRANSPORT" EXCEPTION AND THE
+// UNALIASED NAMES (`TransportExceptionInterface` and `TransportException`) sit one character apart in
+// a `catch` while meaning entirely different layers: the first is "the mail could not be sent", the
+// second is "the message could not be queued for sending". The names below say which is which at the
+// only place a reader meets them.
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface as MailTransportFailure;
+use Symfony\Component\Messenger\Exception\TransportException as QueueTransportFailure;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
@@ -67,6 +76,17 @@ use Symfony\Component\Routing\Attribute\Route;
  * literal is ever added under `/reset-password/…`, the trap returns immediately** — put it under
  * `/forgot-password/` instead, or re-derive the priority argument from scratch.
  *
+ * `Referrer-Policy: no-referrer` IS NOT SET IN THIS FILE, AND THAT IS DELIBERATE (AC-15). It lives in
+ * `PasswordResetReferrerPolicy`, a `kernel.response` listener scoped to the two reset-link routes by
+ * name. It used to be a private helper here, wrapped around each `return` — which meant the 429s
+ * thrown below carried no header at all, because a thrown exception unwinds past every `return` in
+ * the method. The route whose **path is the plaintext token** was therefore the one route with a
+ * response missing the header, and AC-15's whole premise is that a header present on some responses
+ * and not others is itself a signal. A listener covers every response these routes can produce,
+ * including the ones the framework builds; see that class for the full argument. **Do not re-add a
+ * `->headers->set('Referrer-Policy', …)` here** — a second place to maintain the same guarantee is
+ * how it decays back to being true only on the paths somebody remembered.
+ *
  * THE FLOW DEPENDS ON A WORKING SESSION, WHICH IS AN ACCEPTED COST RECORDED IN ADR-0011 DECISION 8
  * RATHER THAN AN OVERSIGHT. The plaintext token is handed from `check()` to `reset()` through the
  * session instead of through the URL, so Redis being down breaks account recovery rather than merely
@@ -88,9 +108,11 @@ final class PasswordResetController extends AbstractController
 
     /**
      * The one answer `/forgot-password` gives to success, an unknown address, an account at the
-     * per-user cap, and an address the `Email` value object refuses (AC-5, AC-6). One constant, so
-     * that "the same sentence" is enforced by the compiler rather than by somebody copying a string
-     * correctly four times.
+     * per-user cap, an address the `Email` value object refuses (AC-5, AC-6) — and a mail transport
+     * that refused the message, which is a system fault rather than one of AC-5's four cases but
+     * must be indistinguishable from them for the same reason. One constant, so that "the same
+     * sentence" is enforced by the compiler rather than by somebody copying a string correctly five
+     * times.
      *
      * Note the shape of the sentence: it is a conditional that asserts nothing. "We have sent you a
      * link" would be a lie in three of the four cases and, worse, a true statement in the fourth —
@@ -165,6 +187,13 @@ final class PasswordResetController extends AbstractController
                 // 429 is the one response on this endpoint that is *not* the neutral one, and that
                 // is fine: it reveals a fact about the requester's own traffic, which they already
                 // know, and nothing whatsoever about any account.
+                //
+                // AND IT CARRIES NO `Referrer-Policy`, UNLIKE THE 429s ON THE TWO RESET-LINK ROUTES.
+                // Not an oversight: AC-15 governs the routes whose URL carries a secret, and nothing
+                // in this route's URL is one — there is no referrer here to suppress, so the header
+                // would be decoration rather than a mitigation. If it is ever wanted here it goes on
+                // all of this route's responses at once, by adding `app_forgot_password` to
+                // `PasswordResetReferrerPolicy`.
                 throw new TooManyRequestsHttpException($limit->getRetryAfter()->getTimestamp() - time(), 'Too many password-reset requests from this address. Please try again later.');
             }
         }
@@ -211,14 +240,83 @@ final class PasswordResetController extends AbstractController
                 // The class name is enough to see the distribution, which is what an operator
                 // actually needs.
                 $logger->info('A password-reset request produced no email.', ['reason' => $e::class]);
+            } catch (MailTransportFailure|QueueTransportFailure $e) {
+                // THE FIFTH WAY IN, AND IT IS HERE FOR THE SAME REASON AS THE OTHER FOUR: WITHOUT
+                // IT, A KNOWN ADDRESS 500s WHERE AN UNKNOWN ONE 302s. That difference is a
+                // user-enumeration oracle — a cleaner one than any timing channel, since a status
+                // code needs no statistics — and it is the exact thing the four-way collapse above
+                // exists to close. **Do not "tidy" this catch away as over-broad error handling.**
+                //
+                // Note *how* it becomes reachable, because that is the point: only the known-address
+                // path sends mail at all, so only the known-address path can fail this way. Today
+                // `messenger.yaml` routes `SendEmailMessage` to the Doctrine `async` transport, so
+                // in production the send is a local INSERT and this is near-unreachable — but "near
+                // unreachable" is a property of a routing line in a config file, not of this code.
+                // Under `APP_ENV=test` the same message already goes to `sync`, and the day
+                // `MESSENGER_TRANSPORT_DSN` names anything that can fail on its own (AMQP, Redis, a
+                // remote relay reached synchronously), the oracle arrives through a config change
+                // that touches no code and that no reviewer of that change would think to connect to
+                // account enumeration. The failure contract in the feature spec already promised
+                // this behaviour — *"`/forgot-password` never 500s because of mail"* — and nothing
+                // implemented it; the contract won, deliberately, and this is it.
+                //
+                // TWO PRECISE TYPES, NOT `\Throwable`. `Mailer`'s `TransportExceptionInterface` is
+                // what a refused envelope throws (and what `Mailer::send()` unwraps out of
+                // Messenger's `HandlerFailedException`, so it is also what the `sync` route
+                // surfaces); Messenger's `TransportException` is what a transport that cannot accept
+                // the message for delivery throws.
+                //
+                // **WHAT KEEPS THE LOG LINE BELOW HONEST IS THE ORDERING, NOT THIS TYPE LIST**, and
+                // the distinction matters because the obvious reading of the two types — "database
+                // problems are not caught here" — is false. With today's Doctrine `async` transport
+                // a Postgres failure *is* a `QueueTransportFailure`: `DoctrineSender::send()`
+                // catches `Doctrine\DBAL\Exception` and rethrows it as Messenger's
+                // `TransportException`
+                // (`vendor/symfony/doctrine-messenger/Transport/DoctrineSender.php:45-49`), so a
+                // dead database lands in this arm like any other refused transport. Somebody
+                // debugging a silent recovery outage on the assumption that a DB fault would have
+                // 500'd will look in the wrong place.
+                //
+                // The claim "the request row is committed" survives that anyway, because
+                // `RequestPasswordResetHandler` saves before it sends and
+                // `DoctrinePasswordResetRequestRepository::save()` flushes: a DBAL failure on the
+                // reset-request row itself happens *before* `sendResetLink()` is ever called, so it
+                // propagates past this try entirely and 500s, which is correct — there is no link to
+                // apologise for and nothing to be neutral about. The only DB failure this arm can
+                // see is one on the `messenger_messages` INSERT that follows, and for that the log
+                // line is exactly right.
+                //
+                // So the reason to name two types rather than `\Throwable` is narrower than "keep
+                // the database out": these two are the failures whose *meaning* is known here — the
+                // work is done, only delivery did not happen. Anything else reaching this line is a
+                // fault nobody predicted, and a fault nobody predicted has not earned the right to
+                // be answered with a reassuring 302.
+                //
+                // ERROR, NOT INFO. The three above are ordinary human behaviour on a public form;
+                // this one is a **system fault** on the account-recovery path, and an operator needs
+                // to see it — nobody else will, because the visitor is told the same reassuring
+                // sentence as everybody else and will simply wait for mail that is not coming. This
+                // is the line Sentry should page on once it lands (still the roadmap carry-over).
+                //
+                // The submitted address is still absent, for the reason the catch above spells out:
+                // it came off an anonymous form, and writing it here would put an attacker-chosen
+                // list of addresses into the log of the one endpoint designed to reveal none. The
+                // exception object carries everything an operator actually needs to fix a broken
+                // transport.
+                $logger->error('A password-reset email could not be handed to the transport; the request row is committed but no link was delivered.', [
+                    'reason' => $e::class,
+                    'exception' => $e,
+                ]);
             }
 
-            // ONE EXIT FOR ALL FOUR OUTCOMES — success and the three caught above (AC-6). Reached by
-            // **falling out of the `try`**, not by a `return` inside it, so there is structurally one
-            // response to keep identical rather than four to keep in step. Four `return`s that
-            // happen to be identical today are four copies of a literal that can drift apart while
-            // all four stay green; this shape makes the property hold by construction, which is the
-            // only way it survives the next person adding a branch.
+            // ONE EXIT FOR ALL FIVE OUTCOMES — success, the three AC-5 cases and the transport
+            // failure, all caught above (AC-6). Reached by **falling out of the `try`**, not by a
+            // `return` inside it, so there is structurally one response to keep identical rather
+            // than five to keep in step. Five `return`s that happen to be identical today are five
+            // copies of a literal that can drift apart while all five stay green; this shape makes
+            // the property hold by construction, which is the only way it survives the next person
+            // adding a branch — and it is what made adding the fifth arm a two-line change with no
+            // way to get the response wrong.
             $this->addFlash('success', self::NEUTRAL_REQUEST_FLASH);
 
             return $this->redirectToRoute('app_forgot_password_sent');
@@ -251,7 +349,25 @@ final class PasswordResetController extends AbstractController
     #[Route('/forgot-password/sent', name: 'app_forgot_password_sent', methods: ['GET'])]
     public function sent(): Response
     {
-        return $this->render('identity/forgot_password_sent.html.twig');
+        return $this->render('identity/forgot_password_sent.html.twig', [
+            // THE ONE VALUE THIS PAGE DOES NOT TYPE OUT, AND THE REASON IS THE SAME ONE THE MAILER
+            // GIVES. The page tells the visitor how long their link lasts, and so do both halves of
+            // the mail; `PasswordResetRequest::LIFETIME_SECONDS` is the source of truth for that
+            // number, and a source of truth with a paragraph of prose stating the same fact
+            // independently is not one. This page typed "one hour" as a literal until review caught
+            // it — which would have gone stale the moment the constant was tightened (ADR-0011
+            // decision 3 weighs exactly that and could revisit it), silently, because no test
+            // connects English prose to a domain constant.
+            //
+            // Passing a rendered phrase rather than an integer is deliberate: see `LifetimePhrase`
+            // for why the pluralising cannot live in the template.
+            //
+            // It does not make the page any less *static* in the sense AC-36 means: this value is
+            // the same for every visitor and identical across all four AC-5 outcomes, so the four
+            // responses stay byte-identical. What must never appear here is anything that varies per
+            // *account* — an address above all.
+            'lifetime' => LifetimePhrase::forSeconds(PasswordResetRequest::LIFETIME_SECONDS),
+        ]);
     }
 
     /**
@@ -313,6 +429,28 @@ final class PasswordResetController extends AbstractController
         // clicks the link, gets redirected, reloads because the page looked odd, mistypes the new
         // password, fails `NotCompromisedPassword`, tries again — plus whatever their mail client
         // prefetched before any of that.
+        //
+        // THROWN, NOT `return new Response(…, 429)`, AND THE OBVIOUS-LOOKING ALTERNATIVE IS THE
+        // WRONG FIX FOR TWO SEPARATE REASONS. First, `Retry-After` on this response is the limiter's
+        // **own reset instant**, carried on the exception and put on the response by the framework:
+        // `ErrorListener` renders the error in a sub-request, `FlattenException::createFromThrowable()`
+        // merges `HttpExceptionInterface::getHeaders()` into the flattened exception, and
+        // `ErrorController::__invoke()` builds the `Response` from `$e->getHeaders()`. (It is *not*
+        // `HttpKernel::handleThrowable()`'s `headers->add()` — that one is guarded by
+        // `!$response->isClientError() && …` and so never runs for a 4xx. `PasswordResetReferrerPolicy`
+        // has the line references; the reason to write the mechanism down at all is that someone can
+        // re-check it, which a wrong mechanism actively prevents.) Building the response by hand
+        // would mean re-deriving "when may this client try again" a second time, next to the
+        // authoritative expression and free to drift from it. A wrong `Retry-After` is worse than
+        // none, because clients obey it. Second, the reason somebody would reach for a
+        // hand-built response here is AC-15: this 429 needs `Referrer-Policy: no-referrer` like
+        // every other response from this route, and it is served on the URL **whose path is the
+        // plaintext token**, so it is the single response most in need of it. That is fixed in
+        // `PasswordResetReferrerPolicy` instead, which runs on the **main** request's
+        // `kernel.response` — after the error sub-request has already built the response and its
+        // `Retry-After` — and therefore gets both properties at once. Throwing is also simply honest:
+        // the request genuinely is over — nothing below this line runs, no session read, no handler,
+        // no repository lookup, no hasher.
         if (!($limit = $passwordResetSubmitLimiter->create($request->getClientIp() ?? 'unknown-client')->consume())->isAccepted()) {
             throw new TooManyRequestsHttpException($limit->getRetryAfter()->getTimestamp() - time(), 'Too many password-reset attempts from this address. Please try again later.');
         }
@@ -380,7 +518,7 @@ final class PasswordResetController extends AbstractController
         // the token itself.
         $session->set(self::SESSION_TOKEN_KEY, $token);
 
-        return $this->noReferrer($this->redirectToRoute('app_reset_password'));
+        return $this->redirectToRoute('app_reset_password');
     }
 
     /**
@@ -424,6 +562,12 @@ final class PasswordResetController extends AbstractController
         // POST only, for the reason `request()` gives: a GET renders the form and costs nothing
         // worth rationing, and charging it would silently spend part of the budget of somebody who
         // simply reloaded the page.
+        //
+        // Thrown rather than returned, for the two reasons `check()` spells out (including which
+        // piece of the framework actually carries the header over, since the plausible answer is the
+        // wrong one): `Retry-After` is the limiter's real reset instant and must not be re-derived by
+        // hand, and AC-15's header is added by `PasswordResetReferrerPolicy` on the main request's
+        // `kernel.response` rather than by whatever this method happens to return.
         if ($request->isMethod(Request::METHOD_POST)
             && !($limit = $passwordResetSubmitLimiter->create($request->getClientIp() ?? 'unknown-client')->consume())->isAccepted()
         ) {
@@ -459,7 +603,7 @@ final class PasswordResetController extends AbstractController
                 // session authenticated as this user before the reset is deauthenticated on its very
                 // next request (AC-24). That is emergent, not coded here — which is exactly why it is
                 // asserted end to end rather than reasoned about.
-                return $this->noReferrer($this->redirectToRoute('app_login'));
+                return $this->redirectToRoute('app_login');
             } catch (WeakPassword $e) {
                 // **THE SUBTLE ONE. `WeakPassword` IS NOT PART OF THE NEUTRAL INVALID-LINK SET, AND
                 // MUST NOT BE** (AC-23). Every other exception this handler throws means *the link is
@@ -507,11 +651,11 @@ final class PasswordResetController extends AbstractController
 
         // 422 on a failed submit — a form error, a mismatch between the two boxes, a rejected CSRF
         // token, or the `WeakPassword` caught above — with the session stash **untouched** (AC-23).
-        return $this->noReferrer($this->render('identity/reset_password.html.twig', [
+        return $this->render('identity/reset_password.html.twig', [
             'newPasswordForm' => $form,
         ], new Response(null, $form->isSubmitted() && !$form->isValid()
             ? Response::HTTP_UNPROCESSABLE_ENTITY
-            : Response::HTTP_OK)));
+            : Response::HTTP_OK));
     }
 
     /**
@@ -541,31 +685,6 @@ final class PasswordResetController extends AbstractController
 
         $this->addFlash('error', self::INVALID_LINK_FLASH);
 
-        return $this->noReferrer($this->redirectToRoute('app_forgot_password'));
-    }
-
-    /**
-     * `Referrer-Policy: no-referrer` on **every** response from both reset-link routes (AC-15) —
-     * success and failure alike, because a header that appeared only on success would itself be the
-     * signal that distinguishes the two responses the rest of this class works to make identical.
-     *
-     * The token travels in the URL path of `check()`, and the path is the part of a URL that leaks:
-     * it lands in nginx access logs, in browser history, in any corporate proxy on the way, and in
-     * the `Referer` header of requests the visited page goes on to make. This header addresses the
-     * last of those. On a 302 it governs the redirected navigation, so `/reset-password` is reached
-     * with no referrer carrying the token; on the rendered form it covers every link and asset
-     * request that page makes.
-     *
-     * IT IS NOT THE MITIGATION, AND SAYING SO MATTERS. The real defences are the redirect that takes
-     * the token out of the URL after one hop (ADR-0011 decision 8), the token being single-use, and
-     * its one-hour life. This is the cheap belt-and-braces layer — one line, no cost, closes one
-     * specific path. Treating it as the answer is exactly the kind of security theatre that lets a
-     * real hole survive review.
-     */
-    private function noReferrer(Response $response): Response
-    {
-        $response->headers->set('Referrer-Policy', 'no-referrer');
-
-        return $response;
+        return $this->redirectToRoute('app_forgot_password');
     }
 }

@@ -8,6 +8,7 @@ use App\Domain\Identity\Entity\PasswordResetRequest;
 use App\Domain\Identity\Port\PasswordResetMailer;
 use App\Domain\Identity\ValueObject\Email;
 use App\Domain\Identity\ValueObject\ResetToken;
+use App\Infrastructure\Identity\Presentation\LifetimePhrase;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
@@ -53,10 +54,19 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
  * in code, which CLAUDE.md forbids for its own reasons.
  *
  * There is also **no error handling**. A transport that refuses the message throws, and the exception
- * travels up to `RequestPasswordResetHandler`, which is the only class positioned to decide what a
- * failed send means for an already-persisted request. Swallowing it here would take that decision
- * away and report success for a message that never left — the worst possible outcome for a flow
- * whose user is sitting in front of an inbox waiting.
+ * travels up through `RequestPasswordResetHandler` — which deliberately does not catch it either, so
+ * that a console or admin adapter can treat a failed send as the real anomaly it is there — to
+ * `PasswordResetController::request()`, which is the only place positioned to decide what a failed
+ * send means *for a public form*. Swallowing it here would take that decision away from every caller
+ * at once and report success for a message that never left.
+ *
+ * What that boundary decides, and it is worth knowing from here: the controller folds a transport
+ * failure into the **same neutral response** as an unknown address, so that a known address cannot be
+ * distinguished from an unknown one by a 500. The row is already committed by then (the handler saves
+ * before it sends), so the promise the failure contract makes — *"`/forgot-password` never 500s
+ * because of mail"* — is kept without lying about what was written. The operator learns about it from
+ * one `error` log line, because nobody else will: the visitor is told to check an inbox that will
+ * stay empty.
  */
 final readonly class TwigPasswordResetMailer implements PasswordResetMailer
 {
@@ -132,7 +142,13 @@ final readonly class TwigPasswordResetMailer implements PasswordResetMailer
                 // Rendering both the duration and the absolute instant is deliberate: "1 hour" is
                 // what someone reading at their desk acts on, and the timestamp is what someone who
                 // opens the mail two hours later needs in order to understand why the link is dead.
-                'lifetime' => self::describeLifetime(PasswordResetRequest::LIFETIME_SECONDS),
+                //
+                // `LifetimePhrase` is shared with `PasswordResetController::sent()`, which states the
+                // same lifetime on the "check your inbox" page. It was a private method here until
+                // that page was found typing "one hour" as a literal: two surfaces stating one fact
+                // is exactly the shape that lets a constant change leave one of them lying, and the
+                // fix is one implementation rather than a second careful copy.
+                'lifetime' => LifetimePhrase::forSeconds(PasswordResetRequest::LIFETIME_SECONDS),
             ]);
 
         // One line that means something different depending on config, which is the point.
@@ -141,35 +157,5 @@ final readonly class TwigPasswordResetMailer implements PasswordResetMailer
         // work; under `APP_ENV=test` the same message goes to `sync` so assertions can see it. This
         // class knows nothing about any of that.
         $this->mailer->send($message);
-    }
-
-    /**
-     * The lifetime as a phrase a human reads, computed here rather than in Twig.
-     *
-     * WHY THIS EXISTS AT ALL, given that `TwigVerificationMailer` just passes an integer number of
-     * hours and lets the template write the word "hours" after it. Because that trick only survives
-     * a 24-hour lifetime. This one is 3600 seconds, so the same `intdiv(…, 3600)` would render
-     * "expires in 1 hours"; and if `LIFETIME_SECONDS` were ever tightened to, say, 1800 — which
-     * ADR-0011 decision 3 explicitly weighs and could revisit — it would render "expires in 0
-     * hours", which is not merely ungrammatical but **false**, in the one sentence of the message a
-     * locked-out user acts on. The constant is the source of truth precisely so the mail cannot lie
-     * about it, and a formatting scheme that breaks when the constant changes gives that guarantee
-     * away.
-     *
-     * It lives in PHP rather than in the templates because there are two of them and the pluralising
-     * expression would have to be identical in both — two copies of a rule that can drift while both
-     * files stay green. One method, one behaviour, both parts rendering the same words.
-     */
-    private static function describeLifetime(int $seconds): string
-    {
-        if (0 === $seconds % 3600) {
-            $hours = intdiv($seconds, 3600);
-
-            return \sprintf('%d %s', $hours, 1 === $hours ? 'hour' : 'hours');
-        }
-
-        $minutes = (int) ceil($seconds / 60);
-
-        return \sprintf('%d %s', $minutes, 1 === $minutes ? 'minute' : 'minutes');
     }
 }
