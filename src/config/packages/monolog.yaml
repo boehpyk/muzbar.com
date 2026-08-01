@@ -1,6 +1,21 @@
 monolog:
     channels:
         - deprecation # Deprecations are logged in the dedicated "deprecation" channel when it exists
+        # `identity-challenge-pruning`'s channel: one INFO line per run of
+        # `muzbar:identity:prune-challenges`, always, including a run that deleted nothing (AC-20).
+        #
+        # DECLARING THE CHANNEL IS THE EASY HALF AND THE USELESS HALF ON ITS OWN. A channel decides
+        # which *logger service* a record is written through; it decides nothing about whether any
+        # handler keeps it. The record still has to survive the handler stack, and in this
+        # application's `prod` and `test` stacks the top-level handler is `fingers_crossed` with
+        # `action_level: error` — which buffers everything below ERROR and then **throws the buffer
+        # away** unless an error follows it. A healthy pruning run never logs an error, so the one
+        # line this whole slice's observability rests on would have been silently discarded in
+        # exactly the environment it exists for. That is why each `when@` block below either has a
+        # dedicated `pruning` handler or a comment saying why it does not need one: **a dedicated
+        # channel whose records are swallowed by a fingers_crossed buffer is a channel that exists
+        # only in configuration**, and this slice's entire failure mode is silence.
+        - pruning
 
 when@dev:
     monolog:
@@ -14,6 +29,18 @@ when@dev:
                 type: console
                 process_psr_3_messages: false
                 channels: ["!event", "!doctrine", "!console"]
+            # NO DEDICATED `pruning` HANDLER HERE, AND THAT IS CHECKED RATHER THAN ASSUMED. `main`
+            # in dev is a plain stream at `level: debug` with no buffering and no channel
+            # exclusion beyond `!event`, so an INFO record on `pruning` is written to
+            # `var/log/dev.log` like any other. Adding a second handler would only duplicate every
+            # line into the same file.
+            #
+            # Worth knowing when hand-checking: `console` is a `ConsoleHandler`, which maps
+            # verbosity to level and emits only WARNING and above at normal verbosity. So running
+            # the command in a terminal shows the `SymfonyStyle` table and *not* the log line
+            # unless you pass `-v`. The line is in `var/log/dev.log` either way — looking at the
+            # terminal and concluding nothing was logged is the mistake this comment exists to
+            # prevent.
 
 when@test:
     monolog:
@@ -23,11 +50,27 @@ when@test:
                 action_level: error
                 handler: nested
                 excluded_http_codes: [404, 405]
-                channels: ["!event"]
+                # `!pruning` for the same reason as in prod: this handler would buffer the run's
+                # INFO line and discard it, and a channel routed into a buffer nobody flushes is
+                # indistinguishable from a channel that was never wired up. Excluding it here also
+                # means the `pruning` handler below is the *only* consumer, so a test reasoning
+                # about where the line went has one answer rather than two.
+                channels: ["!event", "!pruning"]
             nested:
                 type: stream
                 path: "%kernel.logs_dir%/%kernel.environment%.log"
                 level: debug
+            # The test environment gets the same shape as prod deliberately. Functional tests
+            # assert the run's log line by swapping the channel's logger service
+            # (`monolog.logger.pruning`) for a recording double, which bypasses handlers entirely —
+            # but a channel that only works because every test replaces it would be a channel whose
+            # real configuration nothing exercises, and the first time it mattered would be in
+            # production. So the handler exists here too, writing to `var/log/test.log`.
+            pruning:
+                type: stream
+                path: "%kernel.logs_dir%/%kernel.environment%.log"
+                level: info
+                channels: [pruning]
 
 when@prod:
     monolog:
@@ -37,7 +80,14 @@ when@prod:
                 action_level: error
                 handler: nested
                 excluded_http_codes: [404, 405]
-                channels: ["!deprecation"]
+                # `!pruning` is load-bearing, not tidiness. Without it this handler also receives
+                # the run's INFO record, buffers it against an ERROR that a healthy run never
+                # produces, and drops it when the buffer is discarded — while the `pruning` handler
+                # below writes it correctly. Two handlers on one record with opposite outcomes is
+                # not a problem you notice; it is a problem where the noisy failure (an errored run)
+                # logs twice and the silent one (a run that stopped happening) logs the thing that
+                # is missing. Excluded so there is exactly one path for a `pruning` record.
+                channels: ["!deprecation", "!pruning"]
                 buffer_size: 50 # How many messages should be saved? Prevent memory leaks
             nested:
                 type: stream
@@ -52,4 +102,24 @@ when@prod:
                 type: stream
                 channels: [deprecation]
                 path: php://stderr
+                formatter: monolog.formatter.json
+            # THE HANDLER THAT MAKES AC-20 TRUE IN THE ONLY ENVIRONMENT THAT MATTERS.
+            #
+            # Neither of the two handlers above would have written this line. `main` buffers it away
+            # (see its `channels` comment). `console` is a `ConsoleHandler` that emits WARNING and
+            # above at normal verbosity — and cron runs commands at normal verbosity, with no `-v`,
+            # so it is not a fallback either. Both facts are easy to miss because both handlers
+            # *appear* to be subscribed to the channel.
+            #
+            # `php://stderr` + `monolog.formatter.json` matches `nested` and `deprecation`: on this
+            # deployment the container's stderr is the log, and JSON is what makes a line greppable
+            # by field rather than by regex over prose. `level: info` because INFO is the level the
+            # line is written at — the record *is* the record that a run happened, and its deletion
+            # count is only one of its fields, so downgrading the whole line to DEBUG or promoting
+            # it to NOTICE to fit a handler would be tuning the evidence to fit the instrument.
+            pruning:
+                type: stream
+                channels: [pruning]
+                path: php://stderr
+                level: info
                 formatter: monolog.formatter.json
