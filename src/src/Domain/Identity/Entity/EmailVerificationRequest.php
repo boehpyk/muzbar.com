@@ -96,6 +96,52 @@ final class EmailVerificationRequest
     public const int MAX_ISSUES_PER_HOUR = 5;
 
     /**
+     * How long after a request **expires** its row is still worth keeping: **7 days**.
+     *
+     * Read the name carefully — it is not a second lifetime. `LIFETIME_SECONDS` says how long the
+     * *link works*; this says how long the *row* is worth storing once the link has stopped working.
+     * They answer different questions and they are allowed to disagree.
+     *
+     * WHY SEVEN DAYS. The question a retention window answers is **not** "how dangerous is this
+     * row?" — the answer to that is "not at all", since the row holds a digest of a token whose
+     * plaintext only ever existed in somebody's inbox. It is **"what question does this row still
+     * answer after it stops working, and for how long is anyone still asking?"** And the *durable*
+     * fact does not live in this table at all: `identity_user.email_verified_at` answers *"is this
+     * address verified, and since when?"* forever, and is never pruned. So this row only has to
+     * outlive the **finer** question, and for a verification challenge that question is a **support**
+     * one — *"why didn't my link work?"* — asked on a days-long horizon by someone who has just been
+     * confused by a mailbox. **Nobody runs an incident review over a verification challenge**; it is
+     * not an account-takeover primitive, which is the same distinction ADR-0011 decision 3 used to
+     * set the two lifetimes. Seven days covers one support round-trip and nothing more.
+     *
+     * It is also where the **volume** is, and that is the second half of the argument. A verification
+     * request is issued **automatically on every registration** — nobody has to ask for it — the cap
+     * is 5 per hour rather than 3, and the lifetime is 24× longer, so this table accumulates faster
+     * than its twin in every dimension at once. The table with the most rows keeps them for the
+     * shortest time; that is not a coincidence, it is the two arguments agreeing.
+     *
+     * NAMING THE TWIN, WHICH IS THE POINT OF THIS PARAGRAPH.
+     * `PasswordResetRequest::RETENTION_AFTER_EXPIRY_SECONDS` is **30 days**, and the difference is
+     * deliberate rather than an oversight in either file. There the surviving question is an
+     * **incident-review** one — *when was this account's password reset, and from which challenge?* —
+     * and takeover-notice latency is dominated by the victim's next login, which on a marketplace can
+     * be weeks away. The two numbers therefore come out **inverted** relative to the lifetimes: the
+     * aggregate with the 24-hour link keeps its rows for a week, and the aggregate with the one-hour
+     * link keeps them for a month. **That inversion is the design, and a future reader must not
+     * "align" the two constants.** Retention is about the question the row answers *after* it dies,
+     * not about how long the link lived, so there is no reason for the ordering to match. AC-3's unit
+     * test asserts the inequality with a failure message carrying this reason, precisely so that a
+     * tidy-up which equalises them fails loudly instead of passing quietly (ADR-0012 decision 3).
+     *
+     * Like both `LIFETIME_SECONDS`, this is a **domain constant, not configuration**, for the reason
+     * their docblocks already give: policy expressed as an env var is policy no unit test can pin,
+     * and policy that differs between environments for no stated reason. The accepted cost is that
+     * changing a retention window is a deploy — which, for a number that decides when data is
+     * destroyed, is a feature rather than a tax.
+     */
+    public const int RETENTION_AFTER_EXPIRY_SECONDS = 604800;
+
+    /**
      * Properties are plain `private`, not `readonly`, even where nothing ever reassigns them
      * (`id`, `userId`, `tokenHash`, `issuedAt`, `expiresAt`): Doctrine hydrates this object by
      * reflection and readonly properties still trip its refresh/proxy paths. Immutability from the
@@ -146,6 +192,51 @@ final class EmailVerificationRequest
         $request->recordThat(new EmailVerificationRequested($id, $userId, $issuedAt, $expiresAt));
 
         return $request;
+    }
+
+    /**
+     * The instant before which a verification request's `expires_at` makes its row prunable:
+     * `$now` minus this aggregate's own retention window.
+     *
+     * A row qualifies when `expiresAt < retentionThreshold($now)` — **strictly** before, per the two
+     * port methods' contract. Nothing else is consulted: not `redeemedAt`, not the account's
+     * `email_verified_at`, not the twin table's columns. The reasoning is ADR-0012 decision 1, and
+     * the short form is that "dead" is not one concept across the two challenge aggregates while
+     * `expires_at` is a *ceiling* on every reason either of them could be finished with a row.
+     *
+     * The arithmetic is `sub()` with an explicit `\DateInterval`, mirroring `issue()`'s `add()` for
+     * `issue()`'s stated reason: `\DateTimeImmutable::sub()` leaves the timezone and the sub-second
+     * field of `$now` untouched, so the threshold **inherits** the UTC zone and the whole-second
+     * precision the `Clock` port mandates rather than reinterpreting them. `modify('-7 days')` and
+     * `strtotime` are banned here for the same reason they are banned in `issue()` — they are a
+     * natural-language grammar, and dates are not a place for one. On a boundary that decides which
+     * rows are destroyed, "probably parses the way I meant" is not a standard.
+     *
+     * **Static, not an instance method**, because it is a statement about the *type's* policy and not
+     * about any one request. It belongs to the same category as `LIFETIME_SECONDS` and
+     * `MAX_ISSUES_PER_HOUR`, and to the same category as `issue()`: knowledge the class holds on
+     * behalf of every instance, including the ones that no longer exist — which, for a sweep, is the
+     * entire population it cares about.
+     *
+     * **The window is derived inside the method and is never a parameter.** That is invariant I-15's
+     * rule one level up: a window a caller may supply is a *default*, not a *rule*, and the first
+     * caller in a hurry quietly becomes the second policy — on a flow that deletes data. It is also
+     * exactly what makes a generic shared sweeper impossible to write, which is the point rather than
+     * an inconvenience: a `sweep($table, $window, $limit)` would have to accept the window from
+     * outside, so declining the parameter is what declines the shared abstraction (ADR-0012
+     * decision 1).
+     *
+     * **The safety property (I-26) falls out of arithmetic here, not out of a guard.** A live
+     * challenge has `expiresAt >= $now`; the threshold is `$now - w` with `w > 0`, so the threshold is
+     * strictly before `$now`; and the sweep selects on `expiresAt < threshold`. Therefore **no live
+     * challenge can ever be selected, by any run, at any limit.** There is no `if` protecting that —
+     * it is a consequence of the three facts, which is a stronger guarantee than a condition someone
+     * can edit. It is still pinned by a test (AC-5), because a property that holds by arithmetic must
+     * fail loudly the day the arithmetic changes.
+     */
+    public static function retentionThreshold(\DateTimeImmutable $now): \DateTimeImmutable
+    {
+        return $now->sub(new \DateInterval(\sprintf('PT%dS', self::RETENTION_AFTER_EXPIRY_SECONDS)));
     }
 
     /**
