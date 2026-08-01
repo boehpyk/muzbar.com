@@ -222,6 +222,20 @@ final class ResetPasswordWithTokenHandlerTest extends KernelTestCase
             {
                 return [];
             }
+
+            // The pruning pair `identity-challenge-pruning` added to the port. This double exists to
+            // simulate a repository handing back the wrong row, which has nothing to do with the
+            // sweep — so these throw rather than returning 0, and a future change that quietly routed
+            // a redemption through them would fail loudly instead of looking like a no-op.
+            public function countExpiredBefore(\DateTimeImmutable $threshold): int
+            {
+                throw new \LogicException('countExpiredBefore() has no business in a redemption.');
+            }
+
+            public function deleteExpiredBefore(\DateTimeImmutable $threshold, int $limit): int
+            {
+                throw new \LogicException('deleteExpiredBefore() has no business in a redemption.');
+            }
         };
 
         $handler = new ResetPasswordWithTokenHandler($this->users, $fakeRequests, $this->tokens, $this->hasher, $this->clock, $this->events);
