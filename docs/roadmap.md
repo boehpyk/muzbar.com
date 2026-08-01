@@ -113,11 +113,31 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         an unverified account being stranded with no recovery path at all.
         **Owed by this slice:** nothing new — it *adds to* the pruning debt rather than paying it,
         which is why `identity-challenge-pruning` is scheduled next.
-  - [ ] `identity-challenge-pruning` — one Scheduler task sweeping expired/redeemed/invalidated rows
-        from **both** challenge tables (`identity_email_verification_request`,
+  - [ ] `identity-challenge-pruning` — **specs approved 2026-08-01;
+        [ADR-0012](./adr/0012-challenge-retention-and-recurring-background-work.md) accepted.** A
+        `muzbar:identity:prune-challenges` console command under **host cron** (hourly), sweeping
+        **overdue** rows from both challenge tables (`identity_email_verification_request`,
         `identity_password_reset_request`), plus the orphan-row answer that ADR-0009 decision 4 left
         for GDPR erasure. Scheduled here, before OAuth, because two tables is where this debt stops
         being a footnote.
+        *This line previously read "one **Scheduler** task sweeping **expired/redeemed/invalidated**
+        rows". Both halves are corrected rather than quietly outvoted, on slice 3's precedent — a
+        roadmap line that survives contradicting an accepted ADR is how documentation starts lying.*
+        **(a)** `symfony/scheduler` is not installed: it would add a bundle to every kernel that
+        boots plus a **second daemon on a system that cannot see the first one**, and the deploy
+        pipeline does not currently restart the daemon it already has (see `devops` below).
+        Constitution §3's Scheduling row is read as **scoped** by its own `(30-day ad lifecycle)`
+        parenthetical — this slice defers to that slice rather than picking a rival technology.
+        **(b)** the predicate is **`expires_at` + a per-table retention window (7 days verification,
+        30 days reset)** and deliberately never consults `redeemed_at` or `invalidated_at`: the two
+        tables' notions of "dead" are inverted by design (ADR-0011 decision 9), so a "dead" predicate
+        would be the rejected shared base class re-derived **in SQL**, where no unit test can reach
+        it. `expires_at` is a ceiling on every reason a row is finished, so the sweep gets the same
+        rows without encoding the disagreement.
+        **The observability is the point, not a trimming:** this is the first recurring process here
+        whose only failure symptom is silence, so it ships a backlog count that **cannot be faked by
+        a job that runs and does nothing**, a Redis heartbeat, and a log line on every run including
+        the all-zero ones — rather than adding a fourth "Sentry is overdue" to the risk list.
   - [ ] `identity-password-changed-notification` — a listener on `UserPasswordChanged` mailing "your
         password was changed on X". ~40 lines now that the event exists; it is the mechanism by which
         an account-takeover victim finds out.

@@ -174,3 +174,49 @@ with no listener, on the grounds that an event naming a fact a domain expert wou
 payload is complete without a second query, is recorded history rather than speculative generality.
 ADR-0011 ships two more on the same basis, and declines a third (`PasswordResetRequestInvalidated`)
 that fails the test.
+
+## Amendment, 2026-08-01 — decision 4's orphan clause is discharged, and the pruning debt is paid
+
+`identity-challenge-pruning` has landed
+([ADR-0012](./0012-challenge-retention-and-recurring-background-work.md)), and it settles the two
+things this ADR left owing.
+
+**Decision 4's orphan clause is answered, not reversed. No foreign key is added.** The clause read:
+*the cost is possible orphan rows; the pruning job and the GDPR-erasure design own that.* ADR-0012
+decision 6 discharges the first half and specifies the second:
+
+- **Orphan-ness is not a prune criterion.** An orphan is deleted on the ordinary `expires_at`
+  schedule like any other row, with no special handling. It is a state that resolves itself inside
+  the retention window.
+- **A read-only `ChallengeIntegrityProbe` counts them per table and never deletes**, reporting into
+  the run's log line and `/health/ready`, at warning when non-zero. This ADR's consequence said
+  *"orphan rows are possible by construction. Nothing deletes users today."* The second sentence was
+  true and unmeasured; it is now **measured every hour** rather than assumed, which is the actual
+  difference between an accepted cost and an ignored one.
+- **Erasure gets an ordering rule** rather than a mention: challenge rows from both tables first,
+  the `identity_user` row last — so a crash leaves a user with no challenges instead of orphans that
+  read as corruption — and retention windows explicitly do **not** apply to an erasure request.
+
+The reasoning that declined the FK is unchanged and was re-tested rather than assumed: an FK the
+mapping does not know about is diffed as unwanted on every `make migration.make`, deleted and
+re-added forever.
+
+**The pruning debt is paid, but not in the shape this ADR predicted, and the difference is the
+interesting part.** The consequence above reads: *"a pruning job owed for expired and redeemed
+rows."* ADR-0012 prunes on **`expires_at` alone** and never consults `redeemed_at` at all. The reason
+is that by the time the job was written there were two challenge tables whose notions of "finished"
+had been deliberately inverted (ADR-0011 decision 9), so a predicate built out of "dead" would have
+been the rejected shared base class re-derived in SQL, where no unit test can reach it. `expires_at`
+is a *ceiling* on every reason a row is finished — a redeemed row still expires — so the sweep gets
+the same rows without ever encoding the disagreement.
+
+The lesson generalises, and it is the counterpart to this ADR's earlier one about naming the property
+rather than the conclusion:
+
+> **A debt recorded in one slice's vocabulary should be discharged in the vocabulary that is true when
+> it comes due.** "Expired and redeemed" was an accurate description of one table in isolation. Two
+> tables later it had become a trap, and copying the phrase forward would have implemented it.
+
+**Also discharged:** the consequence *"a pruning job later has a natural unit to prune"* — it did, and
+the unit turned out to be a column rather than an aggregate, because deletion is not a state
+transition and needs no aggregate to agree to it (ADR-0012 decision 2).
