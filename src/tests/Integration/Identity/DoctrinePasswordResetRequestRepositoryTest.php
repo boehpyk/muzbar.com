@@ -9,6 +9,7 @@ use App\Domain\Identity\Port\PasswordResetRequestRepository;
 use App\Domain\Identity\ValueObject\HashedResetToken;
 use App\Domain\Identity\ValueObject\PasswordResetRequestId;
 use App\Domain\Identity\ValueObject\UserId;
+use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Uid\Uuid;
@@ -304,6 +305,271 @@ final class DoctrinePasswordResetRequestRepositoryTest extends KernelTestCase
         $unique = array_unique(array_map(static fn (PasswordResetRequestId $id): string => $id->toString(), $ids));
 
         self::assertCount(5, $unique);
+    }
+
+    /**
+     * AC-4, **both sides of the boundary**, on the second table. A row at `threshold − 1 s` is
+     * deleted; rows at exactly `threshold` and at `threshold + 1 s` are kept.
+     *
+     * Asserted independently of the verification adapter's identical test rather than shared, for
+     * the same reason the two port methods are declared separately: the two adapters are two
+     * implementations that happen to agree today, and a test that covered both through one helper
+     * would go on passing if one of them stopped agreeing.
+     *
+     * Survivors are read with raw SQL — `deleteExpiredBefore()` runs native SQL and never tells the
+     * identity map the rows are gone.
+     */
+    public function testDeleteExpiredBeforeIsStrictOnBothSidesOfTheThreshold(): void
+    {
+        $threshold = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+
+        $justOverdue = $this->persistExpiringAt($threshold->modify('-1 second'));
+        $exactlyOnTheThreshold = $this->persistExpiringAt($threshold);
+        $oneSecondSafe = $this->persistExpiringAt($threshold->modify('+1 second'));
+
+        $deleted = $this->repository->deleteExpiredBefore($threshold, 100);
+
+        self::assertSame(1, $deleted, 'Only the row strictly before the threshold may be deleted.');
+        self::assertFalse($this->rowExists($justOverdue), 'threshold - 1s must be deleted.');
+        self::assertTrue($this->rowExists($exactlyOnTheThreshold), 'A row exactly at the threshold must be KEPT — the comparison is strict.');
+        self::assertTrue($this->rowExists($oneSecondSafe), 'threshold + 1s must be kept.');
+    }
+
+    /**
+     * The count and the sweep select the same rows, asserted against **each other** rather than
+     * against two literals that could drift apart while both stayed green.
+     */
+    public function testCountExpiredBeforeAgreesExactlyWithWhatTheSweepRemoves(): void
+    {
+        $threshold = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+
+        $this->persistExpiringAt($threshold->modify('-1 second'));
+        $this->persistExpiringAt($threshold->modify('-1 day'));
+        $this->persistExpiringAt($threshold);
+        $this->persistExpiringAt($threshold->modify('+1 second'));
+
+        $counted = $this->repository->countExpiredBefore($threshold);
+        $deleted = $this->repository->deleteExpiredBefore($threshold, 100);
+
+        self::assertSame($counted, $deleted);
+        self::assertSame(0, $this->repository->countExpiredBefore($threshold));
+    }
+
+    /**
+     * AC-5 on the table where deleting a live row would matter most: a live **reset** challenge is
+     * never swept.
+     *
+     * Deleting a live reset row would be catastrophic and silent — the user's recovery link stops
+     * working, they see the same neutral invalid-link response as for a forged token, and nothing
+     * anywhere says why. It is structurally impossible (the threshold is strictly before `now` and a
+     * live row expires at or after it), and pinned here so the impossibility fails loudly the day the
+     * arithmetic changes.
+     */
+    public function testALiveRequestIsNeverDeleted(): void
+    {
+        $now = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+        $live = $this->persistExpiringAt($now->modify('+30 minutes'));
+
+        $this->repository->deleteExpiredBefore(PasswordResetRequest::retentionThreshold($now), 100);
+
+        self::assertTrue($this->rowExists($live));
+    }
+
+    /**
+     * AC-6: a **redeemed** reset row inside its thirty-day window survives, which is what keeps a
+     * replay answering `PasswordResetLinkAlreadyUsed` instead of `PasswordResetRequestNotFound`.
+     *
+     * Both answers give the visitor the identical neutral response by design, so the whole value of
+     * the distinction is in the log and in an incident review — which is precisely the question this
+     * aggregate's thirty days were chosen to keep answerable.
+     */
+    public function testARedeemedRequestInsideItsRetentionWindowIsNotDeleted(): void
+    {
+        $now = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+
+        // Expired a week ago, so long dead — but the window here is thirty days.
+        $request = $this->persistExpiringAt($now->modify('-7 days'), redeemed: true);
+
+        $this->repository->deleteExpiredBefore(PasswordResetRequest::retentionThreshold($now), 100);
+
+        self::assertTrue($this->rowExists($request));
+    }
+
+    /**
+     * AC-7: an **invalidated but unexpired** row survives — the case that exists only on this
+     * aggregate, because only this one invalidates its siblings on reissue.
+     *
+     * This is the sharpest available proof that the tables' disagreement about "dead" is encoded
+     * nowhere. The row is, by this aggregate's own rules, as finished as a row can be: superseded,
+     * never redeemable again, occupying space for nothing. A predicate that knew what "dead" meant
+     * would take it, and taking it would be the shared abstraction ADR-0012 decision 1 refused,
+     * rebuilt in SQL where no unit test could reach it. The sweep does not know and does not ask: the
+     * row is not overdue on `expires_at`, so it stays.
+     */
+    public function testAnInvalidatedButUnexpiredRequestIsNotDeleted(): void
+    {
+        $now = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+        $request = $this->persistExpiringAt($now->modify('+30 minutes'), invalidated: true);
+
+        $this->repository->deleteExpiredBefore(PasswordResetRequest::retentionThreshold($now), 100);
+
+        self::assertTrue($this->rowExists($request), 'An invalidated row is not an overdue row — the sweep judges expiry alone.');
+    }
+
+    /**
+     * AC-19: `$limit` caps the deletion, and the return value is asserted against the **observed row
+     * delta**, never against the literal — an assertion against a literal would pass for a method
+     * that returned the limit it was handed without deleting anything.
+     */
+    public function testDeleteExpiredBeforeHonoursTheLimitAndReturnsTheRowsActuallyRemoved(): void
+    {
+        $threshold = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+
+        for ($i = 1; $i <= 5; ++$i) {
+            $this->persistExpiringAt($threshold->modify(\sprintf('-%d hours', $i)));
+        }
+
+        $before = $this->tableCount();
+        $deleted = $this->repository->deleteExpiredBefore($threshold, 2);
+        $after = $this->tableCount();
+
+        self::assertSame($before - $after, $deleted);
+        self::assertSame(2, $deleted);
+        self::assertSame(3, $this->repository->countExpiredBefore($threshold));
+    }
+
+    /**
+     * AC-17 on the reset table: a corrupt `token_hash` is still deleted, because nothing is
+     * hydrated.
+     *
+     * WRITTEN WITH RAW SQL ON PURPOSE, AND THE SUITE'S OWN RULE IS BEING BROKEN KNOWINGLY. Every
+     * other fixture here goes through `issue()` so that no test rests on a row the aggregate could
+     * not produce. This row is exactly that: `HashedResetToken` refuses an empty string, so no path
+     * through the model reaches it. Widening the factory would hand every other test the ability to
+     * build impossible states; writing it once, here, with this comment, says plainly that we are
+     * outside the model deliberately.
+     *
+     * What it proves is the cost of the design that was not chosen. Load-and-delete would throw
+     * inside hydration on this row, kill the run, and keep killing every subsequent run while the
+     * backlog grew and nothing named the offending row.
+     */
+    public function testARowWithACorruptTokenHashIsStillDeletedBecauseNothingIsHydrated(): void
+    {
+        $threshold = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+        $id = Uuid::v7()->toRfc4122();
+
+        $this->connection()->executeStatement(
+            <<<'SQL'
+                INSERT INTO identity_password_reset_request
+                    (id, user_id, token_hash, issued_at, expires_at, redeemed_at, invalidated_at)
+                VALUES (:id, :userId, '', :issuedAt, :expiresAt, NULL, NULL)
+                SQL,
+            [
+                'id' => $id,
+                'userId' => Uuid::v7()->toRfc4122(),
+                'issuedAt' => $threshold->modify('-2 days')->format('Y-m-d H:i:sO'),
+                'expiresAt' => $threshold->modify('-1 day')->format('Y-m-d H:i:sO'),
+            ],
+        );
+
+        $deleted = $this->repository->deleteExpiredBefore($threshold, 100);
+
+        self::assertSame(1, $deleted);
+        self::assertFalse($this->rowExists($id));
+    }
+
+    /**
+     * AC-9: the sweep reads the **stored** `expires_at` rather than recomputing it from `issued_at`,
+     * so it stays correct across a future change to `LIFETIME_SECONDS` with no backfill.
+     *
+     * Raw SQL because `issue()` derives `expiresAt` and refuses it as a parameter (I-15), making a
+     * row whose timestamps disagree with the constant unreachable through the model. This row's
+     * `issued_at` sits *after* the threshold, so a recomputed expiry would spare it, while its stored
+     * `expires_at` is a day before the threshold and must not.
+     */
+    public function testARowIsJudgedByItsStoredExpiresAtRatherThanOneRecomputedFromIssuedAt(): void
+    {
+        $threshold = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+        $id = Uuid::v7()->toRfc4122();
+
+        $this->connection()->executeStatement(
+            <<<'SQL'
+                INSERT INTO identity_password_reset_request
+                    (id, user_id, token_hash, issued_at, expires_at, redeemed_at, invalidated_at)
+                VALUES (:id, :userId, :hash, :issuedAt, :expiresAt, NULL, NULL)
+                SQL,
+            [
+                'id' => $id,
+                'userId' => Uuid::v7()->toRfc4122(),
+                'hash' => hash('sha256', random_bytes(32)),
+                'issuedAt' => $threshold->modify('+10 days')->format('Y-m-d H:i:sO'),
+                'expiresAt' => $threshold->modify('-1 day')->format('Y-m-d H:i:sO'),
+            ],
+        );
+
+        self::assertSame(1, $this->repository->countExpiredBefore($threshold));
+        self::assertSame(1, $this->repository->deleteExpiredBefore($threshold, 100));
+        self::assertFalse($this->rowExists($id));
+    }
+
+    /**
+     * Persists a request whose `expiresAt` lands exactly on `$expiresAt`.
+     *
+     * `expiresAt` is derived inside `issue()` and is not a parameter (invariant I-15), so the lever
+     * is `issuedAt` and the arithmetic runs backwards through `LIFETIME_SECONDS`. The fixture bends
+     * to the aggregate, never the reverse — and note that `redeemed` and `invalidated` go through the
+     * aggregate's own methods, so a state I-17 forbids cannot be built here even by accident.
+     *
+     * @return string the row's id, for a raw-SQL existence check afterwards
+     */
+    private function persistExpiringAt(
+        \DateTimeImmutable $expiresAt,
+        bool $redeemed = false,
+        bool $invalidated = false,
+    ): string {
+        $id = $this->repository->nextIdentity();
+        $issuedAt = $expiresAt->modify(\sprintf('-%d seconds', PasswordResetRequest::LIFETIME_SECONDS));
+
+        $request = PasswordResetRequest::issue($id, $this->aUserId(), $this->aHash(), $issuedAt);
+        $request->releaseEvents();
+
+        if ($redeemed) {
+            $request->redeem($request->tokenHash(), $issuedAt->modify('+1 minute'));
+        }
+
+        if ($invalidated) {
+            $request->invalidate($issuedAt->modify('+1 minute'));
+        }
+
+        $this->repository->save($request);
+        self::assertEquals($expiresAt, $request->expiresAt(), 'Fixture arithmetic must land on the intended instant.');
+
+        return $id->toString();
+    }
+
+    /**
+     * Existence read straight from Postgres, never through the ORM: `deleteExpiredBefore()` bypasses
+     * the identity map, so `find()` would return a cached object for a deleted row.
+     */
+    private function rowExists(string $id): bool
+    {
+        return (bool) $this->connection()->fetchOne(
+            'SELECT COUNT(*) FROM identity_password_reset_request WHERE id = :id',
+            ['id' => $id],
+        );
+    }
+
+    private function tableCount(): int
+    {
+        /** @var int|numeric-string $count */
+        $count = $this->connection()->fetchOne('SELECT COUNT(*) FROM identity_password_reset_request');
+
+        return (int) $count;
+    }
+
+    private function connection(): Connection
+    {
+        return $this->entityManager->getConnection();
     }
 
     private function aUserId(): UserId
