@@ -59,8 +59,26 @@
             also why the index is named here rather than left to Doctrine's `IDX_<hash>` — an
             assertion cannot refer to a name nobody chose.
         -->
+        <!--
+            The second index is `identity-challenge-pruning`'s, and slice 3's migration predicted it
+            in as many words: *"There is no index on `expires_at` … The pruning job will want one; it
+            can add it, with a caller to justify it."* This is that caller. The justification is the
+            **batching** rather than the table size: the sweep runs up to fifty bounded `DELETE`s per
+            table per run, so without an index a single run is fifty sequential scans, and with one it
+            is fifty range scans down the left edge of a B-tree, each touching only the rows it is
+            about to remove.
+
+            IT IS DECLARED HERE AS WELL AS IN THE MIGRATION, ON PURPOSE. Doctrine diffs the mapping
+            against the live schema, so an index that exists in the database and not in this file is
+            offered for deletion by every subsequent `make migration.make` — dropped and re-added
+            forever by whoever ran the generator last. That is exactly the argument ADR-0009 decision
+            4 used *against* hand-adding a foreign key, applied in the positive direction: the way to
+            stop the generator arguing with a schema object is to tell the mapping about it. Declaring
+            it in both places in one commit is what keeps `make migration.make` quiet from here on.
+        -->
         <indexes>
             <index name="idx_identity_email_verification_request_user_issued" columns="user_id,issued_at"/>
+            <index name="idx_identity_email_verification_request_expires_at" columns="expires_at"/>
         </indexes>
 
         <!--
