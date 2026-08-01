@@ -270,6 +270,93 @@ final class EmailVerificationRequestTest extends TestCase
         self::assertSame([], $second);
     }
 
+    /**
+     * AC-1. The literal comes from the feature spec, **not** from the constant — asserting a constant
+     * against itself is a tautology no edit could ever break. 604 800 is written out because the
+     * specification says seven days, and this test's job is to disagree with the code the moment the
+     * code stops saying that.
+     *
+     * The inversion against `PasswordResetRequest`'s thirty days is asserted once, on that class's
+     * test, where the surprising number lives.
+     */
+    public function testTheRetentionWindowIsExactlySevenDays(): void
+    {
+        self::assertSame(604800, EmailVerificationRequest::RETENTION_AFTER_EXPIRY_SECONDS);
+        self::assertSame(7 * 24 * 60 * 60, EmailVerificationRequest::RETENTION_AFTER_EXPIRY_SECONDS);
+    }
+
+    /**
+     * AC-2: the threshold is exactly `$now` minus this aggregate's own window, derived inside the
+     * method and never supplied by a caller.
+     */
+    public function testRetentionThresholdIsExactlySevenDaysBeforeTheGivenInstant(): void
+    {
+        $now = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+
+        $threshold = EmailVerificationRequest::retentionThreshold($now);
+
+        self::assertSame('2026-07-25T12:00:00+00:00', $threshold->format(\DateTimeInterface::ATOM));
+        self::assertSame(604800, $now->getTimestamp() - $threshold->getTimestamp());
+    }
+
+    /**
+     * The threshold **inherits** the zone and the sub-second field of `$now` rather than
+     * reinterpreting them — which is precisely what `sub()` with an explicit `\DateInterval` buys
+     * over `modify('-7 days')`, and the reason the latter is banned here.
+     *
+     * The property under test is *preservation*, not "the answer is UTC". `retentionThreshold()`
+     * cannot make an instant UTC and must not try: it is handed whatever the `Clock` port produced,
+     * and the `Clock` contract is what mandates UTC and whole seconds. So this asserts the zone comes
+     * out identical to the one that went in — which is the claim the method's docblock actually makes
+     * — and then feeds it a genuine UTC instant of the kind `SystemClock` and `FrozenClock` produce,
+     * to show the composition holds end to end.
+     *
+     * Asserting `'UTC'` against an instant built from the literal `+00:00` would have tested PHP's
+     * timezone-name bookkeeping rather than this method, and would have failed while the code was
+     * right.
+     */
+    public function testRetentionThresholdPreservesTheZoneAndPrecisionOfTheInstantItIsGiven(): void
+    {
+        $now = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+
+        $threshold = EmailVerificationRequest::retentionThreshold($now);
+
+        self::assertSame($now->getTimezone()->getName(), $threshold->getTimezone()->getName());
+        self::assertSame('000000', $threshold->format('u'));
+
+        // The shape the `Clock` port actually hands the Domain: a real UTC zone, whole seconds.
+        $utcNow = new \DateTimeImmutable('2026-08-01 12:00:00', new \DateTimeZone('UTC'));
+
+        $utcThreshold = EmailVerificationRequest::retentionThreshold($utcNow);
+
+        self::assertSame('UTC', $utcThreshold->getTimezone()->getName());
+        self::assertSame('000000', $utcThreshold->format('u'));
+        self::assertSame(604800, $utcNow->getTimestamp() - $utcThreshold->getTimestamp());
+    }
+
+    /**
+     * The arithmetic form of I-26: **a live challenge can never be overdue.**.
+     *
+     * A live row has `expiresAt >= now`, the threshold is `now - w` with `w > 0`, and the sweep
+     * selects on `expiresAt < threshold`, so no live row can qualify. The property holds by
+     * arithmetic rather than by a guard — and is asserted anyway, because a property that holds by
+     * arithmetic must fail loudly the day the arithmetic changes.
+     */
+    public function testALiveRequestIsNeverBeforeItsOwnRetentionThreshold(): void
+    {
+        foreach (['2026-01-01T00:00:00+00:00', '2026-08-01T12:00:00+00:00', '2030-12-31T23:59:59+00:00'] as $instant) {
+            $now = new \DateTimeImmutable($instant);
+            $request = $this->issueRequest(issuedAt: $now);
+
+            self::assertGreaterThanOrEqual(
+                EmailVerificationRequest::retentionThreshold($now),
+                $request->expiresAt(),
+                \sprintf('A request issued at %s must not already be prunable.', $instant),
+            );
+            self::assertFalse($request->isExpiredAt($now));
+        }
+    }
+
     private function issueRequest(
         ?HashedVerificationToken $hash = null,
         ?\DateTimeImmutable $issuedAt = null,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Domain\Identity\Entity;
 
+use App\Domain\Identity\Entity\EmailVerificationRequest;
 use App\Domain\Identity\Entity\PasswordResetRequest;
 use App\Domain\Identity\Event\PasswordResetRequested;
 use App\Domain\Identity\Exception\PasswordResetLinkAlreadyUsed;
@@ -392,6 +393,144 @@ final class PasswordResetRequestTest extends TestCase
         $this->expectException(PasswordResetLinkExpired::class);
 
         $request->redeem($wrongHash, $request->expiresAt()->modify('+1 second'));
+    }
+
+    /**
+     * AC-1. The literal comes from the feature spec, **not** from the constant.
+     *
+     * `assertSame(PasswordResetRequest::RETENTION_AFTER_EXPIRY_SECONDS, PasswordResetRequest::RETENTION_AFTER_EXPIRY_SECONDS)`
+     * would be a tautology that no edit could ever break, and so would any indirection that reached
+     * the same value twice. 2 592 000 is written out here because the specification says thirty days
+     * and this test's job is to disagree with the code the moment the code stops saying that.
+     */
+    public function testTheRetentionWindowIsExactlyThirtyDays(): void
+    {
+        self::assertSame(2592000, PasswordResetRequest::RETENTION_AFTER_EXPIRY_SECONDS);
+        self::assertSame(30 * 24 * 60 * 60, PasswordResetRequest::RETENTION_AFTER_EXPIRY_SECONDS);
+    }
+
+    /**
+     * AC-2: the threshold is exactly `$now` minus this aggregate's own window, derived inside the
+     * method and never supplied by a caller.
+     */
+    public function testRetentionThresholdIsExactlyThirtyDaysBeforeTheGivenInstant(): void
+    {
+        $now = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+
+        $threshold = PasswordResetRequest::retentionThreshold($now);
+
+        self::assertSame('2026-07-02T12:00:00+00:00', $threshold->format(\DateTimeInterface::ATOM));
+        self::assertSame(2592000, $now->getTimestamp() - $threshold->getTimestamp());
+    }
+
+    /**
+     * The threshold **inherits** the zone and the sub-second field of `$now` rather than
+     * reinterpreting them — what `sub()` with an explicit `\DateInterval` buys over
+     * `modify('-30 days')`, and the reason the latter is banned here.
+     *
+     * The property is *preservation*: `retentionThreshold()` is handed whatever the `Clock` port
+     * produced and cannot make it UTC. The second half feeds it a genuine UTC instant of the kind
+     * `SystemClock` and `FrozenClock` produce, which is what makes the composition matter — a
+     * threshold that came back in a local zone would still compare correctly in PHP but would reach
+     * the adapter and be bound against a `TIMESTAMP WITH TIME ZONE` column, which is exactly the
+     * silent window shift `DATETIMETZ_IMMUTABLE` is bound explicitly to avoid.
+     */
+    public function testRetentionThresholdPreservesTheZoneAndPrecisionOfTheInstantItIsGiven(): void
+    {
+        $now = new \DateTimeImmutable('2026-08-01T12:00:00+00:00');
+
+        $threshold = PasswordResetRequest::retentionThreshold($now);
+
+        self::assertSame($now->getTimezone()->getName(), $threshold->getTimezone()->getName());
+        self::assertSame('000000', $threshold->format('u'));
+
+        $utcNow = new \DateTimeImmutable('2026-08-01 12:00:00', new \DateTimeZone('UTC'));
+
+        $utcThreshold = PasswordResetRequest::retentionThreshold($utcNow);
+
+        self::assertSame('UTC', $utcThreshold->getTimezone()->getName());
+        self::assertSame('000000', $utcThreshold->format('u'));
+        self::assertSame(2592000, $utcNow->getTimestamp() - $utcThreshold->getTimestamp());
+    }
+
+    /**
+     * AC-3 — **THE ONE TEST IN THIS SLICE WHOSE JOB IS TO MAKE A FUTURE REFACTOR FAIL.**.
+     *
+     * The two aggregates carry identically shaped constants holding deliberately different values,
+     * and the ordering comes out *inverted* relative to the lifetimes: the aggregate whose link lives
+     * twenty-four times longer keeps its rows for a quarter as long. A reader diffing the two files
+     * will find that and be tempted to align them. This assertion is what makes the tidy-up fail
+     * loudly instead of passing quietly, and the failure message carries the reason so that whoever
+     * trips it finds the argument rather than an inequality.
+     *
+     * It lives on this class rather than in a new file because there is no third place these two
+     * constants meet; putting it beside the reset window keeps the reason next to the number that
+     * looks most surprising.
+     */
+    public function testTheRetentionWindowsAreDeliberatelyInvertedRelativeToTheLifetimes(): void
+    {
+        self::assertLessThan(
+            PasswordResetRequest::RETENTION_AFTER_EXPIRY_SECONDS,
+            EmailVerificationRequest::RETENTION_AFTER_EXPIRY_SECONDS,
+            'The verification retention window MUST stay shorter than the reset one, even though the '
+            .'verification LINK lives 24x longer. This is not an oversight to be aligned. Retention '
+            .'measures the question a row still answers AFTER it stops working, which has nothing to '
+            .'do with how long it worked: a verification row answers a days-long SUPPORT question '
+            .'("why did my link fail?") on the higher-volume table, while a reset row answers an '
+            .'INCIDENT-REVIEW question ("when was this password reset, and from which challenge?") '
+            .'whose horizon is set by how long a marketplace seller might go without logging in. '
+            .'If you are equalising these two numbers, read both constants\' docblocks and ADR-0012 '
+            .'decision 3 first.',
+        );
+
+        // Asserted against each other rather than against two copies of a literal, because two
+        // literals can drift apart while both stay green. The absolute values are pinned separately,
+        // once each, in their own aggregate's test.
+        self::assertGreaterThan(
+            EmailVerificationRequest::LIFETIME_SECONDS,
+            PasswordResetRequest::RETENTION_AFTER_EXPIRY_SECONDS,
+            'A retention window shorter than the twin aggregate\'s LIFETIME would mean rows could be '
+            .'swept while comparable links were still live. Not a rule the sweep relies on, but a '
+            .'sanity floor worth failing on.',
+        );
+
+        // The inversion, stated as the property rather than as two numbers: the LIFETIME ordering and
+        // the RETENTION ordering point in opposite directions. If a future change ever made both
+        // orderings agree, this fails even if each individual number still looked defensible.
+        self::assertGreaterThan(
+            PasswordResetRequest::LIFETIME_SECONDS,
+            EmailVerificationRequest::LIFETIME_SECONDS,
+            'The verification LINK is meant to outlive the reset link (24 h vs 1 h). If that stopped '
+            .'being true, the inversion this slice documents would no longer be an inversion, and '
+            .'the retention reasoning above would need rewriting rather than merely re-asserting.',
+        );
+    }
+
+    /**
+     * The arithmetic form of I-26, provable with no database: **a live challenge can never be
+     * overdue.**.
+     *
+     * A live row has `expiresAt >= now`; the threshold is `now - w` with `w > 0`; the sweep selects
+     * on `expiresAt < threshold`. So no live row can satisfy the predicate — the safety property
+     * holds by arithmetic rather than by a guard. It is still asserted, because a property that holds
+     * by arithmetic must fail loudly the day the arithmetic changes.
+     *
+     * Driven across a spread of instants rather than one, so that a change making the property hold
+     * only near the boundary would still be caught.
+     */
+    public function testALiveRequestIsNeverBeforeItsOwnRetentionThreshold(): void
+    {
+        foreach (['2026-01-01T00:00:00+00:00', '2026-08-01T12:00:00+00:00', '2030-12-31T23:59:59+00:00'] as $instant) {
+            $now = new \DateTimeImmutable($instant);
+            $request = $this->issueRequest(issuedAt: $now);
+
+            self::assertGreaterThanOrEqual(
+                PasswordResetRequest::retentionThreshold($now),
+                $request->expiresAt(),
+                \sprintf('A request issued at %s must not already be prunable.', $instant),
+            );
+            self::assertTrue($request->isLiveAt($now));
+        }
     }
 
     public function testReleaseEventsEmptiesTheBufferSoASecondCallReturnsAnEmptyList(): void
