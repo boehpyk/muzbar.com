@@ -65,6 +65,23 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 >    `devops` item outstanding — see [ADR-0010](./adr/0010-event-delivery-and-transactional-mail.md).
 >    Related and cheaper: `/health/ready` still probes only Postgres and Redis, so **a stopped
 >    messenger worker looks exactly like a healthy system.**
+>    **Overdue after slice 4 (2026-08-01), and for the first time on work whose *only* symptom of
+>    failure is the absence of a symptom.** `identity-challenge-pruning` ships a backlog, a heartbeat
+>    and a log line on every run, so the failure is now genuinely *visible* — and nothing yet
+>    *notices* it. That is the whole remaining gap, and it is Sentry's.
+> 3. **`deploy.yml` never restarts `messenger-worker`.** The deploy runs `docker compose pull app`
+>    and `docker compose up -d app nginx`; the worker is in neither list, so it runs whatever image it
+>    last had, indefinitely, and the only symptom is behaviour that does not match the source. Found
+>    2026-08-01 while costing slice 4's scheduling decision — **a pre-existing bug, not one that slice
+>    introduced.** It is also the strongest single argument against adding any second long-running
+>    container: a scheduler silently running an *old retention policy* would delete data by a rule
+>    nobody currently believes is in force. **Fix this before any future slice adds a `scheduler`
+>    service.** Manual workaround in `docs/infrastructure.md`.
+> 4. **`messenger_messages` and the `failed` queue still grow without bound.** They are Messenger's
+>    tables with Messenger's semantics, and `identity-challenge-pruning` deliberately did not acquire
+>    them — a job named for `Identity` challenges must not quietly become the system's general
+>    garbage collector. Named here so nobody assumes slice 4 covered it. The pruning command is a
+>    working pattern to copy, not to extend.
 
 ## Phase 1 — Data model, dynamic schema & auth *(PRD Phase 1)*
 
@@ -113,7 +130,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         an unverified account being stranded with no recovery path at all.
         **Owed by this slice:** nothing new — it *adds to* the pruning debt rather than paying it,
         which is why `identity-challenge-pruning` is scheduled next.
-  - [ ] `identity-challenge-pruning` — **specs approved 2026-08-01;
+  - [x] `identity-challenge-pruning` — **DONE 2026-08-01;
         [ADR-0012](./adr/0012-challenge-retention-and-recurring-background-work.md) accepted.** A
         `muzbar:identity:prune-challenges` console command under **host cron** (hourly), sweeping
         **overdue** rows from both challenge tables (`identity_email_verification_request`,
@@ -138,6 +155,18 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         whose only failure symptom is silence, so it ships a backlog count that **cannot be faked by
         a job that runs and does nothing**, a Redis heartbeat, and a log line on every run including
         the all-zero ones — rather than adding a fourth "Sentry is overdue" to the risk list.
+        **What it actually shipped**, beyond the plan: the first `DELETE` in the repository's
+        history, licensed by a rule worth keeping — *an aggregate governs its state transitions, not
+        its own non-existence; put in the Domain the part that can be wrong.* The Domain diff is one
+        constant and one static per aggregate and nothing else. Two findings came out of it that the
+        plan did not predict. **(i)** A dedicated Monolog channel is *not* enough on its own: prod's
+        `fingers_crossed` handler buffers an INFO record and discards it, so the AC-20 line would have
+        been silently dropped in the one environment it exists for. Verified by removing the
+        dedicated handler and watching a green run write **zero bytes**. **(ii)** PHP will not compile
+        one test double implementing both repository ports — `nextIdentity()` is covariant and a union
+        of the two id types is wider than either — so the type system reaches AC-32's "no shared
+        abstraction" conclusion unaided. **Owed by this slice:** nothing. It pays the debt slices 2
+        and 3 both recorded, and hands GDPR erasure a written specification rather than a hope.
   - [ ] `identity-password-changed-notification` — a listener on `UserPasswordChanged` mailing "your
         password was changed on X". ~40 lines now that the event exists; it is the mechanism by which
         an account-takeover victim finds out.

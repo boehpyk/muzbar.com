@@ -32,8 +32,17 @@ Docker Compose · Traefik · Nginx.
 > It is the first slice to touch `User` since slice 1, by exactly one property, one method, one
 > reader and one import — and the first where a successful use case in one context (reset) also
 > discharges a fact owned by another use case (email verification).
-> Current work: the remaining `Identity` slices — next is `identity-challenge-pruning`, which now
-> has **two** challenge tables to sweep.
+> `identity-challenge-pruning` (2026-08-01) shipped the repository's **first `DELETE`** — a
+> `muzbar:identity:prune-challenges` console command under **host cron**, sweeping overdue rows from
+> both challenge tables in bounded batches behind two per-aggregate port methods. It added **no new
+> type of any kind**: the Domain diff is one constant and one static per aggregate and nothing else.
+> It established [ADR-0012](./docs/adr/0012-challenge-retention-and-recurring-background-work.md) and
+> discharged ADR-0009 decision 4's orphan clause (*answered*, not reversed — still no FK) and slice
+> 3's `expires_at`-index note. It is also the first slice whose only failure symptom is silence, so
+> it carries its own signal: a backlog count that cannot be faked by a job that runs and does
+> nothing, a Redis heartbeat, and one log line per run including the all-zero ones.
+> Current work: the remaining `Identity` slices — next is
+> `identity-password-changed-notification`.
 > Two Phase 0 items still carry over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md), and **Sentry, no longer merely overdue**: slice 2 added
 > asynchronous failure paths that are silent by construction (a swallowed listener exception, a
@@ -101,6 +110,41 @@ established by the second slice, inherited by every context:
   call sites name the other one, so a reader who spots the contradiction finds the reason instead of
   "aligning" them.
 
+**Deleting rows** ([ADR-0012](./docs/adr/0012-challenge-retention-and-recurring-background-work.md)) —
+established by the fourth slice, which shipped the repository's **first `DELETE`**:
+
+- **An aggregate governs its state transitions, not its own non-existence.** That is what licences a
+  set-based `DELETE` behind a port method here while ADR-0011 decision 4 refused a bulk `UPDATE` next
+  door: `invalidate()` is a transition with an invariant to protect, so a bulk update bypasses a
+  guard; deletion has no post-condition, no invariant a non-existent object can violate and no method
+  it could refuse, so it bypasses nothing. The general rule: **put in the Domain the part that can be
+  wrong.** Here that is the *selection* — a constant and a pure static on each aggregate — and it is
+  exactly what stayed there. A bulk operation is illegitimate when it bypasses a rule and legitimate
+  when there is no rule to bypass.
+- **The prune predicate is `expires_at` and nothing else** — never `redeemed_at`, `invalidated_at`,
+  `email_verified_at` or `password_changed_at`, in any layer. The two challenge tables *disagree
+  about what "dead" means*, deliberately, so a "dead" predicate would be the rejected `Challenge`
+  base class re-derived in SQL where no unit test can reach it. `expires_at` is the one column both
+  define identically and a ceiling on every other reason a row is finished.
+- **The two retention windows are inverted relative to the lifetimes and that is the design**:
+  verification keeps rows **7 days** after a **24-hour** link, reset keeps them **30 days** after a
+  **one-hour** link. Retention measures the question a row answers *after* it stops working. Each
+  constant's docblock names its twin and gives the reason, and a unit test fails loudly if anyone
+  "aligns" them.
+- **A dedicated Monolog channel is not enough on its own.** `prod` and `test` route through a
+  `fingers_crossed` handler that buffers anything below ERROR and discards it, so an INFO line on a
+  new channel is silently dropped unless the channel gets its **own** handler *and* is excluded from
+  `main`. The `pruning` channel does both. Verified empirically: without them a green run wrote zero
+  bytes to stderr.
+- **Two more Redis keys survive DAMA** — `identity:challenge_pruning:lock` and `:last_run`. Use the
+  `ClearsPruningState` trait; `ClearsRateLimiters` cannot help, because these are raw Predis keys
+  rather than entries in the `cache.rate_limiter` pool. A leftover **lock** is the dangerous one: the
+  command then does nothing, logs `skipped: lock_held` and **exits 0**, so a test asserting a
+  successful run passes against a run that never happened.
+- An **elapsed interval is not an instant**: the `Clock` port is whole-second by contract, so a
+  duration is measured with `hrtime(true)`. `Clock` remains the only source of "now" for anything the
+  Domain sees.
+
 **Structurally identical aggregates still do not share a base class.** `PasswordResetRequest` is ~80%
 the same file as `EmailVerificationRequest` and shares no supertype with it. They share a *shape*,
 not *behaviour*, and they differ on **four** rules — replay refused vs absorbed, reissue invalidating
@@ -147,6 +191,11 @@ make check                     # cs + stan + deptrac + test — run before every
 # Identity operations
 make console cmd="muzbar:identity:verify-email <email>"   # break-glass: mark an email verified,
                                                           #   bypassing the token flow entirely
+# Challenge pruning — driven by host cron (`17 * * * *`); see docs/infrastructure.md's runbook.
+make console cmd="muzbar:identity:prune-challenges --dry-run"    # report only; deletes nothing
+make console cmd="muzbar:identity:prune-challenges --limit=100"  # a small, explicit bite
+make console cmd="muzbar:identity:prune-challenges"              # a full run; exit 0 even if truncated
+curl -s localhost:8080/health/ready | jq .jobs.challenge_pruning  # the backlog — the signal to trust
 # Mail & queue (dev)
 open http://localhost:8025                                # Mailpit — every dev mail lands here
 make console cmd="messenger:failed:show"                  # the failure transport nobody looks at
@@ -180,6 +229,14 @@ worker.
   `password_reset_submit`), so a test driving `/login`, `/verify-email/resend`, `/forgot-password`
   or either reset route needs it. The cheap proof that you got it right is to **run `make test`
   twice in a row** — a second run that fails is the classic symptom.
+  **Redis state is no longer only rate limiters.** `identity-challenge-pruning` added two keys —
+  `identity:challenge_pruning:lock` and `identity:challenge_pruning:last_run` — written straight
+  through `Predis\ClientInterface` with no pool and no namespace, so `ClearsRateLimiters`'
+  `$pool->clear()` **cannot see them**. Use the separate `ClearsPruningState` trait in any test that
+  runs the prune command or reads `/health/ready`'s `jobs` section. A leftover heartbeat makes a
+  staleness assertion depend on file order; a leftover **lock** is worse, because the command then
+  does nothing, logs `skipped: lock_held` and **exits 0** — a test asserting a successful run passes
+  against a run that never happened.
   **The session is load-bearing in a functional test now**, because the reset flow stashes its token
   there. Test sessions use `session.storage.factory.mock_file`, which persists across requests within
   **one** `KernelBrowser` — so a test that creates a second client, or reboots the kernel, silently
@@ -284,6 +341,17 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   so the failure presents to the user as "your link doesn't work" and to the operator as nothing at
   all. Accepted knowingly; recorded here because it is the cost side of that decision and is easy to
   forget when reading only the benefit.
+- **A Monolog *channel* decides which logger service writes a record; it decides nothing about
+  whether any handler keeps it.** Under `prod` and `test` the top-level handler is `fingers_crossed`
+  with `action_level: error`, which buffers everything below ERROR and **throws the buffer away**
+  unless an error follows. So a new channel's INFO line — the one thing a healthy background job ever
+  emits — is silently discarded in exactly the environment it exists for, while `debug:container`
+  cheerfully shows the channel wired up. The prod `console` handler is not a fallback either:
+  `ConsoleHandler` emits WARNING and above at normal verbosity, and cron runs at normal verbosity.
+  Fixed for `pruning` by giving it a **dedicated handler** *and* excluding it from `main` in both
+  environments. **Verified by removing them and re-running**: a green run wrote **zero bytes** to
+  stderr and exited 0. When you add a channel for a job whose failure mode is silence, prove a record
+  reaches a handler rather than assuming the channel is the work.
 - **A route requirement's failure mode is a bare 404 that no `catch` can convert.** `{token}` on
   `/reset-password/{token}` is deliberately only `[^/]+`, with the format gate living in the
   `ResetToken` value object, so a mangled token reaches the controller and gets the same neutral
