@@ -92,8 +92,17 @@ docker compose exec -T postgres psql -U "$DB_USERNAME" -d "$DB_DATABASE" \
   -c "select queue_name, count(*) from messenger_messages group by queue_name;"
 ```
 
-Two things to know before debugging:
+Three things to know before debugging:
 
+- ⚠ **`deploy.yml` never restarts `messenger-worker`, so it runs whatever image it last had.** The
+  deploy does `docker compose pull app` and `docker compose up -d app nginx` — the worker is in
+  neither list. It is therefore serving code from some earlier deploy, indefinitely, and the only
+  symptom is behaviour that does not match the source. Found on 2026-08-01 while costing
+  `identity-challenge-pruning`'s scheduling decision; it is a **pre-existing `devops` bug, not
+  something that slice introduced**, and it is the single strongest argument against adding a second
+  long-running container. Until it is fixed, restart the worker by hand after any deploy that changes
+  a mail template, a listener or anything else it executes:
+  `docker compose pull messenger-worker && docker compose up -d messenger-worker`.
 - **The worker exits on purpose, once an hour.** `--time-limit=3600` plus `restart: unless-stopped`
   is the supervisor-free way to bound a slow memory leak. A log ending in a clean shutdown is
   healthy; a container in a *restart loop* is not.
@@ -101,6 +110,113 @@ Two things to know before debugging:
   carries `auto_setup=0` in every environment, so a missing table is a missed `make migrate` and
   will not be papered over at runtime — which is deliberate, since auto-setup is a schema change
   nobody reviewed, applied by a worker process at an arbitrary moment.
+
+## Challenge pruning (runbook)
+
+Both `Identity` challenge tables grow forever unless something deletes from them.
+`muzbar:identity:prune-challenges` is that something, driven by **host cron** — not Symfony
+Scheduler ([ADR-0012](./adr/0012-challenge-retention-and-recurring-background-work.md) decision 5;
+Constitution §3's Scheduler row is read as scoped by its own `(30-day ad lifecycle)` parenthetical).
+
+**The crontab line. It lives outside git, which is this design's one real cost, so it lives here:**
+
+```cron
+17 * * * * cd /home/muzbar-deploy/muzbar.com && docker compose exec -T app php bin/console muzbar:identity:prune-challenges
+```
+
+Hourly at minute **17** — off the hour so it never coincides with every other cron on the box.
+Hourly rather than daily because it keeps the backlog small enough that a stalled job is detectable
+within hours. It targets the **`app`** container deliberately: that is the one `deploy.yml` actually
+updates (see the `messenger-worker` warning below), so the command can never run an image older than
+the code that was deployed.
+
+### First run — rehearse it, do not discover it
+
+The first real run is the only one that can meet an unbounded backlog. Do this **before** adding the
+cron line, and paste both outputs into the verification notes:
+
+```bash
+# 1. Report only. Deletes nothing, writes no heartbeat. Read the "Overdue before" column.
+make console cmd="muzbar:identity:prune-challenges --dry-run"
+
+# 2. A small, explicit bite. Confirm the row counts move by exactly what you asked for.
+make console cmd="muzbar:identity:prune-challenges --limit=100"
+
+# 3. Full runs until "Overdue before" reaches 0. A capped run reports truncated and exits 0;
+#    just run it again.
+make console cmd="muzbar:identity:prune-challenges"
+
+# 4. Only now, add the crontab line.
+```
+
+Exit codes: **0** on success, on a truncated run and on a lock-skip; **1** only on a genuine failure
+(Postgres unreachable), logged at `error`.
+
+### What to check when the backlog grows
+
+The backlog — `jobs.challenge_pruning.overdue_verification` / `overdue_reset` in `/health/ready`'s
+body — is the **primary** signal, and the only one that cannot be faked by a job that runs and does
+nothing. It is ~0 in a healthy system and grows monotonically when nothing runs.
+
+```bash
+curl -s localhost:8080/health/ready | jq .jobs.challenge_pruning
+#   overdue_* climbing        -> nothing is sweeping. Work down the list below.
+#   stale: true               -> no heartbeat for >3 h (three missed runs).
+#   last_run: null            -> the job has never run, or Redis was flushed.
+
+crontab -l | grep prune-challenges          # is the line still there? it is not in git.
+grep CRON /var/log/syslog | tail            # did cron fire and fail? exec failures land here.
+docker compose ps app                       # `exec` fails if the container is down.
+docker compose logs app --tail=100 | grep challenge_pruning
+redis-cli -a "$REDIS_PASSWORD" GET identity:challenge_pruning:lock   # a stuck lock? it has a 1 h TTL.
+make console cmd="muzbar:identity:prune-challenges --dry-run"        # what does it think it would do?
+```
+
+Note the two states that look alike and are not: `stale: true` with `overdue_*` at **0** means the
+heartbeat is missing (very likely Redis was flushed) while the sweeping is fine; `stale: false` with
+`overdue_*` **climbing** should be impossible and means the job is running and failing to delete.
+
+**`/health/ready` never 503s over any of this** and must not be changed to. Readiness answers "should
+traffic come here"; a housekeeping job that stopped is not a reason to take the site out of rotation,
+and a probe that 503'd over one would have Docker restart a perfectly healthy container in a loop.
+
+### Retention windows, and the backstop they do not have
+
+| Table | Link lifetime | Retention after expiry |
+|---|---|---|
+| `identity_email_verification_request` | 24 h | **7 days** |
+| `identity_password_reset_request` | 1 h | **30 days** |
+
+**The ordering is inverted on purpose** — the longer-lived link keeps its rows for the shorter time.
+Retention measures the question a row still answers *after* it stops working, which has nothing to do
+with how long it worked: a verification row answers a days-long support question on the
+higher-volume table, a reset row answers an incident-review question whose horizon is how long a
+seller might go without logging in. Both windows are Domain constants, so changing one is a deploy.
+
+⚠ **These windows and the database-dump schedule must be decided together.** A dump is the *only*
+backstop behind a window that turns out too short — once a row is swept, nothing else remembers which
+challenge a password was reset from. `make db.dump` is currently **on-demand and unscheduled** (see
+*Backups & recovery*, where a daily dump is still a to-do), so today there is no backstop at all.
+That is an accepted, recorded risk rather than an oversight.
+
+### GDPR erasure — specified here, built nowhere
+
+There is no user-deletion path today, so there are currently **zero** orphan rows. When erasure is
+built, two rules are not negotiable and are written here because this is where the future slice will
+look:
+
+1. **Delete the person's rows from both challenge tables *before* the `identity_user` row.** A crash
+   mid-way then leaves a user with no challenges — tidy, and indistinguishable from a user who never
+   requested one. The reverse order leaves orphaned challenge rows that read as corruption to
+   everyone who finds them afterwards, including the integrity probe.
+2. **Retention windows do not apply to an erasure request.** Erasure is immediate and complete. A
+   design that says "the pruner will get to it within thirty days" has not implemented erasure; it
+   has scheduled one.
+
+Erasure belongs behind a `deleteForUser()` method on each repository port, added by the slice that
+has a caller and a decision behind it. The pruning job must not acquire one, and
+`ChallengeIntegrityProbe` must never acquire a delete method at all — a probe that can delete is one
+refactor away from being a second, undocumented retention policy.
 
 ## Secrets & configuration
 
@@ -115,6 +231,10 @@ Two things to know before debugging:
 - **`make db.dump`** → custom-format `pg_dump -Fc --no-owner --no-privileges` into `backups/`
   (portable, parallel-restorable), same pattern as samolit.
 - Schedule a daily dump (cron on the host or a Scheduler task) with off-box copy (rsync/object store).
+  **This is now coupled to a data-retention decision and is no longer only an availability concern.**
+  As of `identity-challenge-pruning` the system deletes rows on a schedule (7 days / 30 days after
+  expiry), and a dump is the only thing standing behind a window that turns out too short. Decide the
+  dump schedule and those windows together — see *Challenge pruning (runbook)*.
 - **Rehearse restore** at least once before launch and after any schema-mutation milestone — an
   untested backup is a rumour, not a backup.
 
