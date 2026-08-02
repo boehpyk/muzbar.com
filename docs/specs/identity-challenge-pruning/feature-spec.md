@@ -277,9 +277,20 @@ changing it there.
 - [ ] **AC-26:** an orphan row **past its retention window** is deleted by the ordinary sweep, with
       no special handling and no reference to its orphan status. *Orphan-ness is a state that
       resolves itself within the window; it is not a prune criterion.*
-- [ ] **AC-27:** the probe's two counts appear in the run's log line (AC-20) and in
-      `/health/ready`'s body (AC-22), and a non-zero count is additionally logged at **warning**.
-      Today it can only mean manual database surgery or a bug.
+- [ ] **AC-27:** the probe's two counts appear in the run's log line (AC-20), and a non-zero count is
+      additionally logged at **warning**. Today it can only mean manual database surgery or a bug.
+      **Amended 2026-08-02, during `/verify`.** As approved, this criterion also required the two
+      counts in `/health/ready`'s body — which contradicted **AC-22** and the technical plan
+      §*Interface boundary*, both of which pin a **five**-field body (`last_run`, `age_seconds`,
+      `overdue_verification`, `overdue_reset`, `stale`) with no orphan counts. The implementation
+      followed AC-22, and `ChallengePruningHealthTest` asserts that shape exhaustively in both
+      directions, so the contradiction was live in an approved spec with nothing recording which side
+      won. **AC-22's side won, on purpose**, for three reasons: it is the side with a plan and a test
+      behind it; the probe is an **anti-join**, and *Risks* 6 already flags the two `COUNT`s the
+      endpoint gained, so two more per Docker healthcheck is a real cost; and the number is
+      structurally **0** today because nothing deletes users, so the endpoint would publish a
+      constant. Orphans remain visible where they are actionable — the run's log line, and a warning
+      when non-zero. Revisit when the erasure slice makes a non-zero count possible.
 - [ ] **AC-28:** **no foreign key is added** to either challenge table. ADR-0009 decision 4 stands
       and is *discharged*, not reversed. Asserted by grep over the new migration and by inspecting
       the live DDL.
