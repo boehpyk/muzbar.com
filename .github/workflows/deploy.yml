@@ -77,10 +77,34 @@ jobs:
             cat "$tmp" > .env
             rm -f "$tmp"
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-            docker compose pull app
+            # `messenger-worker` runs the same image as `app` with a different command, and it was
+            # absent from both lines below until 2026-08-02 — so it kept whatever image it last had,
+            # indefinitely, across four releases. The only symptom was behaviour not matching source.
+            # It matters more than it looks: Twig mail templates are rendered by `BodyRenderer` at
+            # *send* time, which happens in the worker — so a slice that ships a new mail template
+            # deploys an `app` that queues the message and a worker that cannot render it. The result
+            # is a failed queue message in a transport nobody reads, not an error anyone sees.
+            docker compose pull app messenger-worker
             docker compose up -d app nginx
+            # Stopped for the migration window rather than just restarted after it. The worker is the
+            # one process that keeps executing application code while `migrate` runs, so leaving it up
+            # means old code writing against a schema that is changing under it. Messenger handles
+            # SIGTERM by finishing the message in flight, and mail is queued rather than lost.
+            docker compose stop messenger-worker
             docker compose exec -T app php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
             docker compose exec -T app php bin/console cache:clear
+            # Started last, on the new image, against the migrated schema.
+            docker compose up -d messenger-worker
+            # Prove it rather than hope. This bug survived four releases precisely because a stale
+            # worker is invisible from the outside, so the deploy now fails loudly instead of
+            # succeeding quietly with a container running last month's code.
+            for svc in app messenger-worker; do
+              running="$(docker compose ps -q "$svc" | xargs -r docker inspect -f '{{.Config.Image}}')"
+              if [ "$running" != "$MUZBAR_IMAGE" ]; then
+                echo "::error::$svc is running '$running', expected '$MUZBAR_IMAGE'"
+                exit 1
+              fi
+            done
 
       - name: Smoke check
         run: curl -fsS --retry 5 --retry-delay 3 https://muzbar.com/health/ready

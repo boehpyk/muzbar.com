@@ -77,17 +77,21 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 >    container: a scheduler silently running an *old retention policy* would delete data by a rule
 >    nobody currently believes is in force. **Fix this before any future slice adds a `scheduler`
 >    service.** Manual workaround in `docs/infrastructure.md`.
->    **Scheduled 2026-08-02: the fix lands at the end of Phase 1**, after
->    `identity-login-overlay` and before the Schema-Mutation PoC gate. Deliberately not sooner and not
->    later. Not sooner, because nothing in Phase 1 adds a second daemon — the trigger condition above
->    stays unmet, and the manual workaround covers the one worker that exists. Not later, because
->    Phase 2 opens with the `Listing` lifecycle, which is exactly the slice that installs Symfony
->    Scheduler and therefore *does* add one — and walking into that with a deploy that cannot restart
->    daemons is how the old-retention-policy scenario stops being hypothetical. **The risk accepted in
->    the meantime is concrete, not notional:** every Phase 1 deploy from here leaves
->    `messenger-worker` on a stale image, so any change to mail templates, event listeners or the
->    verification/reset flows will appear to have no effect in production until someone restarts it by
->    hand.
+>    **FIXED 2026-08-02.** `deploy.yml` now pulls both services, stops the worker for the migration
+>    window, starts it last on the new image, and **fails the deploy** if either container is not
+>    running the image just released.
+>    *This item was first scheduled for the end of Phase 1 and then pulled forward the same day, which
+>    is worth recording because the reasoning is reusable.* The deferral looked sound — nothing in
+>    Phase 1 adds a second daemon, so the trigger condition stated above stayed unmet. It was wrong
+>    because the trigger was the wrong one. Twig mail templates are rendered by `BodyRenderer` at
+>    **send** time, and sending happens in the worker; so the danger is not "a second daemon" but
+>    **any slice that ships a new mail template** — of which the very next one,
+>    `identity-password-changed-notification`, is an example. That slice would have deployed an `app`
+>    that queues the message and a worker that cannot render it, failing into a transport nobody
+>    reads, and the undelivered mail is the one telling an account-takeover victim their password
+>    changed. **The lesson: when deferring a known bug, check what the *next* slice does, not what the
+>    stated trigger condition says.** A trigger condition is a guess made before the work that meets
+>    it.
 > 4. **`messenger_messages` and the `failed` queue still grow without bound.** They are Messenger's
 >    tables with Messenger's semantics, and `identity-challenge-pruning` deliberately did not acquire
 >    them — a job named for `Identity` challenges must not quietly become the system's general
