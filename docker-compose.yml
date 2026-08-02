@@ -68,7 +68,9 @@ services:
     # healthy system to every check this stack has today. `/health/ready` probes Postgres and
     # Redis, not queue depth — so this container can sit down silently and nothing here will turn
     # red. Accepted for this slice; teaching `/health/ready` to notice a stale queue is Phase 2
-    # work (docs/specs/identity-email-verification/technical-plan.md, Risks #2).
+    # work — see ADR-0010's open question and the roadmap's Phase 2 entry. (This used to cite
+    # `docs/specs/identity-email-verification/technical-plan.md` Risks #2; that spec was retired
+    # once the slice shipped, so the citation now points at documents that outlive the slice.)
     depends_on:
       postgres:
         condition: service_healthy
