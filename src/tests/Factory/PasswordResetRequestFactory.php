@@ -105,6 +105,36 @@ final class PasswordResetRequestFactory extends PersistentObjectFactory
     }
 
     /**
+     * A request old enough that the pruning sweep would take it: `expiresAt` lies strictly before
+     * `PasswordResetRequest::retentionThreshold(now)`.
+     *
+     * The twin of `EmailVerificationRequestFactory::expiredLongAgo()`, and it reaches a **much**
+     * older `issuedAt` from the same formula — because this aggregate's retention window is thirty
+     * days against the other's seven, while its lifetime is one hour against twenty-four. That is the
+     * deliberate inversion AC-3 pins, showing up here as a fixture that has to reach back a month.
+     * The two states looking alike while producing instants a fortnight apart is the design, not a
+     * copy-paste to be reconciled.
+     *
+     * As there, this sets `issuedAt` and never `expiresAt`: the latter is derived inside `issue()`
+     * and is not a parameter (invariant I-15), and this factory goes through `issue()` via
+     * `instantiateWith()`. A factory that reached around the named constructor could fabricate a row
+     * the aggregate could never produce — a redeemed-and-invalidated one, say, which I-17 forbids —
+     * and every test built on it would be testing a fiction.
+     */
+    public function expiredLongAgo(): static
+    {
+        return $this->with([
+            'issuedAt' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
+                ->modify(\sprintf(
+                    '-%d seconds',
+                    PasswordResetRequest::LIFETIME_SECONDS
+                        + PasswordResetRequest::RETENTION_AFTER_EXPIRY_SECONDS
+                        + 86400,
+                )),
+        ]);
+    }
+
+    /**
      * A request that has already been redeemed. Presents the aggregate's *own* stored hash back to
      * itself — the only way to satisfy `redeem()`'s constant-time comparison without knowing which
      * plaintext a fixture's opaque digest supposedly came from, since `HashedResetToken` carries no

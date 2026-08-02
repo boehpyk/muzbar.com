@@ -141,6 +141,21 @@ final class CheckPasswordResetTokenHandlerTest extends KernelTestCase
             {
                 throw new \LogicException('findOutstandingForUser() must not be called for a malformed token.');
             }
+
+            // The two pruning methods `identity-challenge-pruning` added to the port. They belong to a
+            // different use case entirely and this handler could not call them if it tried — but the
+            // double implements the *whole* interface, so they throw like everything else here rather
+            // than returning a polite `0`. A double that answers a question nobody should be asking it
+            // is a double that cannot fail.
+            public function countExpiredBefore(\DateTimeImmutable $threshold): int
+            {
+                throw new \LogicException('countExpiredBefore() must not be called for a malformed token.');
+            }
+
+            public function deleteExpiredBefore(\DateTimeImmutable $threshold, int $limit): int
+            {
+                throw new \LogicException('deleteExpiredBefore() must not be called for a malformed token.');
+            }
         };
 
         $handler = new CheckPasswordResetTokenHandler($this->users, $repositoryThatMustNeverBeCalled, $this->tokens, $this->clock);

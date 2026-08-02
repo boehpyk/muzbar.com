@@ -216,6 +216,20 @@ final class VerifyEmailWithTokenHandlerTest extends KernelTestCase
             {
                 return 0;
             }
+
+            // The pruning pair `identity-challenge-pruning` added to the port. This double's whole
+            // job is to hand back the wrong row on a lookup; the sweep is a different use case and
+            // must never be reached from a redemption, so these throw rather than returning a
+            // harmless 0 that would let such a call pass unnoticed.
+            public function countExpiredBefore(\DateTimeImmutable $threshold): int
+            {
+                throw new \LogicException('countExpiredBefore() has no business in a verification.');
+            }
+
+            public function deleteExpiredBefore(\DateTimeImmutable $threshold, int $limit): int
+            {
+                throw new \LogicException('deleteExpiredBefore() has no business in a verification.');
+            }
         };
 
         $handler = new VerifyEmailWithTokenHandler($this->users, $fakeRequests, $this->tokens, $this->clock, $this->events);

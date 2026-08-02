@@ -316,3 +316,48 @@ reasons, will eventually "fix" one.
     span instances, exactly like email uniqueness, so they are enforced by the handler over repository
     queries and can lose a race. Decision 5's `passwordChangedAt` guard is what makes losing that race
     safe rather than merely unlikely.
+
+## Amendment, 2026-08-01 — the two-table pruning debt is discharged, and decision 9 is tested one level down
+
+`identity-challenge-pruning` has landed
+([ADR-0012](./0012-challenge-retention-and-recurring-background-work.md)).
+
+**The debt is paid.** The consequence above reads: *"the pruning debt now spans two tables … an
+`identity-challenge-pruning` slice is on the roadmap before `identity-google-oauth`, and it is the
+natural moment to answer the orphan-row question ADR-0009 decision 4 left for GDPR erasure."* Both
+halves happened, in that slice, in that order. `PasswordResetRequest` rows are kept **30 days past
+expiry** and then deleted; the orphan question is answered without a foreign key (see the dated
+amendment on ADR-0009).
+
+That 30 days is the number behind a promise this ADR made in its Alternatives section. Declining
+`reset-password-bundle` partly on the grounds that it *deletes* the row on use — *"for the endpoint
+most likely to appear in an incident review, 'when was this account's password reset, and from which
+request' is worth keeping"* — was a claim that only meant something once a retention window existed.
+It is now the longest window in the system, and it is longer than the verification table's on exactly
+that reasoning. **Cashing a claim like that is what makes it a decision rather than a rhetorical
+flourish**; leaving it uncashed would have made the bundle's behaviour the better-argued option in
+retrospect.
+
+**Decision 9 was re-tested one level down and held.** This ADR argued that the four inversions are
+why the two challenge aggregates share no base class. A pruning slice arrives with that same
+abstraction ready-made and disguised — *"delete the dead rows from both tables"* is the rejected base
+class written as a `WHERE` clause, and in SQL rather than PHP, so **it would have been invisible to
+every unit test.** ADR-0012 decision 1 declines it and prunes on `expires_at` alone, which is the one
+column the two tables genuinely agree about.
+
+The lesson worth carrying: **a rejected abstraction does not stay rejected by itself.** It comes back
+in a different layer, wearing the vocabulary of that layer, and the second time it is harder to
+recognise because nobody is looking at the two class definitions side by side any more.
+
+**Decision 4's rule was generalised rather than contradicted, and the distinction is worth keeping.**
+That decision rejected a bulk DQL `UPDATE` for invalidation — *"putting a rule in SQL where no unit
+test can reach it"* — while ADR-0012 ships a bulk `DELETE`. Both are right, because `invalidate()` is
+a **state transition** with an invariant to protect (I-17) and deletion is not a transition at all:
+an aggregate has no invariants about its own non-existence, so a bulk `DELETE` bypasses nothing. The
+general form is recorded in ADR-0012 decision 2: **put in the Domain the part that can be wrong; a
+bulk operation is illegitimate when it bypasses a rule and legitimate when there is no rule to
+bypass.**
+
+**The aggregate itself is barely touched:** one public constant (`RETENTION_AFTER_EXPIRY_SECONDS`)
+and one pure static (`retentionThreshold()`). Every rule this ADR established — the four inversions,
+both save orderings, the lifetime, the cap, the exception ordering — is unchanged.

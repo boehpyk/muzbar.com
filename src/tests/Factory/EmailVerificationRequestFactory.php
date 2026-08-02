@@ -101,6 +101,44 @@ final class EmailVerificationRequestFactory extends PersistentObjectFactory
     }
 
     /**
+     * A request old enough that the pruning sweep would take it: `expiresAt` lies strictly before
+     * `EmailVerificationRequest::retentionThreshold(now)`.
+     *
+     * NOTE WHAT THIS STATE DOES **NOT** DO, BECAUSE IT IS THE WHOLE REASON IT LOOKS INDIRECT. It does
+     * not set `expiresAt`. It cannot: `expiresAt` is derived inside `issue()` and is not a parameter
+     * (invariant I-8), and this factory goes through `issue()` via `instantiateWith()` exactly as
+     * every other state here does. So the only lever is `issuedAt`, and the arithmetic runs
+     * *backwards* from the property the test actually wants — a row is overdue when
+     * `issuedAt + LIFETIME_SECONDS < now - RETENTION_AFTER_EXPIRY_SECONDS`, hence an `issuedAt` of
+     * `now - LIFETIME - RETENTION - slack`.
+     *
+     * A factory that reached around the named constructor to write an arbitrary `expiresAt` would be
+     * quicker and would be fabricating a row the aggregate could never produce — and the tests built
+     * on it would then be testing a fiction. Where a genuinely impossible row *is* required (a corrupt
+     * digest, an `expiresAt` that disagrees with the current lifetime), the test writes it with raw
+     * SQL and says so, which is honest about being outside the model rather than quietly widening the
+     * factory to permit impossibilities.
+     *
+     * The slack is a day rather than a second: this state is for tests that need "definitely
+     * overdue". The boundary itself — `threshold − 1 s` deleted, `threshold` and `threshold + 1 s`
+     * kept — is pinned exactly by `DoctrineEmailVerificationRequestRepositoryTest`, which builds its
+     * rows from an explicit instant instead, because a boundary assertion that leaned on a fixture's
+     * idea of "long ago" would not be a boundary assertion.
+     */
+    public function expiredLongAgo(): static
+    {
+        return $this->with([
+            'issuedAt' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
+                ->modify(\sprintf(
+                    '-%d seconds',
+                    EmailVerificationRequest::LIFETIME_SECONDS
+                        + EmailVerificationRequest::RETENTION_AFTER_EXPIRY_SECONDS
+                        + 86400,
+                )),
+        ]);
+    }
+
+    /**
      * A request that has already been redeemed. Presents the aggregate's *own* stored hash back to
      * itself — the only way to satisfy `redeem()`'s constant-time comparison without knowing which
      * plaintext a fixture's opaque digest supposedly came from, since `HashedVerificationToken`

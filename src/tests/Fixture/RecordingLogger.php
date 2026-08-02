@@ -44,6 +44,36 @@ final class RecordingLogger extends AbstractLogger
     }
 
     /**
+     * Every record written through this double, in call order.
+     *
+     * `last()` is enough for a test that cares only about the final line; a test proving that one
+     * *specific* record exists somewhere among several — e.g. a secondary warning logged alongside
+     * the run's own completion line — needs the whole sequence rather than just its tail.
+     *
+     * @return list<array{level: mixed, message: string, context: array<string, mixed>}>
+     */
+    public function all(): array
+    {
+        return $this->records;
+    }
+
+    /**
+     * The first record whose message matches `$message`, or `null` if none does.
+     *
+     * @return array{level: mixed, message: string, context: array<string, mixed>}|null
+     */
+    public function find(string $message): ?array
+    {
+        foreach ($this->records as $record) {
+            if ($message === $record['message']) {
+                return $record;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{level: mixed, message: string, context: array<string, mixed>}
      */
     public function last(): array
