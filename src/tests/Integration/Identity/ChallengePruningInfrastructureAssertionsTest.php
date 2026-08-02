@@ -308,7 +308,7 @@ final class ChallengePruningInfrastructureAssertionsTest extends KernelTestCase
         foreach ($this->phpFilesUnder(['Domain']) as $file) {
             $code = $this->sourceWithoutComments((string) file_get_contents($file));
 
-            self::assertDoesNotMatchRegularExpression('/\bBATCH_SIZE|MAX_BATCHES_PER_TABLE|MAX_RUN_SECONDS\b/', $code, \sprintf(
+            self::assertDoesNotMatchRegularExpression('/\b(?:BATCH_SIZE|MAX_BATCHES_PER_TABLE|MAX_RUN_SECONDS)\b/', $code, \sprintf(
                 '%s names a workload constant. A domain expert has no opinion about 1000.',
                 $file,
             ));

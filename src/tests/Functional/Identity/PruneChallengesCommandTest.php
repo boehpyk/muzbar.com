@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Identity;
 
+use App\Application\Identity\Handler\PruneExpiredChallengesHandler;
 use App\Domain\Identity\Entity\EmailVerificationRequest;
 use App\Domain\Identity\Entity\PasswordResetRequest;
 use App\Domain\Identity\Port\EmailVerificationRequestRepository;
@@ -11,8 +12,12 @@ use App\Domain\Identity\Port\PasswordResetRequestRepository;
 use App\Domain\Identity\ValueObject\HashedResetToken;
 use App\Domain\Identity\ValueObject\HashedVerificationToken;
 use App\Domain\Identity\ValueObject\UserId;
+use App\Domain\Shared\Port\Clock;
 use App\Infrastructure\Identity\Console\PruneChallengesCommand;
+use App\Infrastructure\Identity\Persistence\Doctrine\ChallengeIntegrityProbe;
 use App\Tests\Fixture\RecordingLogger;
+use App\Tests\Fixture\ThrowingEmailVerificationRequestRepository;
+use App\Tests\Fixture\ThrowingRedisClient;
 use App\Tests\Support\ClearsPruningState;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Predis\ClientInterface as RedisClient;
@@ -284,6 +289,198 @@ final class PruneChallengesCommandTest extends KernelTestCase
         self::assertFalse($logger->last()['context']['truncated']);
     }
 
+    /**
+     * AC-16's **fail-open** half: with Redis unreachable for the lock's own `set()`, the run does not
+     * stop — it proceeds, sweeps as normal, and logs the failure at **warning** rather than error.
+     *
+     * THIS IS THE HALF OF AC-16 THE OTHER LOCK TEST CANNOT REACH. `testARunThatFindsTheLockHeldSkipsAndExitsZeroWithoutDeletingAnything`
+     * covers "another run holds the lock" — `acquireRunLock()` returning `false`, which is a
+     * **successful** Redis call that says no. This test covers the third outcome the port's own
+     * docblock names explicitly: Redis could not be **asked** at all, `acquireRunLock()` catches and
+     * returns `null`, and the run must not confuse "nobody may run" with "nobody could ask". A
+     * well-meaning "hardening" change that made the lock block on a Redis failure instead of proceeding
+     * would silently couple housekeeping's correctness to a cache being up — exactly the coupling the
+     * command's own docblock refuses at length. The overdue row proves the run genuinely swept rather
+     * than merely not-skipping; `identity.challenge_pruning.completed` still appearing proves it did
+     * not stop partway through.
+     *
+     * BUILT VIA `commandWith()`, NOT VIA `self::getContainer()->set(Predis\Client::class, ...)`. This
+     * file's own `setUp()` already calls `ClearsPruningState::clearPruningState()`, which fetches
+     * `Predis\ClientInterface` from the container and so — because the alias resolves to the
+     * **concrete** id `Predis\Client` (CLAUDE.md: "target the concrete class's service id, never the
+     * port alias") — marks that concrete service as already initialized before this test method ever
+     * runs. Symfony's `TestContainer` refuses to `set()` an already-initialized service
+     * (`InvalidArgumentException: ... already initialized, you cannot replace it`), so the swap this
+     * test needs is structurally impossible through the container. `commandWith()` sidesteps the
+     * container for the one collaborator under test by constructing `PruneChallengesCommand` directly
+     * — the same technique the AC-38 test below needs for the same reason, one collaborator over.
+     * `ThrowingRedisClient` fails only `set(LOCK_KEY, ...)`, so the heartbeat `set()` a few lines later
+     * in the same run still succeeds.
+     */
+    public function testWithRedisUnavailableForTheLockTheRunProceedsAndLogsAWarning(): void
+    {
+        $overdue = $this->persistOverdueVerification();
+
+        $logger = new RecordingLogger();
+        $command = $this->commandWith(redis: new ThrowingRedisClient(PruneChallengesCommand::LOCK_KEY), logger: $logger);
+
+        self::assertSame(0, $command->execute([]), 'A Redis outage on the lock must not fail the run.');
+
+        $lockUnavailable = $logger->find('identity.challenge_pruning.lock_unavailable');
+        self::assertNotNull($lockUnavailable, 'The fail-open path must log that it could not ask for the lock.');
+        self::assertSame('warning', $lockUnavailable['level']);
+        self::assertSame(PruneChallengesCommand::LOCK_KEY, $lockUnavailable['context']['key'] ?? null);
+
+        self::assertNotNull(
+            $logger->find('identity.challenge_pruning.completed'),
+            'The run must still complete and emit AC-20\'s line — the lock is politeness, not correctness.',
+        );
+
+        self::assertFalse(
+            $this->rowExists('identity_email_verification_request', $overdue),
+            'A run that proceeded without the lock must still have swept the overdue row.',
+        );
+    }
+
+    /**
+     * AC-27: a non-zero orphan count is **additionally** logged at warning, alongside — not instead
+     * of — AC-20's own completion line.
+     *
+     * The orphan is built by issuing a request against a `UserId` that was never given a `User` row,
+     * exactly as `ChallengeIntegrityProbe`'s anti-join defines "orphaned". It is issued **fresh**
+     * (`issuedAt = now`) rather than overdue, because the probe runs *after* the sweep
+     * (`PruneChallengesCommand::execute()`): a row old enough to be swept would already be gone by the
+     * time the probe counted it, and the assertion would test nothing.
+     *
+     * `warning` rather than `error`, and both lines present rather than one replacing the other, are
+     * both asserted: the run is not broken by an orphan (ADR-0012 decision 6 — orphan-ness is a thing
+     * to report, not a thing to act on), so it still emits its ordinary completion line, and this
+     * extra line is what makes the non-zero reading visible to something that greps for `warning`
+     * without reading every `completed` line's payload.
+     */
+    public function testANonZeroOrphanCountIsAdditionallyLoggedAtWarning(): void
+    {
+        $this->persistFreshVerification();
+        $this->persistFreshReset();
+
+        $logger = new RecordingLogger();
+        $command = $this->commandWith(logger: $logger);
+
+        self::assertSame(0, $command->execute([]));
+
+        self::assertSame(2, $logger->count(), 'A non-zero orphan count adds a second line; it does not replace the first.');
+
+        $orphansPresent = $logger->find('identity.challenge_pruning.orphans_present');
+        self::assertNotNull($orphansPresent);
+        self::assertSame('warning', $orphansPresent['level']);
+        self::assertSame(1, $orphansPresent['context']['orphaned_verification'] ?? null);
+        self::assertSame(1, $orphansPresent['context']['orphaned_reset'] ?? null);
+
+        $completed = $logger->find('identity.challenge_pruning.completed');
+        self::assertNotNull($completed);
+        self::assertSame('info', $completed['level']);
+        self::assertSame(1, $completed['context']['orphaned_verification'] ?? null);
+        self::assertSame(1, $completed['context']['orphaned_reset'] ?? null);
+    }
+
+    /**
+     * The heartbeat-write-failure path: a Redis outage on the **heartbeat's** `set()` is logged at
+     * warning and does not fail an otherwise-successful run.
+     *
+     * Contrasted deliberately with the lock-unavailable test above rather than merged with it, because
+     * `ThrowingRedisClient` fails exactly one key and the two failures must be shown **not** to
+     * compound — a double that failed every `set()` call could not tell "the lock failed" apart from
+     * "the heartbeat failed", and this slice's whole observability design rests on those being
+     * different facts (`writeHeartbeat()`'s own docblock: the heartbeat degrading is "exactly what a
+     * secondary signal is allowed to do", while the backlog count — unaffected here — remains AC-24's
+     * primary signal). Built via `commandWith()` for the same reason the lock test above needs it: the
+     * real Redis client is already initialized by `setUp()`'s `clearPruningState()` before this test
+     * body runs, so the container cannot `set()` a replacement for it.
+     */
+    public function testAHeartbeatWriteFailureIsLoggedAtWarningAndDoesNotFailTheRun(): void
+    {
+        $logger = new RecordingLogger();
+        $command = $this->commandWith(redis: new ThrowingRedisClient(PruneChallengesCommand::HEARTBEAT_KEY), logger: $logger);
+
+        self::assertSame(0, $command->execute([]), 'A heartbeat write failure must not fail an otherwise-successful run.');
+
+        $heartbeatFailed = $logger->find('identity.challenge_pruning.heartbeat_failed');
+        self::assertNotNull($heartbeatFailed, 'A heartbeat write failure must be logged.');
+        self::assertSame('warning', $heartbeatFailed['level']);
+        self::assertSame(PruneChallengesCommand::HEARTBEAT_KEY, $heartbeatFailed['context']['key'] ?? null);
+
+        self::assertNotNull(
+            $logger->find('identity.challenge_pruning.completed'),
+            'The sweep itself succeeded; the run\'s own report must say so regardless of the heartbeat.',
+        );
+    }
+
+    /**
+     * AC-38, the failure contract: Postgres unreachable means the run logs at **error**, deletes
+     * nothing, and exits **1** — the one path in this file where the command is genuinely allowed to
+     * fail.
+     *
+     * `PruneExpiredChallengesHandler` is built here **directly**, wired to a double that throws on
+     * every call in place of the real `DoctrineEmailVerificationRequestRepository` adapter, so
+     * `sweep()` fails on its very first port call — before a single row is touched anywhere and before
+     * the reset table's sweep is even reached. The overdue row therefore proves two things at once:
+     * that nothing was deleted, and that the failure is real rather than the row simply never having
+     * qualified.
+     *
+     * NOT A CONTAINER SWAP, AND THE REASON IS THE SAME SHAPE AS THE TWO REDIS TESTS ABOVE.
+     * `self::getContainer()->set(DoctrineEmailVerificationRequestRepository::class, ...)` looks like
+     * the obvious move — it is the concrete adapter id, not the port alias — but this file's own
+     * `setUp()` already resolves it via `self::getContainer()->get(EmailVerificationRequestRepository::class)`
+     * into `$this->verificationRequests`, so by the time this test body runs the concrete service is
+     * already initialized and `TestContainer` refuses to replace it. Constructing the handler by hand,
+     * against the container's *real* `PasswordResetRequestRepository` and `Clock` (fetched via `get()`,
+     * which is always safe regardless of initialization) plus the throwing double, reaches the same
+     * failure without needing the container to allow a swap it structurally cannot.
+     *
+     * `logger->count() === 1` matters as much as the error line's content: `PruneExpiredChallengesHandler::__invoke()`'s
+     * own docblock is explicit that a failed run "emits no AC-20 line... because that line reports what
+     * a run measured, and this run measured nothing" — so a second, `completed` line here would be the
+     * regression this test exists to catch.
+     */
+    public function testWithPostgresUnreachableTheRunLogsAtErrorDeletesNothingAndExitsOne(): void
+    {
+        $overdue = $this->persistOverdueVerification();
+
+        $resetRequests = self::getContainer()->get(PasswordResetRequestRepository::class);
+        self::assertInstanceOf(PasswordResetRequestRepository::class, $resetRequests);
+
+        $clock = self::getContainer()->get(Clock::class);
+        self::assertInstanceOf(Clock::class, $clock);
+
+        $handler = new PruneExpiredChallengesHandler(
+            new ThrowingEmailVerificationRequestRepository(),
+            $resetRequests,
+            $clock,
+        );
+
+        $logger = new RecordingLogger();
+        $command = $this->commandWith(handler: $handler, logger: $logger);
+
+        self::assertSame(1, $command->execute([]), 'A genuine infrastructure failure must exit non-zero.');
+
+        self::assertSame(1, $logger->count(), 'A failed run measured nothing and must not also emit AC-20\'s completion line.');
+
+        $record = $logger->last();
+        self::assertSame('error', $record['level']);
+        self::assertSame('identity.challenge_pruning.failed', $record['message']);
+        self::assertArrayHasKey('exception', $record['context']);
+        self::assertFalse($record['context']['dry_run'] ?? null);
+
+        self::assertTrue(
+            $this->rowExists('identity_email_verification_request', $overdue),
+            'A failed run must not have deleted anything.',
+        );
+        self::assertNull(
+            $this->redis()->get(PruneChallengesCommand::HEARTBEAT_KEY),
+            'A failed run must not claim to have completed by writing the heartbeat.',
+        );
+    }
+
     private function persistOverdueVerification(): string
     {
         $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
@@ -325,6 +522,54 @@ final class PruneChallengesCommandTest extends KernelTestCase
     }
 
     /**
+     * A verification request issued **now**, against a `UserId` that names no `User` row.
+     *
+     * "Fresh" rather than overdue on purpose, for `testANonZeroOrphanCountIsAdditionallyLoggedAtWarning`'s
+     * reason: `ChallengeIntegrityProbe` runs *after* the sweep, so a row old enough to be swept would
+     * already be gone by the time it was counted, and the orphan assertion would test nothing. The
+     * random `UserId` is what makes the row an orphan — every other test in this file uses the same
+     * random id and never notices, because nothing before this test ever asked whether the user
+     * behind it exists.
+     */
+    private function persistFreshVerification(): string
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $id = $this->verificationRequests->nextIdentity();
+
+        $request = EmailVerificationRequest::issue(
+            $id,
+            UserId::fromString(Uuid::v7()->toRfc4122()),
+            HashedVerificationToken::fromString(hash('sha256', random_bytes(32))),
+            $now,
+        );
+        $request->releaseEvents();
+        $this->verificationRequests->save($request);
+
+        return $id->toString();
+    }
+
+    /**
+     * The reset-table twin of `persistFreshVerification()` — see its docblock for why "fresh" is the
+     * requirement here rather than "overdue".
+     */
+    private function persistFreshReset(): string
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $id = $this->resetRequests->nextIdentity();
+
+        $request = PasswordResetRequest::issue(
+            $id,
+            UserId::fromString(Uuid::v7()->toRfc4122()),
+            HashedResetToken::fromString(hash('sha256', random_bytes(32))),
+            $now,
+        );
+        $request->releaseEvents();
+        $this->resetRequests->save($request);
+
+        return $id->toString();
+    }
+
+    /**
      * Read straight from Postgres: the sweep deletes through native SQL and never notifies Doctrine's
      * identity map, so an ORM read could hand back a cached object for a row that is gone.
      */
@@ -345,6 +590,51 @@ final class PruneChallengesCommandTest extends KernelTestCase
         self::assertInstanceOf(RedisClient::class, $redis);
 
         return $redis;
+    }
+
+    /**
+     * Builds a `PruneChallengesCommand` **directly**, rather than through
+     * `$application->find('muzbar:identity:prune-challenges')`, for the tests that fake exactly one
+     * collaborator.
+     *
+     * WHY THIS EXISTS AT ALL. Every other test in this file swaps a collaborator by calling
+     * `self::getContainer()->set(<concrete id>, $double)` before asking the container-built
+     * `Application` for the command — the same technique `testEveryRunEmitsExactlyOneInfoLineWithTheFullFieldSet`
+     * uses for the logger. That technique stops working the moment `setUp()` (or `ClearsPruningState`,
+     * which `setUp()` calls) has already resolved the concrete service the test wants to fake:
+     * Symfony's `TestContainer` refuses to `set()` an already-initialized service, and this class's own
+     * `setUp()` resolves both `Predis\ClientInterface` (via `clearPruningState()`) and
+     * `EmailVerificationRequestRepository` (into `$this->verificationRequests`) before any test body
+     * runs. Building the command by hand sidesteps the container for the one collaborator under test
+     * while still asking the container — via `get()`, which is always safe regardless of
+     * initialization — for every collaborator the test does not care about.
+     *
+     * Each parameter defaults to the real, container-resolved collaborator, so a caller states only
+     * what it is faking.
+     */
+    private function commandWith(
+        ?PruneExpiredChallengesHandler $handler = null,
+        ?RedisClient $redis = null,
+        ?RecordingLogger $logger = null,
+    ): CommandTester {
+        if (!$handler instanceof PruneExpiredChallengesHandler) {
+            $handler = self::getContainer()->get(PruneExpiredChallengesHandler::class);
+            self::assertInstanceOf(PruneExpiredChallengesHandler::class, $handler);
+        }
+
+        $probe = self::getContainer()->get(ChallengeIntegrityProbe::class);
+        self::assertInstanceOf(ChallengeIntegrityProbe::class, $probe);
+
+        $clock = self::getContainer()->get(Clock::class);
+        self::assertInstanceOf(Clock::class, $clock);
+
+        return new CommandTester(new PruneChallengesCommand(
+            $handler,
+            $probe,
+            $redis ?? $this->redis(),
+            $clock,
+            $logger ?? new RecordingLogger(),
+        ));
     }
 
     private function kernel(): KernelInterface

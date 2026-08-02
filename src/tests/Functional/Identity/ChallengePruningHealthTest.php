@@ -12,6 +12,8 @@ use App\Domain\Identity\ValueObject\HashedResetToken;
 use App\Domain\Identity\ValueObject\HashedVerificationToken;
 use App\Domain\Identity\ValueObject\UserId;
 use App\Infrastructure\Http\Controller\HealthController;
+use App\Infrastructure\Shared\Clock\SystemClock;
+use App\Tests\Fixture\FrozenClock;
 use App\Tests\Support\ClearsPruningState;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -117,19 +119,37 @@ final class ChallengePruningHealthTest extends WebTestCase
      * `age_seconds > 10800`, so exactly three hours is still fine and one second later is not. Split
      * across two tests, the halves could drift apart while both stayed green.
      *
-     * A fresh `KernelBrowser` is not created between the two requests — the heartbeat is rewritten in
-     * Redis and the endpoint re-read, so both readings come from one client and one kernel.
+     * **Why this pins the `Clock` rather than reading `age_seconds` off two independent wall-clock
+     * readings (the original form of this test).** The heartbeat used to be written at
+     * `$now - 10800` using the *test's* `\DateTimeImmutable('now')`, while `HealthController` derives
+     * `age_seconds` from its own, later, `Clock::now()` reading. Any real time elapsing between those
+     * two reads — a scheduler hiccup, a slow CI runner — pushes `age_seconds` past 10800 and fails the
+     * "not stale" half; reproduced empirically at roughly 6% of runs. The stale half already carried a
+     * two-second margin for exactly this reason, which is itself the tell: a margin is required only
+     * when the two readings are not guaranteed to agree.
+     *
+     * The fix removes the disagreement instead of widening the margin: `SystemClock` — the
+     * **concrete** service id, never the `Clock` port alias, per `ResolveReferencesToAliasesPass`
+     * (CLAUDE.md) — is swapped for a `FrozenClock`, so the controller's `Clock::now()` and this test's
+     * `$now` are the *same* instant by construction. `$this->client->disableReboot()` is called before
+     * the swap because `KernelBrowser` reboots the kernel before every request and would otherwise
+     * discard the container override on the very first `request()` call. With the clock pinned, the
+     * boundary is asserted **exactly** — `-10800` seconds is not stale, `-10801` is — with no fudge
+     * factor of any width.
      */
     public function testStaleFlipsExactlyAtTheThreeHourBoundary(): void
     {
+        $this->client->disableReboot();
+
         $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        self::getContainer()->set(SystemClock::class, new FrozenClock($now));
 
         $this->setPruningHeartbeat($now->modify(\sprintf('-%d seconds', HealthController::PRUNING_STALE_AFTER_SECONDS)));
         $this->client->request('GET', '/health/ready');
         self::assertResponseStatusCodeSame(200);
         $atBoundary = $this->pruningSection();
 
-        $this->setPruningHeartbeat($now->modify(\sprintf('-%d seconds', HealthController::PRUNING_STALE_AFTER_SECONDS + 2)));
+        $this->setPruningHeartbeat($now->modify(\sprintf('-%d seconds', HealthController::PRUNING_STALE_AFTER_SECONDS + 1)));
         $this->client->request('GET', '/health/ready');
         self::assertResponseStatusCodeSame(200);
         $pastBoundary = $this->pruningSection();
