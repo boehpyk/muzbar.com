@@ -77,6 +77,21 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 >    container: a scheduler silently running an *old retention policy* would delete data by a rule
 >    nobody currently believes is in force. **Fix this before any future slice adds a `scheduler`
 >    service.** Manual workaround in `docs/infrastructure.md`.
+>    **FIXED 2026-08-02.** `deploy.yml` now pulls both services, stops the worker for the migration
+>    window, starts it last on the new image, and **fails the deploy** if either container is not
+>    running the image just released.
+>    *This item was first scheduled for the end of Phase 1 and then pulled forward the same day, which
+>    is worth recording because the reasoning is reusable.* The deferral looked sound — nothing in
+>    Phase 1 adds a second daemon, so the trigger condition stated above stayed unmet. It was wrong
+>    because the trigger was the wrong one. Twig mail templates are rendered by `BodyRenderer` at
+>    **send** time, and sending happens in the worker; so the danger is not "a second daemon" but
+>    **any slice that ships a new mail template** — of which the very next one,
+>    `identity-password-changed-notification`, is an example. That slice would have deployed an `app`
+>    that queues the message and a worker that cannot render it, failing into a transport nobody
+>    reads, and the undelivered mail is the one telling an account-takeover victim their password
+>    changed. **The lesson: when deferring a known bug, check what the *next* slice does, not what the
+>    stated trigger condition says.** A trigger condition is a guess made before the work that meets
+>    it.
 > 4. **`messenger_messages` and the `failed` queue still grow without bound.** They are Messenger's
 >    tables with Messenger's semantics, and `identity-challenge-pruning` deliberately did not acquire
 >    them — a job named for `Identity` challenges must not quietly become the system's general
@@ -214,6 +229,29 @@ Stand up the skeleton the SDLC assumes. No product features yet.
       telemetry begins feeding the MRR-vs-cost and completion-rate baselines (PRD weak-spot #1).
 
 ---
+
+## Last — deferred operational activations
+
+Work that is **built, tested and merged, but deliberately not switched on**. Each item is here because
+turning it on early buys nothing and costs attention; each is also a written promise the system is not
+yet keeping, which is the reason they get their own section instead of a line in a runbook.
+
+- [ ] **Enable the `identity-challenge-pruning` cron.** *Deferred 2026-08-02, by decision — to the very
+      end, once everything else is done.* The `muzbar:identity:prune-challenges` command shipped with
+      slice 4 (merged to `main` in #13) and is fully tested, but **nothing invokes it on the box**: the
+      crontab line in [docs/infrastructure.md](./infrastructure.md) is documented and not installed.
+      Deferring is reasonable — the retention windows are 7 and 30 days, the tables gain a few rows per
+      registration, and there is no production traffic yet, so the backlog cannot become interesting on
+      the timescale of the remaining phases.
+      **What it means in the meantime, stated plainly so nobody has to infer it:** ADR-0012 records a
+      retention policy that **is not in force**. `jobs.challenge_pruning.stale` in `/health/ready` will
+      read `true` permanently and `last_run` will be absent — so the one signal built to mean *"the
+      pruner stopped"* currently means *"the pruner never started"*, and anyone reading that endpoint
+      before this item is ticked will be reading a false alarm. That is the price of the deferral and
+      it is worth paying; it is not worth forgetting.
+      When it is enabled, follow the first-run procedure rather than just adding the line: the first
+      real run is the only one that can meet an unbounded backlog, so rehearse with `--dry-run`, then
+      an explicit small `--limit`, then let cron take it.
 
 ## Cross-cutting, every phase
 

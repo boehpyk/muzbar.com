@@ -94,14 +94,22 @@ docker compose exec -T postgres psql -U "$DB_USERNAME" -d "$DB_DATABASE" \
 
 Three things to know before debugging:
 
-- ⚠ **`deploy.yml` never restarts `messenger-worker`, so it runs whatever image it last had.** The
-  deploy does `docker compose pull app` and `docker compose up -d app nginx` — the worker is in
-  neither list. It is therefore serving code from some earlier deploy, indefinitely, and the only
-  symptom is behaviour that does not match the source. Found on 2026-08-01 while costing
-  `identity-challenge-pruning`'s scheduling decision; it is a **pre-existing `devops` bug, not
-  something that slice introduced**, and it is the single strongest argument against adding a second
-  long-running container. Until it is fixed, restart the worker by hand after any deploy that changes
-  a mail template, a listener or anything else it executes:
+- ✅ **`deploy.yml` used to never restart `messenger-worker` — fixed 2026-08-02.** For four releases
+  the deploy did `docker compose pull app` and `docker compose up -d app nginx`, with the worker in
+  neither list, so it served code from some earlier deploy indefinitely and the only symptom was
+  behaviour that did not match the source. It now pulls both services, **stops the worker for the
+  migration window** (it is the one process that keeps executing application code while `migrate`
+  runs), starts it last on the new image, and **fails the deploy** if either container is not on the
+  image just released — because the reason this survived four releases is that a stale worker is
+  invisible from the outside.
+  **Why it was urgent rather than tidy:** Twig mail templates are rendered by `BodyRenderer` at *send*
+  time, and sending happens in the worker. A stale worker therefore cannot render a mail template
+  added by the deploy that just ran — the message fails into a transport nobody reads, which is
+  indistinguishable from no mail having been requested.
+  **If you are reading this while debugging missing mail from before 2026-08-02**, the worker may
+  still be on an old image: check `docker compose images messenger-worker` against
+  `docker compose exec -T messenger-worker ls templates/email/`, and drain anything stranded with
+  `make console cmd="messenger:failed:show"`. The manual recovery is unchanged:
   `docker compose pull messenger-worker && docker compose up -d messenger-worker`.
 - **The worker exits on purpose, once an hour.** `--time-limit=3600` plus `restart: unless-stopped`
   is the supervisor-free way to bound a slow memory leak. A log ending in a clean shutdown is
@@ -112,6 +120,14 @@ Three things to know before debugging:
   nobody reviewed, applied by a worker process at an arbitrary moment.
 
 ## Challenge pruning (runbook)
+
+> **NOT YET INSTALLED — the crontab line below is documented, not deployed.** Deferred 2026-08-02 by
+> decision to the end of the roadmap; see [roadmap.md](./roadmap.md) §*Last — deferred operational
+> activations* for the reasoning and the cost. Everything below is the procedure for when it is
+> switched on, and is correct; what is not yet true is the present tense. Until then ADR-0012's
+> retention policy is written down and **not in force**, and `/health/ready` reports
+> `jobs.challenge_pruning.stale: true` with no `last_run` — which here means *"never started"*, not
+> *"stopped"*. The command itself is merged and works; run it by hand if a table ever needs it.
 
 Both `Identity` challenge tables grow forever unless something deletes from them.
 `muzbar:identity:prune-challenges` is that something, driven by **host cron** — not Symfony
@@ -126,9 +142,11 @@ Constitution §3's Scheduler row is read as scoped by its own `(30-day ad lifecy
 
 Hourly at minute **17** — off the hour so it never coincides with every other cron on the box.
 Hourly rather than daily because it keeps the backlog small enough that a stalled job is detectable
-within hours. It targets the **`app`** container deliberately: that is the one `deploy.yml` actually
-updates (see the `messenger-worker` warning below), so the command can never run an image older than
-the code that was deployed.
+within hours. It targets the **`app`** container deliberately: it is the container the release
+verifies is on the deployed image, so the command can never run an image older than the code that was
+deployed. *Until 2026-08-02 this sentence rested on `app` being the only container `deploy.yml`
+updated at all; the deploy now updates and checks the worker too, so the reason is a guarantee rather
+than a side effect.*
 
 ### First run — rehearse it, do not discover it
 
