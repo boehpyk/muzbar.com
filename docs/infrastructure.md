@@ -113,6 +113,14 @@ Three things to know before debugging:
 
 ## Challenge pruning (runbook)
 
+> **NOT YET INSTALLED — the crontab line below is documented, not deployed.** Deferred 2026-08-02 by
+> decision to the end of the roadmap; see [roadmap.md](./roadmap.md) §*Last — deferred operational
+> activations* for the reasoning and the cost. Everything below is the procedure for when it is
+> switched on, and is correct; what is not yet true is the present tense. Until then ADR-0012's
+> retention policy is written down and **not in force**, and `/health/ready` reports
+> `jobs.challenge_pruning.stale: true` with no `last_run` — which here means *"never started"*, not
+> *"stopped"*. The command itself is merged and works; run it by hand if a table ever needs it.
+
 Both `Identity` challenge tables grow forever unless something deletes from them.
 `muzbar:identity:prune-challenges` is that something, driven by **host cron** — not Symfony
 Scheduler ([ADR-0012](./adr/0012-challenge-retention-and-recurring-background-work.md) decision 5;

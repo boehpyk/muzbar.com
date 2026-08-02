@@ -77,6 +77,17 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 >    container: a scheduler silently running an *old retention policy* would delete data by a rule
 >    nobody currently believes is in force. **Fix this before any future slice adds a `scheduler`
 >    service.** Manual workaround in `docs/infrastructure.md`.
+>    **Scheduled 2026-08-02: the fix lands at the end of Phase 1**, after
+>    `identity-login-overlay` and before the Schema-Mutation PoC gate. Deliberately not sooner and not
+>    later. Not sooner, because nothing in Phase 1 adds a second daemon — the trigger condition above
+>    stays unmet, and the manual workaround covers the one worker that exists. Not later, because
+>    Phase 2 opens with the `Listing` lifecycle, which is exactly the slice that installs Symfony
+>    Scheduler and therefore *does* add one — and walking into that with a deploy that cannot restart
+>    daemons is how the old-retention-policy scenario stops being hypothetical. **The risk accepted in
+>    the meantime is concrete, not notional:** every Phase 1 deploy from here leaves
+>    `messenger-worker` on a stale image, so any change to mail templates, event listeners or the
+>    verification/reset flows will appear to have no effect in production until someone restarts it by
+>    hand.
 > 4. **`messenger_messages` and the `failed` queue still grow without bound.** They are Messenger's
 >    tables with Messenger's semantics, and `identity-challenge-pruning` deliberately did not acquire
 >    them — a job named for `Identity` challenges must not quietly become the system's general
@@ -214,6 +225,29 @@ Stand up the skeleton the SDLC assumes. No product features yet.
       telemetry begins feeding the MRR-vs-cost and completion-rate baselines (PRD weak-spot #1).
 
 ---
+
+## Last — deferred operational activations
+
+Work that is **built, tested and merged, but deliberately not switched on**. Each item is here because
+turning it on early buys nothing and costs attention; each is also a written promise the system is not
+yet keeping, which is the reason they get their own section instead of a line in a runbook.
+
+- [ ] **Enable the `identity-challenge-pruning` cron.** *Deferred 2026-08-02, by decision — to the very
+      end, once everything else is done.* The `muzbar:identity:prune-challenges` command shipped with
+      slice 4 (merged to `main` in #13) and is fully tested, but **nothing invokes it on the box**: the
+      crontab line in [docs/infrastructure.md](./infrastructure.md) is documented and not installed.
+      Deferring is reasonable — the retention windows are 7 and 30 days, the tables gain a few rows per
+      registration, and there is no production traffic yet, so the backlog cannot become interesting on
+      the timescale of the remaining phases.
+      **What it means in the meantime, stated plainly so nobody has to infer it:** ADR-0012 records a
+      retention policy that **is not in force**. `jobs.challenge_pruning.stale` in `/health/ready` will
+      read `true` permanently and `last_run` will be absent — so the one signal built to mean *"the
+      pruner stopped"* currently means *"the pruner never started"*, and anyone reading that endpoint
+      before this item is ticked will be reading a false alarm. That is the price of the deferral and
+      it is worth paying; it is not worth forgetting.
+      When it is enabled, follow the first-run procedure rather than just adding the line: the first
+      real run is the only one that can meet an unbounded backlog, so rehearse with `--dry-run`, then
+      an explicit small `--limit`, then let cron take it.
 
 ## Cross-cutting, every phase
 

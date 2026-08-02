@@ -33,8 +33,9 @@ Docker Compose · Traefik · Nginx.
 > reader and one import — and the first where a successful use case in one context (reset) also
 > discharges a fact owned by another use case (email verification).
 > `identity-challenge-pruning` (2026-08-01) shipped the repository's **first `DELETE`** — a
-> `muzbar:identity:prune-challenges` console command under **host cron**, sweeping overdue rows from
-> both challenge tables in bounded batches behind two per-aggregate port methods. It added **no new
+> `muzbar:identity:prune-challenges` console command designed for **host cron** (*the cron line is
+> deferred and not yet installed* — see the roadmap's deferred-activations section), sweeping overdue
+> rows from both challenge tables in bounded batches behind two per-aggregate port methods. It added **no new
 > type of any kind**: the Domain diff is one constant and one static per aggregate and nothing else.
 > It established [ADR-0012](./docs/adr/0012-challenge-retention-and-recurring-background-work.md) and
 > discharged ADR-0009 decision 4's orphan clause (*answered*, not reversed — still no FK) and slice
@@ -191,7 +192,8 @@ make check                     # cs + stan + deptrac + test — run before every
 # Identity operations
 make console cmd="muzbar:identity:verify-email <email>"   # break-glass: mark an email verified,
                                                           #   bypassing the token flow entirely
-# Challenge pruning — driven by host cron (`17 * * * *`); see docs/infrastructure.md's runbook.
+# Challenge pruning — cron line (`17 * * * *`) is documented but NOT YET INSTALLED: deferred to the
+#   end of the roadmap (2026-08-02). Run by hand until then. See docs/infrastructure.md's runbook.
 make console cmd="muzbar:identity:prune-challenges --dry-run"    # report only; deletes nothing
 make console cmd="muzbar:identity:prune-challenges --limit=100"  # a small, explicit bite
 make console cmd="muzbar:identity:prune-challenges"              # a full run; exit 0 even if truncated
