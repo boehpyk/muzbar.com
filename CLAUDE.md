@@ -198,6 +198,8 @@ make console cmd="muzbar:identity:prune-challenges --dry-run"    # report only; 
 make console cmd="muzbar:identity:prune-challenges --limit=100"  # a small, explicit bite
 make console cmd="muzbar:identity:prune-challenges"              # a full run; exit 0 even if truncated
 curl -s localhost:8080/health/ready | jq .jobs.challenge_pruning  # the backlog — the signal to trust
+# Pre-launch "notify me" list (coming-soon stub at `/`, temporary — unmapped raw-DBAL table)
+make console cmd="dbal:run-sql 'SELECT email, locale, created_at FROM prelaunch_signup ORDER BY created_at'"
 # Mail & queue (dev)
 open http://localhost:8025                                # Mailpit — every dev mail lands here
 make console cmd="messenger:failed:show"                  # the failure transport nobody looks at
@@ -228,7 +230,7 @@ worker.
   **DAMA rolls back Postgres, not Redis** — anything cached survives between tests and must be
   cleared in `setUp()` via the `ClearsRateLimiters` trait. The `cache.rate_limiter` pool now backs
   **four** limiters (`login_throttling`, `verification_email_resend`, `password_reset_request` and
-  `password_reset_submit`), so a test driving `/login`, `/verify-email/resend`, `/forgot-password`
+  `password_reset_submit`) — plus `launch_signup` on the coming-soon stub — so a test driving `/login`, `/verify-email/resend`, `/forgot-password`
   or either reset route needs it. The cheap proof that you got it right is to **run `make test`
   twice in a row** — a second run that fails is the classic symptom.
   **Redis state is no longer only rate limiters.** `identity-challenge-pruning` added two keys —

@@ -8,6 +8,11 @@ doctrine:
 
         profiling_collect_backtrace: '%kernel.debug%'
 
+        # `prelaunch_signup` is written with raw DBAL and has no ORM mapping, so without this the
+        # schema diff would propose dropping it on every `make migration.make`. Remove this line in
+        # the same commit that drops the table.
+        schema_filter: '~^(?!prelaunch_signup$)~'
+
         # Custom DBAL types map Identity's value objects onto columns.
         #
         # WHY TYPES AND NOT EMBEDDABLES: every one of these VOs is a single value in a single
