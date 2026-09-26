@@ -152,3 +152,10 @@ framework:
             # The failure mode when it does not is a 429 nobody asked for, in a test with no diff to
             # blame, that moves around as tests are reordered — and with four limiters sharing one
             # pool it is now four separate ways to arrive there.
+
+        # The coming-soon page's "notify me" form. Per client IP (trusted_proxies makes that the
+        # visitor's, not Traefik's). Generous for a human, useless for filling the table by script.
+        launch_signup:
+            policy: 'sliding_window'
+            limit: 5
+            interval: '1 hour'
