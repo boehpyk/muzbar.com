@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---------- base: shared PHP 8.4-FPM + extensions ----------
-FROM php:8.4-fpm AS base
+FROM php:8.4.27-fpm AS base
 
 # Robust extension installer (handles system deps cleanly).
 COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/bin/
