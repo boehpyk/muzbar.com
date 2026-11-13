@@ -86,7 +86,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
 
 ## Docs
 
-- [ ] **T13 (devops):** `infrastructure.md` — rewrite §Monitoring's Sentry bullet; new *Sentry
+- [x] **T13 (devops):** `infrastructure.md` — rewrite §Monitoring's Sentry bullet; new *Sentry
       (runbook)* section: account setup (EU region, DPA, spike protection, alert rule *new issue +
       regression → e-mail*), where the DSN lives, `sentry-check` in both containers, the exact
       sent/never-sent list, and **what Sentry does not see** (crash loops, pre-boot failures).

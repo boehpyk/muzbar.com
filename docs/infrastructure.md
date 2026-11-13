@@ -62,6 +62,7 @@ rails.
 | 6 | PHP-FPM `max_children` / Doctrine hydration OOM | worker/app OOM under load on the shared box | Cap FPM children; partial hydration / batching in Doctrine; `--memory` on Messenger consume |
 | 7 | **Messenger worker stopped** (crashed, never restarted, wrong transport name) | mail simply never arrives; **every automated check stays green**, because `/health/ready` probes Postgres and Redis, not queue depth | `restart: unless-stopped` + `--time-limit=3600`; check `messenger_messages` depth and `messenger:failed:show` in the runbook below. Real fix (Phase 2): teach readiness about queue age |
 | 8 | Two dev containers sharing one live-mounted `var/cache/` | `require(var/cache/dev/ContainerXXXX/getSomeService.php): Failed to open stream` — a 500 on **every** route including the error page, from correct code with a green test suite | `docker-compose.dev.yml` gives `messenger-worker` an anonymous volume over `var/cache`. Prod is unaffected: no bind mount, so each container has its own `var/` |
+| 9 | `SENTRY_RELEASE` added to the box `.env` | every release reports as the same value, so Sentry cannot tell a regression from a still-open old bug — and nothing fails | `env_file:` outranks the image's `ENV`, so the baked git SHA is silently overridden. The release is **baked at build** (`ARG`/`ENV SENTRY_RELEASE`); never put it in `.env` or `.env.example` |
 
 A **pre-commit hook** greps compose files for public `ports:` on `postgres`/`redis` and for a missing
 Traefik network pin, and blocks the commit (see [tooling.md](./tooling.md)).
@@ -236,6 +237,86 @@ has a caller and a decision behind it. The pruning job must not acquire one, and
 `ChallengeIntegrityProbe` must never acquire a delete method at all — a probe that can delete is one
 refactor away from being a second, undocumented retention policy.
 
+## Sentry (runbook)
+
+Error tracking is hosted Sentry, EU region, via `sentry-symfony` 5.16.0 / `sentry/sentry` 4.37.0
+(ADR-0013 (pending); feature spec `docs/specs/observability-sentry/`). The capture path is **one**
+path: `LoggerInterface` -> Monolog handler at `error`+ -> `SentryEventScrubber` (`before_send`) ->
+synchronous HTTPS send. The bundle's own error and Messenger listeners are switched off on purpose
+(two paths means duplicate events and two places to get privacy wrong). An empty `SENTRY_DSN` is a
+legitimate state, not a fault: the app boots and sends nothing (dev, CI, `docker build`).
+
+### Account setup (owner, once)
+
+1. Create the project at sentry.io in the **EU region** (data residency) and accept the DPA.
+2. Project settings: turn **spike protection** on (a quota-exhausting flood becomes a bounded loss,
+   not a bill), and add an alert rule **new issue + regression -> e-mail** to the address you read.
+3. Copy the project's DSN into the box's `.env` as `SENTRY_DSN=...` (root `.env`, read by both `app`
+   and `messenger-worker` through the shared `env_file:`). **Do not** add `SENTRY_RELEASE` — see
+   footgun #9. The release is the image's git SHA, baked in at build.
+4. Redeploy (or recreate both containers) so they pick up the variable, then run the check below.
+
+### Prove it works: `sentry-check`
+
+```bash
+docker compose exec -T app php bin/console muzbar:ops:sentry-check
+docker compose exec -T messenger-worker php bin/console muzbar:ops:sentry-check
+```
+
+**Run it in both containers.** They are separate processes with separate environments; the worker is
+the one the whole slice exists for, and `app` being green says nothing about it. The command logs one
+`error` through the real application logger (not `captureMessage()`), with a `token`-keyed value and
+a canary e-mail address, flushes, prints the event id and exits 0. It **exits 1 when the DSN is
+empty** (or no event id was recorded), so a missing variable is loud rather than a green no-op. In
+Sentry, confirm the event arrived with the token `[Filtered]`, the address replaced, `environment:
+prod`, and `release` equal to the deployed SHA.
+
+### What leaves the box, and what never does
+
+Anything logged at `error` or above, on any channel, leaves the box after scrubbing. The scrubber is
+the **second** line of defence; the first is that code never logs an address or secret.
+
+Sent: exception type, message and stack trace (frame variables removed), `release`, `environment`,
+the log context (including `user_id`, a UUIDv7 — pseudonymous, sent knowingly under the DPA), the
+route-derived transaction name, and an allowlisted subset of request headers (`user-agent`, `accept`,
+`accept-language`, `content-type`, `host`).
+
+Never sent: request bodies, cookies, query strings, the `user` object, `Referer`, `Authorization`,
+`X-Forwarded-For`, breadcrumbs, e-mail addresses (replaced in every string), and the token path
+segment of `/reset-password/{token}` and `/verify-email/{token}`. Client faults (any 4xx
+`HttpException`) are dropped entirely; 5xx are kept. Retries are not reported — Messenger logs them at
+`warning` — only exhausted failures (`critical`).
+
+Facts verified during implementation, worth knowing when reading an event:
+
+- **Log context arrives at `extra['monolog.context']`**, not at the top level of the event.
+- The scrubber's key denylist (applied recursively, case-insensitive) is
+  `/pass|token|secret|sess|cookie|csrf|auth|email|dsn/i`. It originally lacked `sess`, so a
+  `PHPSESSID` key slipped through; `user_id` is deliberately not matched.
+- **A Messenger exhausted failure has Messenger's raw `{class}`/`{error}` template as its message**
+  (the placeholders are not interpolated into the event message). Sentry groups the issue by
+  exception, so grouping is unaffected; read the message class and error from the context.
+- **`/verify-email/sent` and `/verify-email/resend` appear as `/verify-email/[Filtered]`**, by design:
+  the token-segment rule cannot tell a route word from a token, and over-filtering is the safe error.
+- **Request data in production events is unverified.** Whether a prod event carries the URL and
+  headers depends on the SDK's `RequestIntegration`, which reads the global `SentrySdk` hub; test
+  events had none. Check this at the first real deploy (task T15) and record what you see.
+
+### Cost of an outage at Sentry
+
+Sends are **synchronous**, with a 1 s connect timeout and a 2 s overall timeout (SDK defaults are
+2 s / 5 s). A Sentry outage therefore adds at most about 2 s to a request that is already failing, and
+never fails it. A 429 (quota) drops events silently on Sentry's side; the log lines are unaffected.
+
+### What Sentry does not see
+
+- **Crash loops and failures before the kernel boots** (a container that dies on a missing env var,
+  a broken image). No Monolog handler exists yet, so there is no event. The deploy's image check and,
+  later, queue-age readiness (Phase 2; see footgun #7) own this.
+- A **stopped** worker. Sentry reports errors the worker raises; it cannot report a worker that is
+  not running. Check `docker compose ps messenger-worker` as in the queue runbook.
+- Anything below `error` — including every `warning` retry line.
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker
@@ -261,11 +342,11 @@ refactor away from being a second, undocumented retention policy.
 - **Umami** for product analytics — the **shared instance already running on the VDS**, not a muzbar
   container. Register muzbar as a website in it and embed the tracking snippet in the public layout.
   Directly feeds the PRD's Form-Completion-Rate and Time-to-Publish metrics and the MRR-vs-cost goal.
-- **Sentry** (or equivalent) for error tracking — **overdue as of 2026-07-28**, and the case is now
-  stronger than "cheap insurance". `identity-email-verification` introduced two paths that fail
-  *silently by design*: `IssueVerificationOnUserRegistered` swallows its own exceptions so a dead
-  mail relay cannot 500 an already-committed registration, and the Messenger failure transport is a
-  queue nobody opens. Both are the correct designs. Both write a log line that nothing reads.
+- **Sentry** (hosted, EU region) for error tracking — **live as of 2026-11-13 once a DSN is set**
+  (ADR-0013 (pending)). One capture path: every Monolog record at `error` or above becomes one event,
+  scrubbed in `before_send`. It closes the silent-by-design paths (swallowed listener exceptions,
+  the `failed` transport). It does **not** see crash loops or pre-boot failures — see
+  *Sentry (runbook)*.
 - Structured application logs to `storage/logs`, mounted out of the container.
 - Uptime ping against `/health/ready`.
 
