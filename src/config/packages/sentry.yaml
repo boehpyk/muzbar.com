@@ -60,3 +60,16 @@ sentry:
         # already-failing request (SDK defaults are 2 s / 5 s).
         http_connect_timeout: 1
         http_timeout: 2
+
+services:
+    # THE capture path (ADR-0013, Decision 2): every Monolog record at ERROR or above, on any
+    # channel, becomes one Sentry event. Registered as a handler in monolog.yaml.
+    Sentry\Monolog\Handler:
+        arguments:
+            $hub: '@Sentry\State\HubInterface'
+            $level: !php/enum Monolog\Level::Error
+            # Bubble, so `nested`, `pruning` and the rest still receive every record unchanged.
+            $bubble: true
+            # Log context → `extra['monolog.context']`: `user_id`, `reason`, `dry_run` are what
+            # make an alert actionable. The scrubber filters the rest.
+            $fillExtraContext: true

@@ -40,7 +40,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
       invokable `(Event, ?EventHint): ?Event` implementing plan Decision 4 steps 1–7; total over the
       event shape (never throws). Wire as `options.before_send`. Docblock names the reset-token
       journey and why `user_id` is allowed. (AC-3, AC-9, AC-10)
-- [ ] **T3 (symfony-dev):** `Sentry\Monolog\Handler` service in `sentry.yaml` (hub, `Level::Error`,
+- [x] **T3 (symfony-dev):** `Sentry\Monolog\Handler` service in `sentry.yaml` (hub, `Level::Error`,
       bubble true, fillExtraContext true) + one top-level `monolog.handlers.sentry` (`type:
       service`) with a comment on why it is outside `fingers_crossed`, has no channel filter, and
       why the bundle's own listeners are off. No other line of `monolog.yaml` changes.
