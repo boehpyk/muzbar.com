@@ -49,7 +49,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
       accessor); `when@test` in `sentry.yaml` sets `options.transport` to it and declares it
       `public`; `.env.test` `SENTRY_DSN=https://public@sentry.invalid/1` with a comment on why both
       guards exist. (AC-14)
-- [ ] **T5 (symfony-dev):** `Infrastructure/Shared/Observability/SentryCheckCommand.php` —
+- [x] **T5 (symfony-dev):** `Infrastructure/Shared/Observability/SentryCheckCommand.php` —
       `muzbar:ops:sentry-check` per plan Decision 7 (logger path, canaries, flush, event id, exit
       1 when disabled). (AC-17)
 - [ ] **T6 (devops):** Dockerfile production stage last lines `ARG SENTRY_RELEASE=unknown` +
