@@ -11,7 +11,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
 
 ## Decisions & prerequisites
 
-- [ ] **T0 (human via `/adr`):** ADR-0013 *Error tracking: hosted Sentry (EU), one capture path
+- [x] **T0 (human via `/adr`):** ADR-0013 *Error tracking: hosted Sentry (EU), one capture path
       through Monolog, scrub before send* — Decisions 1–7 + rejected alternatives (self-hosted,
       GlitchTip, bundle listeners + channel allowlist, `sentry:test` as proof). Same commit:
       Constitution §3 row *Error tracking | Sentry (hosted, EU) via sentry-symfony → Monolog | 0013*.

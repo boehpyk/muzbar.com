@@ -240,7 +240,7 @@ refactor away from being a second, undocumented retention policy.
 ## Sentry (runbook)
 
 Error tracking is hosted Sentry, EU region, via `sentry-symfony` 5.16.0 / `sentry/sentry` 4.37.0
-(ADR-0013 (pending); feature spec `docs/specs/observability-sentry/`). The capture path is **one**
+([ADR-0013](./adr/0013-error-tracking-hosted-sentry-one-capture-path.md); feature spec `docs/specs/observability-sentry/`). The capture path is **one**
 path: `LoggerInterface` -> Monolog handler at `error`+ -> `SentryEventScrubber` (`before_send`) ->
 synchronous HTTPS send. The bundle's own error and Messenger listeners are switched off on purpose
 (two paths means duplicate events and two places to get privacy wrong). An empty `SENTRY_DSN` is a
@@ -343,7 +343,7 @@ never fails it. A 429 (quota) drops events silently on Sentry's side; the log li
   container. Register muzbar as a website in it and embed the tracking snippet in the public layout.
   Directly feeds the PRD's Form-Completion-Rate and Time-to-Publish metrics and the MRR-vs-cost goal.
 - **Sentry** (hosted, EU region) for error tracking — **live as of 2026-11-13 once a DSN is set**
-  (ADR-0013 (pending)). One capture path: every Monolog record at `error` or above becomes one event,
+  ([ADR-0013](./adr/0013-error-tracking-hosted-sentry-one-capture-path.md)). One capture path: every Monolog record at `error` or above becomes one event,
   scrubbed in `before_send`. It closes the silent-by-design paths (swallowed listener exceptions,
   the `failed` transport). It does **not** see crash loops or pre-boot failures — see
   *Sentry (runbook)*.

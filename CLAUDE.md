@@ -52,7 +52,7 @@ Docker Compose · Traefik · Nginx.
 > `observability-sentry` (2026-11-13) closed the Sentry carry-over: **one capture path** — every
 > Monolog record at `error`+ becomes a scrubbed Sentry event — with zero Domain/Application code.
 > The DSN is the owner's to set (task T15); until then it is disabled-safe. Runbook:
-> [docs/infrastructure.md](./docs/infrastructure.md) §*Sentry (runbook)*; ADR-0013 (pending).
+> [docs/infrastructure.md](./docs/infrastructure.md) §*Sentry (runbook)*; [ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md).
 > Current work: the remaining `Identity` slices — next is `identity-google-oauth`.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
@@ -376,7 +376,7 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   `InvalidResetToken` arm dead code. **Nothing will tell you**: every test using a well-formed token
   passes with the strict regex in place.
 
-**Error tracking** (ADR-0013 (pending); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
+**Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):
 
 - **Anything logged at `error` or above leaves the box, on any channel, after scrubbing. The

@@ -57,6 +57,7 @@ These are decided. Changing any row requires a new ADR that supersedes the relev
 | Maps | Leaflet + OpenStreetMap (Google Maps optional) behind a `MapPort` | — |
 | Reverse proxy / TLS | Traefik (shared, external network) → Nginx per app | [0003](./adr/0003-infra-single-vds-compose-traefik.md) |
 | Hosting | Single VDS, Docker Compose | [0003](./adr/0003-infra-single-vds-compose-traefik.md) |
+| Error tracking | Sentry (hosted, EU) via sentry-symfony → Monolog at `error`, scrubbed before send | [0013](./adr/0013-error-tracking-hosted-sentry-one-capture-path.md) |
 | Analytics | Umami — **shared instance already running on the VDS** (no muzbar container) | [0003](./adr/0003-infra-single-vds-compose-traefik.md) |
 | Static analysis | PHPStan (max) + phpstan-symfony/doctrine | — |
 | Layer enforcement | Deptrac | — |

@@ -149,7 +149,7 @@ surface only in the `failed` transport. Both add to the Sentry carry-over.
 The "Sentry is now overdue" consequence and the amendment's window (iii) are answered, not changed:
 decisions 1–2 stand. Every `error` log named above — the verification listener's catch, the
 password-changed listener's two logs — now reaches Sentry through one Monolog handler
-(ADR-0013 (pending)). Messenger's *exhausted* failures (`critical`) are reported as well, which is
+([ADR-0013](./0013-error-tracking-hosted-sentry-one-capture-path.md)). Messenger's *exhausted* failures (`critical`) are reported as well, which is
 what finally makes window (iii) visible; retries (`warning`) are deliberately not. **Still not
 covered:** a stopped or crash-looping worker raises no error to report; that stays with the Phase 2
 queue-age readiness item.

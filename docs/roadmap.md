@@ -56,7 +56,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 >    `make check`, even an unused one (proven, not assumed). The hook would still catch it earlier — at
 >    write time rather than at commit time.
 > 2. ~~Sentry, deliberately deferred to the first Identity slice (see above).~~
->    **CLOSED 2026-11-13** by `observability-sentry` (ADR-0013 (pending)): one Monolog capture path,
+>    **CLOSED 2026-11-13** by `observability-sentry` ([ADR-0013](./adr/0013-error-tracking-hosted-sentry-one-capture-path.md)): one Monolog capture path,
 >    scrubbed before send, proven by tests. The DSN is set by the owner at first deploy (task T15).
 >    **Remainder, not closed:** crash loops and pre-boot failures never reach Sentry — a worker that
 >    dies before the kernel boots, or is simply stopped, still looks like a healthy system. That is
