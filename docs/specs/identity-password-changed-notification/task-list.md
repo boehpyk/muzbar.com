@@ -18,7 +18,7 @@ changed, except the one docblock edit in T3 (AC-10).
       when an event has a consequence the user cannot compensate for' trigger was met by
       `UserPasswordChanged` on 2026-11-xx; outbox still declined"* with the three reasons from the
       plan. **No code in this commit.**
-- [ ] **T1 (checkpoint, not a change):** confirm no new env var, package, Compose service, transport
+- [x] **T1 (checkpoint, not a change):** confirm no new env var, package, Compose service, transport
       or migration is needed; record it in the T2 commit message. **(AC-11)**
 
 ## Domain
@@ -31,11 +31,11 @@ changed, except the one docblock edit in T3 (AC-10).
 
 ## Infrastructure
 
-- [ ] **T2:** `templates/email/password_changed.txt.twig` then `password_changed.html.twig` — text
+- [x] **T2:** `templates/email/password_changed.txt.twig` then `password_changed.html.twig` — text
       first, same content, UTC instant, absolute forgot-password URL as visible link text, no
       layout inheritance, no images/scripts/remote CSS, no secret of any kind, no statement of the
       cause. **(AC-2, AC-3, AC-4, AC-9)**
-- [ ] **T3:** `Infrastructure/Identity/EventListener/NotifyUserOnPasswordChanged.php` —
+- [x] **T3:** `Infrastructure/Identity/EventListener/NotifyUserOnPasswordChanged.php` —
       `#[AsEventListener(event: UserPasswordChanged::class)]`; load user via `UserRepository`;
       `TemplatedEmail` with `changedAt` from the **event**; no `->from()`; catch `\Throwable`, log
       `error` with `user_id` + `exception` only. Comment states Decision 2 **and how it differs from
