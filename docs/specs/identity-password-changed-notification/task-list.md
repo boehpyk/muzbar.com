@@ -45,19 +45,19 @@ changed, except the one docblock edit in T3 (AC-10).
 
 ## Tests (qa)
 
-- [ ] **T4:** `tests/Functional/Identity/PasswordChangedNotificationTest.php` — happy path: one
+- [x] **T4:** `tests/Functional/Identity/PasswordChangedNotificationTest.php` — happy path: one
       notice, recipient, subject, both parts contain address + UTC instant (vs freshly fetched
       `passwordChangedAt`) + generated absolute forgot-password URL; neither contains token,
       `/reset-password`, new password, hash prefix, `<img`, `<script`. One `KernelBrowser` per
       scenario; `ClearsRateLimiters` in `setUp()`. **(AC-1, AC-2, AC-3, AC-4, AC-9)**
-- [ ] **T5:** same file — no notice on 422 weak password, replayed link, invalid token; two resets →
+- [x] **T5:** same file — no notice on 422 weak password, replayed link, invalid token; two resets →
       two notices. **(AC-5, AC-6)**
-- [ ] **T6:** same file — failure path: `disableReboot()`, throwing double on the **concrete**
+- [x] **T6:** same file — failure path: `disableReboot()`, throwing double on the **concrete**
       mailer service id (confirm via `debug:container`), `RecordingLogger` on `monolog.logger`;
       assert 302 → login, new password persisted, request redeemed, exactly one `error` record with
       `user_id` and `exception`, address absent from message and context. Prove it is not vacuous:
       temporarily remove the listener's catch / the listener and watch it fail. **(AC-7, AC-8)**
-- [ ] **T7:** regression sweep — grep existing reset-flow tests for `assertEmailCount` and fix any
+- [x] **T7:** regression sweep — grep existing reset-flow tests for `assertEmailCount` and fix any
       that now (correctly) see the extra notice, saying so in the commit. `make test` **twice**.
       **(AC-10)**
 
