@@ -73,3 +73,13 @@ services:
             # Log context → `extra['monolog.context']`: `user_id`, `reason`, `dry_run` are what
             # make an alert actionable. The scrubber filters the rest.
             $fillExtraContext: true
+
+when@test:
+    sentry:
+        options:
+            # Guard 2 of 2 (guard 1 is the `.invalid` DSN in `.env.test`): events are recorded in
+            # memory, never sent. Tests read them from this service.
+            transport: App\Tests\Fixture\RecordingSentryTransport
+    services:
+        App\Tests\Fixture\RecordingSentryTransport:
+            public: true

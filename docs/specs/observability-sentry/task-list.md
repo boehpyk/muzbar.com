@@ -45,7 +45,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
       service`) with a comment on why it is outside `fingers_crossed`, has no channel filter, and
       why the bundle's own listeners are off. No other line of `monolog.yaml` changes.
       (AC-1, AC-2, AC-4, AC-5, AC-6, AC-7)
-- [ ] **T4 (symfony-dev):** `tests/Fixture/RecordingSentryTransport.php` (instance state, `events()`
+- [x] **T4 (symfony-dev):** `tests/Fixture/RecordingSentryTransport.php` (instance state, `events()`
       accessor); `when@test` in `sentry.yaml` sets `options.transport` to it and declares it
       `public`; `.env.test` `SENTRY_DSN=https://public@sentry.invalid/1` with a comment on why both
       guards exist. (AC-14)
