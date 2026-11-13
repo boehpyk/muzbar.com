@@ -68,15 +68,6 @@ jobs:
             set -euo pipefail
             cd /home/muzbar-deploy/muzbar.com
             export MUZBAR_IMAGE="ghcr.io/${GITHUB_REPOSITORY}:${GITHUB_SHA}"
-            # Persist the deployed image into .env so hand-run `docker compose` on the box
-            # targets the right image instead of defaulting to muzbar-app:local and trying to
-            # build (the build context isn't shipped to prod). Rewrite in place via a temp file
-            # + `cat >` so .env keeps its 600 perms and owner.
-            tmp="$(mktemp)"
-            grep -v '^MUZBAR_IMAGE=' .env > "$tmp" || true
-            echo "MUZBAR_IMAGE=${MUZBAR_IMAGE}" >> "$tmp"
-            cat "$tmp" > .env
-            rm -f "$tmp"
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
             # `messenger-worker` runs the same image as `app` with a different command, and it was
             # absent from both lines below until 2026-08-02 — so it kept whatever image it last had,
@@ -86,6 +77,18 @@ jobs:
             # deploys an `app` that queues the message and a worker that cannot render it. The result
             # is a failed queue message in a transport nobody reads, not an error anyone sees.
             docker compose pull app messenger-worker
+            # Only AFTER a successful pull (2026-11-13): written before `docker login`, a failed
+            # deploy left .env naming an image the box never pulled, so the next hand-run
+            # `docker compose up` would switch to it. `compose` itself uses the exported var.
+            # Persist the deployed image into .env so hand-run `docker compose` on the box
+            # targets the right image instead of defaulting to muzbar-app:local and trying to
+            # build (the build context isn't shipped to prod). Rewrite in place via a temp file
+            # + `cat >` so .env keeps its 600 perms and owner.
+            tmp="$(mktemp)"
+            grep -v '^MUZBAR_IMAGE=' .env > "$tmp" || true
+            echo "MUZBAR_IMAGE=${MUZBAR_IMAGE}" >> "$tmp"
+            cat "$tmp" > .env
+            rm -f "$tmp"
             docker compose up -d app nginx
             # Stopped for the migration window rather than just restarted after it. The worker is the
             # one process that keeps executing application code while `migrate` runs, so leaving it up
@@ -108,4 +111,14 @@ jobs:
             done
 
       - name: Smoke check
-        run: curl -fsS --retry 5 --retry-delay 3 https://muzbar.com/health/ready
+        run: |
+          curl -fsS --retry 5 --retry-delay 3 https://muzbar.com/health/ready
+          # Debug mode must be off. Symfony enables it for ANY APP_ENV other than exactly `prod`,
+          # and the box `.env` outranks the image's ENV — on 2026-11-13 it said `production`, so
+          # prod had served debug pages (and skipped every `when@prod` block) since launch.
+          # Headers captured first: `curl | grep -q` under pipefail can SIGPIPE into a false pass.
+          headers="$(curl -sS -o /dev/null -D - https://muzbar.com/__deploy-smoke-404)"
+          if printf '%s' "$headers" | grep -qi '^x-debug-exception'; then
+            echo "::error::Production is in debug mode (x-debug-exception header). Check APP_ENV=prod in the box .env."
+            exit 1
+          fi

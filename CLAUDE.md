@@ -51,7 +51,7 @@ Docker Compose · Traefik · Nginx.
 > was met and declined.
 > `observability-sentry` (2026-11-13) closed the Sentry carry-over: **one capture path** — every
 > Monolog record at `error`+ becomes a scrubbed Sentry event — with zero Domain/Application code.
-> The DSN is the owner's to set (task T15); until then it is disabled-safe. Runbook:
+> **Live in prod since 2026-11-13** (events verified from both `app` and `messenger-worker`). Runbook:
 > [docs/infrastructure.md](./docs/infrastructure.md) §*Sentry (runbook)*; [ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md).
 > Current work: the remaining `Identity` slices — next is `identity-google-oauth`.
 > One Phase 0 item still carries over — the Claude Code hooks from
@@ -290,6 +290,12 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   `APP_ENV=prod` (the safe value), and `docker-compose.dev.yml` pins `APP_ENV: dev` in `environment:`
   (which outranks `env_file:`) so dev-ness follows the override file you load rather than a value
   someone remembered to change. Verified empirically, not assumed.
+  **It already bit:** until 2026-11-13 the box `.env` said `APP_ENV=production`. Symfony treats that
+  as an unknown env, so it turned **debug on** (public `x-debug-exception` headers and debug error
+  pages) and applied **no `when@prod` block** — no `trusted_proxies`, so rate limiters were one
+  global bucket and `isSecure()` was false. Every test, gate and health check stayed green; it
+  surfaced only as Sentry tagging events `production`. `deploy.yml`'s smoke check now fails if a
+  404 carries `x-debug-exception`. The value is exactly `prod` — never `production`.
 - The container writes into the live-mounted `./src` **as root**, so directories it creates (e.g.
   `src/translations/`) become un-manageable by host git and can block a `git pull`. Chown to `1000:1000`
   when it happens; a `user:` mapping in the dev override would fix it at the source.

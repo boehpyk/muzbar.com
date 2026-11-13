@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-13
-- **Established by** the `observability-sentry` slice (spec: `docs/specs/observability-sentry/`).
+- **Established by** the `observability-sentry` slice (spec retired 2026-11-13; its behaviour lives in `tests/**/Observability/`).
 - **Discharges** [ADR-0010](./0010-event-delivery-and-transactional-mail.md)'s Sentry consequence for
   the *swallowed listener* and *exhausted transport* cases — see the dated note there. Crash loops
   and queue age are **not** discharged.
