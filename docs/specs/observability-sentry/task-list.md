@@ -75,7 +75,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
 - [x] **T10 (qa):** `tests/Integration/Observability/MessengerFailureReportingTest.php` — real
       `WorkerMessageFailedEvent` for `async`: retry → 0 events; exhausted → 1 event with message
       class + exception type, SMTP-style canary address scrubbed. (AC-4, AC-12)
-- [ ] **T11 (qa):** `tests/Functional/Observability/SentryCaptureTest.php` — AC-1 (throwing mailer
+- [x] **T11 (qa):** `tests/Functional/Observability/SentryCaptureTest.php` — AC-1 (throwing mailer
       in `NotifyUserOnPasswordChanged`, `extra.user_id`), AC-2 (uncaught 500 → exactly 1), AC-3
       (404/405 → 0), AC-11 (end-to-end PII). `disableReboot()`, concrete service ids,
       `ClearsRateLimiters`, one client per scenario.
