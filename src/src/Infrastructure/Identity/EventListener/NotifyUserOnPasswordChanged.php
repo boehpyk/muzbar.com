@@ -79,14 +79,17 @@ final readonly class NotifyUserOnPasswordChanged
             // after save). An escaping exception undoes nothing and sends nothing; it only turns a
             // successful reset into a 500 — the user retries a now-burnt link and lands on "invalid
             // link" for an account whose password DID change — and aborts the dispatch loop before
-            // `UserEmailVerified` reaches its listeners. Catching is strictly better.
+            // `UserEmailVerified` would reach any listener it has. Catching is strictly better.
             //
             // Different part: the verification listener's catch is justified by a COMPENSATING ACTION
             // (the anonymous resend form). This one has NONE — there is no "resend my security notice",
             // and the account holder cannot ask for a mail they do not know they missed. A lost notice
-            // is a lost security signal, so this error line is the only safety net there is, written to
-            // be the Sentry alert it will become. ADR-0010's amendment records why that gap is accepted
-            // rather than closed with an outbox.
+            // is a lost security signal, so this error line is the only signal for IN-REQUEST failures
+            // (user lookup, template render — `send()` renders before queueing — and the queue write),
+            // written to be the Sentry alert it will become. It is NOT the signal for the commonest
+            // loss: an SMTP refusal happens later in `messenger-worker`, never reaches this catch, and
+            // surfaces only in `messenger:failed:show`. ADR-0010's amendment records why both gaps are
+            // accepted rather than closed with an outbox.
             //
             // `user_id` only, never the address — same reasoning as the verification listener: log
             // identifiers, resolve them at the point of use.

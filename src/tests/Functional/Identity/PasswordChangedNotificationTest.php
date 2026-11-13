@@ -11,6 +11,7 @@ use App\Domain\Identity\ValueObject\Email;
 use App\Domain\Identity\ValueObject\HashedResetToken;
 use App\Domain\Identity\ValueObject\ResetToken;
 use App\Domain\Identity\ValueObject\UserId;
+use App\Domain\Shared\Port\Clock;
 use App\Tests\Factory\PasswordResetRequestFactory;
 use App\Tests\Factory\UserFactory;
 use App\Tests\Fixture\RecordingLogger;
@@ -114,7 +115,11 @@ final class PasswordChangedNotificationTest extends WebTestCase
         self::assertSame(0, $this->noticeCount());
     }
 
-    /** AC-5, replayed link. */
+    /**
+     * AC-5, replayed link. Only the GET can be replayed: a successful reset destroys the session
+     * stash, so a replayed POST is refused by the controller before the handler and could not send
+     * a notice whatever the listener did. The handler-level refusal is covered by the next test.
+     */
     public function testAReplayedLinkSendsNoSecondNotice(): void
     {
         $user = UserFactory::createOne(['email' => Email::fromString('notice-replay@example.com')]);
@@ -125,29 +130,50 @@ final class PasswordChangedNotificationTest extends WebTestCase
         self::assertResponseRedirects('/login');
         self::assertSame(1, $this->noticeCount());
 
-        // The same link and a forged POST straight afterwards, in the same client.
         $this->client->request('GET', '/reset-password/'.$plainToken->reveal());
         self::assertResponseRedirects('/forgot-password');
         self::assertSame(0, $this->noticeCount());
+    }
+
+    /**
+     * AC-5, a token that is no longer valid when the POST arrives. The link passes `check()`, the
+     * form is opened with a real CSRF token, and only then is the request invalidated (as a reissue
+     * would) — so the POST reaches `ResetPasswordWithTokenHandler` and the token itself is the only
+     * reason for refusal. Fails if the handler changes the password, or anything else sends the
+     * notice, on a dead link.
+     */
+    public function testATokenInvalidatedBeforeThePostSendsNoNotice(): void
+    {
+        $user = UserFactory::createOne(['email' => Email::fromString('notice-invalid@example.com')]);
+        $plainToken = $this->tokens->generate();
+        $hash = $this->issueRequest($user->id(), $plainToken);
+
+        $this->client->request('GET', '/reset-password/'.$plainToken->reveal());
+        self::assertResponseRedirects('/reset-password');
+        $crawler = $this->client->request('GET', '/reset-password');
+        $csrf = $crawler->filter('input[name="new_password_form[_token]"]')->attr('value');
+        self::assertNotNull($csrf);
+
+        $requests = $this->freshRequests();
+        $request = $requests->findByTokenHash($hash);
+        self::assertNotNull($request);
+        $clock = self::getContainer()->get(Clock::class);
+        self::assertInstanceOf(Clock::class, $clock);
+        $request->invalidate($clock->now());
+        $requests->save($request);
 
         $this->client->request('POST', '/reset-password', [
             'new_password_form' => [
-                'plainPassword' => ['first' => 'a-second-strong-password-x', 'second' => 'a-second-strong-password-x'],
-                '_token' => 'irrelevant',
+                'plainPassword' => ['first' => 'a-perfectly-strong-password', 'second' => 'a-perfectly-strong-password'],
+                '_token' => $csrf,
             ],
         ]);
-        self::assertSame(0, $this->noticeCount());
-    }
-
-    /** AC-5, invalid token. */
-    public function testAnInvalidTokenSendsNoNotice(): void
-    {
-        UserFactory::createOne(['email' => Email::fromString('notice-invalid@example.com')]);
-
-        $this->client->request('GET', '/reset-password/'.str_repeat('x', 43));
 
         self::assertResponseRedirects('/forgot-password');
         self::assertSame(0, $this->noticeCount());
+        $persisted = $this->freshUsers()->findByEmail(Email::fromString('notice-invalid@example.com'));
+        self::assertNotNull($persisted);
+        self::assertNull($persisted->passwordChangedAt(), 'A dead link must not change the password.');
     }
 
     /** AC-6, not deduplicated. */

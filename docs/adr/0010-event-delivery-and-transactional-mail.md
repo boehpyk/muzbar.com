@@ -126,7 +126,11 @@ for."* The `identity-password-changed-notification` slice ships the first such e
 1. **The loss windows are narrow and not silent.** (i) A process death between `users->save()` and
    dispatch — microseconds, in-process, no I/O between them — coincides with a visible outage.
    (ii) `send()` failing to write `messenger_messages` means Postgres went away seconds after it
-   accepted the commit; the listener catches it and logs `error` with `user_id`.
+   accepted the commit; the listener catches it and logs `error` with `user_id`. (iii) **The
+   likeliest loss, and the one the listener never sees:** the SMTP relay refusing the message
+   inside `messenger-worker`. `send()` returned long ago; after Messenger's retries the message
+   lands in the `failed` transport, visible only through `messenger:failed:show`. This window is
+   not narrow — it is the normal failure mode of mail — and it is what Sentry must watch.
 2. **The notice is best-effort by nature.** Its own threat model concedes that an attacker who owns
    the mailbox deletes it. An outbox (table + relay process + its own monitoring, on a one-box
    budget) would buy a delivery guarantee for a signal whose value is already probabilistic.
@@ -135,6 +139,7 @@ for."* The `identity-password-changed-notification` slice ships the first such e
    the answer may differ.
 
 What changes instead: the listener's catch is documented as having **no compensating control**
-(unlike `IssueVerificationOnUserRegistered`'s resend form), so its `error` log is the only safety net
-— and that log is written to be the Sentry alert it will become. This adds a second silent async
-failure class to the Sentry carry-over.
+(unlike `IssueVerificationOnUserRegistered`'s resend form), so its `error` log is the only signal for
+**in-request** failures (repository lookup, template render, queue write) — and that log is written
+to be the Sentry alert it will become. Worker-side delivery failures (iii) never reach it; they
+surface only in the `failed` transport. Both add to the Sentry carry-over.

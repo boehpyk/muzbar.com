@@ -116,7 +116,8 @@ covered with no change here.
       the message is a `SendEmailMessage` on the `async` transport (no routing change in this slice).
 - [ ] **AC-10 — the boundaries hold.** `make check` green (cs, stan max, deptrac
       `--fail-on-uncovered`, test). The diff contains **no** file under `src/src/Domain/` or
-      `src/src/Application/`. Slice 3's `UserTest` AC-33 assertion (event carries no secret) still
+      `src/src/Application/`, **except** the docblock-only edit to `UserPasswordChanged.php` (task
+      T3 — it named this listener as future work; amended at `/verify`, the diff won). Slice 3's `UserTest` AC-33 assertion (event carries no secret) still
       passes unmodified.
 - [ ] **AC-11 — no new boot-path inputs.** No new env var, Composer package, Compose service,
       Messenger transport or migration. (ADR-0010's amendment: a new required boot input is a
@@ -132,7 +133,8 @@ covered with no change here.
 | Condition | Expected behaviour |
 |---|---|
 | Mailer/transport throws on `send()` (e.g. `messenger_messages` unwritable) | Caught in the listener. Reset response unchanged (302 → login), password stays changed, one `error` log with `user_id` + `exception`, no address logged (AC-7, AC-8). **No retry, no compensating mail** — accepted gap, see Decision 3. |
-| Template renders fail in the worker (Twig error, missing template on a stale worker image) | Not visible to the request at all (rendering happens at send time in the worker). Messenger retries, then the message lands in the `failed` transport. Surfaced only by `messenger:failed:show` until Sentry lands. The 2026-08-02 deploy fix (worker restarted on the new image) is what keeps a fresh template from hitting a stale worker. |
+| Template render error (Twig syntax error, missing variable, missing template in the request's image) | **Caught in-request.** `Mailer::send()` renders a clone via `MessageListener` *before* queueing, so the exception reaches the listener's catch: one `error` log with `user_id`, reset response unchanged. |
+| Worker-only failure (SMTP refusal, template missing only on a stale worker image) | Not visible to the request. Messenger retries, then the message lands in the `failed` transport. Surfaced only by `messenger:failed:show` until Sentry lands. The 2026-08-02 deploy fix (worker restarted on the new image) is what keeps a fresh template from hitting a stale worker. |
 | `messenger-worker` stopped | Notice queued, not delivered until it restarts. Indistinguishable from healthy (ADR-0010 consequence) — accepted, unchanged. |
 | `UserRepository::findById()` returns `null` (user gone between save and dispatch — not reachable today) | Treated as any other failure: caught, one `error` log with `user_id`, no mail, reset response unchanged. |
 | Process dies between `users->save()` and dispatch | Password changed, no notice. ADR-0010's accepted commit→dispatch window; for this event there is no compensating action (Decision 3). |
