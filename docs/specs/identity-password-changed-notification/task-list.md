@@ -23,11 +23,11 @@ changed, except the one docblock edit in T3 (AC-10).
 
 ## Domain
 
-- [ ] — *(nothing: no aggregate, VO, event or port changes — Decision 1)*
+- [x] — *(nothing: no aggregate, VO, event or port changes — Decision 1)*
 
 ## Application
 
-- [ ] — *(nothing: no command or handler — Decision 1)*
+- [x] — *(nothing: no command or handler — Decision 1)*
 
 ## Infrastructure
 
@@ -63,11 +63,11 @@ changed, except the one docblock edit in T3 (AC-10).
 
 ## Verify
 
-- [ ] **T8 (manual):** `make up.dev`; `docker compose ps` shows `messenger-worker` running, not
+- [x] **T8 (manual):** `make up.dev`; `docker compose ps` shows `messenger-worker` running, not
       restarting; do a full reset in the browser; the notice appears in Mailpit
       (`http://localhost:8025`) and its link opens `http://localhost:8080/forgot-password`.
       **(AC-12)**
-- [ ] **T9 — docs (AC-13):**
+- [x] **T9 — docs (AC-13):**
       - `CLAUDE.md` status block: slice 5 shipped; next is `identity-google-oauth`; one line on the
         lesson (*a complete event payload made a new consequence Infrastructure-only; no port without
         an inside caller*).

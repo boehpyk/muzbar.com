@@ -16,7 +16,7 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 slices 1–3 of 5 complete**.
+> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 slices 1–5 of 7 complete**.
 > `identity-user-password-auth` (2026-07-26) shipped the repo's first Domain code — the `User`
 > aggregate, value objects, ports, two domain events, the first migration, and
 > register/login/logout/`/account`. `identity-email-verification` (2026-07-28) added the **second
@@ -42,8 +42,14 @@ Docker Compose · Traefik · Nginx.
 > 3's `expires_at`-index note. It is also the first slice whose only failure symptom is silence, so
 > it carries its own signal: a backlog count that cannot be faked by a job that runs and does
 > nothing, a Redis heartbeat, and one log line per run including the all-zero ones.
-> Current work: the remaining `Identity` slices — next is
-> `identity-password-changed-notification`.
+> `identity-password-changed-notification` (2026-11-13) gave `UserPasswordChanged` its first
+> listener, `NotifyUserOnPasswordChanged`, with **zero Domain and zero Application code**: a complete
+> event payload made a new consequence Infrastructure-only, and it is the **first mail without a
+> Domain port** — a port exists so the inside can reach the outside, and nothing inside calls this
+> one. Its catch has **no compensating action** (unlike the verification listener's resend form), so
+> its `error` log is the only signal; ADR-0010 gained an amendment recording that its outbox trigger
+> was met and declined.
+> Current work: the remaining `Identity` slices — next is `identity-google-oauth`.
 > Two Phase 0 items still carry over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md), and **Sentry, no longer merely overdue**: slice 2 added
 > asynchronous failure paths that are silent by construction (a swallowed listener exception, a
