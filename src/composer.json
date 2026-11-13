@@ -12,6 +12,7 @@
         "doctrine/orm": "^3.6",
         "egulias/email-validator": "^4.0",
         "predis/predis": "^3.5",
+        "sentry/sentry-symfony": "^5.16",
         "symfony/asset": "7.4.*",
         "symfony/asset-mapper": "7.4.*",
         "symfony/console": "7.4.*",

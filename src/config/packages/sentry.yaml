@@ -1,0 +1,58 @@
+# Error tracking (ADR-0013): hosted Sentry, EU region, ONE capture path — Monolog at ERROR.
+#
+# This file replaces the Flex recipe's `when@prod`-only shape on purpose. The bundle is enabled in
+# *every* environment (bundles.php) so the test env can prove the wiring; it is *disabled* by an
+# empty DSN in dev, CI and `docker build`, and records into an in-memory transport under test.
+sentry:
+    # Set explicitly. Without this line the bundle silently reads SENTRY_DSN itself, which hides the
+    # decision. `default::` because this is boot-path config: a bare `%env(SENTRY_DSN)%` would make
+    # the var a boot-time dependency of every kernel — the worker, console, CI, `docker build` — and
+    # a missing var would be `EnvNotFoundException` rather than "disabled" (CLAUDE.md footgun).
+    # Empty or unset → the SDK has no DSN and sends nothing.
+    dsn: '%env(default::SENTRY_DSN)%'
+
+    # OFF: Symfony's own ErrorListener already logs every uncaught exception (at `critical`), and
+    # that record reaches Sentry through the Monolog handler. On, this would be a second event per
+    # 500 and a second place to get privacy wrong.
+    register_error_listener: false
+    # OFF: same reasoning for the SDK's PHP error/fatal handlers — Symfony's ErrorHandler logs to
+    # the `php` channel, which the Monolog handler already receives.
+    register_error_handler: false
+
+    # No `logger:` here and no `options.logger` below, deliberately. Pointing the SDK at the app
+    # logger is a feedback loop: a transport error becomes an `error` record, which the Monolog
+    # handler sends to Sentry, whose transport fails again…
+
+    # OFF: the bundle's Messenger listener defaults to `capture_soft_fails: true`, i.e. it reports
+    # every *retry*. Messenger itself logs `warning` while retrying and `critical` when it gives up,
+    # so the ERROR threshold of the Monolog handler is already the "exhausted failures only" rule.
+    messenger:
+        enabled: false
+
+    # OFF: errors only. No traffic to measure yet, and tracing costs quota and request overhead.
+    # Also switches off the DBAL/Twig/cache/console/http-client tracing listeners. Revisit with the
+    # 200 ms search budget — a one-line change.
+    tracing:
+        enabled: false
+
+    options:
+        environment: '%kernel.environment%'
+        # Image git SHA, baked in at build (`ARG`/`ENV SENTRY_RELEASE` in the Dockerfile). NEVER put
+        # SENTRY_RELEASE in the box `.env`: `env_file:` outranks the image's `ENV`, so that line would
+        # pin every release to one value.
+        release: '%env(default::SENTRY_RELEASE)%'
+
+        # The SDK's own sanitising is a bonus, not a guarantee — the scrubber (`before_send`) is
+        # written as if this were true.
+        send_default_pii: false
+        # Request bodies hold passwords and reset tokens. Never.
+        max_request_body_size: 'never'
+        # OFF: Sentry Logs and Metrics — quota stays for errors, and a second data stream would be a
+        # second thing to scrub.
+        enable_logs: false
+        enable_metrics: false
+
+        # Sends are synchronous at capture time; these bound what a Sentry outage can add to an
+        # already-failing request (SDK defaults are 2 s / 5 s).
+        http_connect_timeout: 1
+        http_timeout: 2

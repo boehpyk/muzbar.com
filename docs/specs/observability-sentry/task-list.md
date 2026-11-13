@@ -27,7 +27,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
 
 ## Infrastructure
 
-- [ ] **T1 (symfony-dev):** `composer require sentry/sentry-symfony` in the `app` container. Set
+- [x] **T1 (symfony-dev):** `composer require sentry/sentry-symfony` in the `app` container. Set
       `bundles.php` to `['all' => true]`. Replace the recipe's `sentry.yaml` with the minimal
       *disabled-safe* config: `dsn: '%env(default::SENTRY_DSN)%'`, `register_error_listener: false`,
       `register_error_handler: false`, `messenger.enabled: false`, `tracing.enabled: false`, options
