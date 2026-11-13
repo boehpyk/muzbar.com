@@ -84,3 +84,11 @@ it; and the house footgun *"a handler wired in config is not proof records reach
 - Watch: whether production events carry request data (the SDK's `RequestIntegration` reads the
   global hub; test events had none) — check at the first deploy with a DSN. Bundle/SDK upgrades may
   rename options; the wiring test asserts *effective* option values, so a silently ignored key fails.
+
+**Known upgrade item (recorded at verify, 2026-11-13).** `Sentry\Monolog\Handler` is
+`@deprecated since sentry/sentry 4.24, removed in 5.0` — replaced by `LogToSentryIssueHandler` /
+`ExceptionToSentryIssueHandler`. The entire capture path hangs off that one class, and a removal
+would not fail loudly at runtime: Sentry would simply go quiet. Before any `composer update` that
+admits `sentry/sentry` 5, swap the handler in `sentry.yaml` and re-run the Observability suite and
+`muzbar:ops:sentry-check`. Until then we are held on 4.x indirectly: `sentry/sentry-symfony: ^5.16` requires
+`sentry/sentry: ^4.35`, so only a bundle major bump (6.x) can bring 5.0 in.

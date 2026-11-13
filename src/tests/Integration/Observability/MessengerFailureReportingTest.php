@@ -65,7 +65,11 @@ final class MessengerFailureReportingTest extends KernelTestCase
         self::assertContains(TransportException::class, $this->exceptionTypes($events[0]));
     }
 
-    /** AC-12: Messenger interpolates `{error}` into the log message; the e-mail regex catches it. */
+    /**
+     * AC-12: the message stays Messenger's raw template (no PSR-3 interpolation), so the SMTP text
+     * reaches the event via `monolog.context['error']` and the exception value — the e-mail regex
+     * is what catches it there.
+     */
     public function testTheSmtpRejectionAddressIsScrubbedFromTheExhaustedEvent(): void
     {
         $envelope = new Envelope($this->message(), [new RedeliveryStamp($this->maxRetries())]);

@@ -24,8 +24,9 @@
 - Console uncaught: `Console\EventListener\ErrorListener` → `critical`.
 - Messenger: `SendFailedMessageForRetryListener` → `warning` *"Sending for retry #n"* when it will
   retry, `critical` *"Removing from transport after n retries. Error: "{error}""* when exhausted.
-  The `{error}` is the exception message interpolated into the log message — an SMTP refusal
-  message routinely contains the recipient address (Decision 4).
+  The `{error}` placeholder is *not* interpolated (no PSR-3 processor on the Sentry handler); the
+  exception message reaches the event via `monolog.context['error']` and the exception value — an
+  SMTP refusal routinely contains the recipient address (Decision 4). *(Corrected at verify.)*
 
 **Monolog today:** `prod`/`test` top level is `fingers_crossed` (`action_level: error`, channels
 `!pruning` and `!deprecation`/`!event`) → `nested` (stderr JSON), plus `console`, `deprecation`, and

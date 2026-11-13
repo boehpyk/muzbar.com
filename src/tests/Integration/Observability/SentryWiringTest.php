@@ -7,6 +7,10 @@ namespace App\Tests\Integration\Observability;
 use App\Tests\Fixture\RecordingSentryTransport;
 use App\Tests\Support\ReadsSentryEvents;
 use Psr\Log\LoggerInterface;
+use Sentry\Integration\ErrorListenerIntegration;
+use Sentry\Integration\ExceptionListenerIntegration;
+use Sentry\Integration\FatalErrorListenerIntegration;
+use Sentry\State\HubInterface;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Console\Command\Command;
@@ -48,8 +52,18 @@ final class SentryWiringTest extends KernelTestCase
     {
         $container = self::getContainer();
 
-        foreach (['ErrorListener', 'MessengerListener', 'ErrorHandlerListener'] as $listener) {
+        foreach (['ErrorListener', 'MessengerListener'] as $listener) {
             self::assertFalse($container->has('Sentry\\SentryBundle\\EventListener\\'.$listener), "$listener must not be registered.");
+        }
+
+        // `register_error_handler: false` filters the SDK's global PHP handlers out of the client's
+        // integrations — the third capture path, invisible to the container.
+        $hub = $container->get(HubInterface::class);
+        self::assertInstanceOf(HubInterface::class, $hub);
+        $client = $hub->getClient();
+        self::assertNotNull($client);
+        foreach ([ErrorListenerIntegration::class, ExceptionListenerIntegration::class, FatalErrorListenerIntegration::class] as $integration) {
+            self::assertNull($client->getIntegration($integration), "$integration must not be set up.");
         }
         self::assertFalse($container->getParameter('sentry.tracing.enabled'));
     }
