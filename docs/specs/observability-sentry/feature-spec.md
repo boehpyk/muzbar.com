@@ -103,8 +103,9 @@ first asserting the canary was present in the input (so the test cannot pass vac
 - [ ] **AC-1** — A record at `error` on any channel produces **exactly one** event, with Sentry level
       `error`, the record's message, and — when the record's context has `exception` — that
       exception's class as the event's exception type. Proven on a real call site:
-      `NotifyUserOnPasswordChanged` with a throwing mailer double → 1 event whose `extra.user_id`
-      equals the user's UUID.
+      `NotifyUserOnPasswordChanged` with a throwing mailer double → 1 event whose `extra['monolog.context']['user_id']`
+      equals the user's UUID. *(Amended at implement: `Sentry\Monolog\Handler` nests the record
+      context under `extra['monolog.context']`.)*
 - [ ] **AC-2** — An uncaught exception in an HTTP request (500) produces **exactly one** event, not
       two (the bundle's error listener is off; Symfony's `ErrorListener` `critical` log is the only
       path).
@@ -114,8 +115,10 @@ first asserting the canary was present in the input (so the test cannot pass vac
       5xx `HttpException` (e.g. 503) is **not** dropped.
 - [ ] **AC-4** — Messenger: a failed message that **will be retried** produces **zero** events; the
       same message on its **final** failure (moved to the `failed` transport) produces **exactly
-      one** event whose message names the message class and whose exception type is the handler's
-      exception. Proven through Symfony's real `SendFailedMessageForRetryListener`, not a mock of it.
+      one** event whose `extra['monolog.context']['class']` names the message class and whose
+      exception chain contains the handler's exception. *(Amended at implement: the event message is
+      Messenger's raw `{class}`/`{error}` template — no PSR-3 interpolation — and Sentry groups by
+      the exception, not the message, so the template does not merge distinct failures.)* Proven through Symfony's real `SendFailedMessageForRetryListener`, not a mock of it.
 - [ ] **AC-5** — An uncaught exception in a console command produces **exactly one** event.
 - [ ] **AC-6** — Records below `error` produce **zero** events: the pruning command's `warning`s, its
       `info` run line, and Messenger's retry `warning`.
@@ -138,7 +141,7 @@ first asserting the canary was present in the input (so the test cannot pass vac
       stack-frame `vars`, and a breadcrumb — the scrubbed event's JSON contains **none** of the
       canaries. Specifically: any e-mail address → `[email]`; any path segment after
       `/reset-password/` or `/verify-email/` → `[Filtered]`; any `extra`/`context` key matching
-      `/pass|token|secret|session|cookie|csrf|auth|email|dsn/i` → `[Filtered]`; `user` → removed;
+      `/pass|token|secret|sess|cookie|csrf|auth|email|dsn/i` → `[Filtered]`; `user` → removed;
       headers → allowlist only (`User-Agent`, `Accept`, `Accept-Language`, `Content-Type`, `Host`);
       query string, cookies, body, env, frame `vars`, breadcrumbs → removed.
 - [ ] **AC-10** — `user_id` (a UUIDv7) **is retained** in `extra` — it is what makes the alert
@@ -149,8 +152,9 @@ first asserting the canary was present in the input (so the test cannot pass vac
       thrown by a mailer double) through a real route, and the recorded event's JSON contains
       neither the address, nor any token, nor the session cookie value, nor the submitted password.
 - [ ] **AC-12** — The Messenger exhausted-failure event of AC-4, built with an SMTP-style exception
-      message containing a canary address, contains no address after scrubbing (Messenger
-      interpolates `{error}` into the log message — the e-mail regex is what catches it).
+      message containing a canary address, contains no address after scrubbing (the SMTP text
+      reaches the event via `extra['monolog.context']['error']` and the exception value — the e-mail
+      regex is what catches it; amended at implement, the message itself is not interpolated).
 
 **Boot path & environments**
 

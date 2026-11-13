@@ -47,7 +47,7 @@ final class SentryEventScrubber
     private const string TOKEN_PATH_PATTERN = '#(/(?:reset-password|verify-email)/)[^/?\#\s"\'<>]+#';
 
     /** `user_id` is deliberately not matched — see the class docblock. */
-    private const string SENSITIVE_KEY_PATTERN = '/pass|token|secret|session|cookie|csrf|auth|email|dsn/i';
+    private const string SENSITIVE_KEY_PATTERN = '/pass|token|secret|sess|cookie|csrf|auth|email|dsn/i';
 
     /** Lower-cased. `Referer`, `Cookie`, `Authorization`, `X-Forwarded-For` are absent on purpose. */
     private const array HEADER_ALLOWLIST = ['user-agent', 'accept', 'accept-language', 'content-type', 'host'];

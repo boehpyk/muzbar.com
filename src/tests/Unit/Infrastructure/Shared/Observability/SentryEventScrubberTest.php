@@ -179,6 +179,7 @@ final class SentryEventScrubberTest extends TestCase
             'reset_TOKEN' => 'b',
             'client_secret' => 'c',
             'session_id' => 'd',
+            'PHPSESSID' => 'd2',
             'cookie' => 'e',
             'csrf' => 'f',
             'authorization' => 'g',
@@ -189,7 +190,7 @@ final class SentryEventScrubberTest extends TestCase
 
         $extra = $this->scrub($event)->getExtra();
 
-        foreach (['Password', 'reset_TOKEN', 'client_secret', 'session_id', 'cookie', 'csrf', 'authorization', 'email', 'sentry_dsn'] as $key) {
+        foreach (['Password', 'reset_TOKEN', 'client_secret', 'session_id', 'PHPSESSID', 'cookie', 'csrf', 'authorization', 'email', 'sentry_dsn'] as $key) {
             self::assertSame('[Filtered]', $extra[$key], $key);
         }
         self::assertSame(['deep' => ['api_token' => '[Filtered]', 'ok' => 'fine']], $extra['nested']);

@@ -134,7 +134,7 @@ were true, so a future SDK default change cannot leak. It:
 4. **Strings everywhere** (message, formatted message, every exception value incl. chained ones,
    `transaction`, tags, string leaves of `extra` and `contexts`): e-mail regex → `[email]`, token-path
    regex → `[Filtered]`.
-5. **Keys:** any `extra`/`contexts` key matching `/pass|token|secret|session|cookie|csrf|auth|email|dsn/i`
+5. **Keys:** any `extra`/`contexts` key matching `/pass|token|secret|sess|cookie|csrf|auth|email|dsn/i`
    → `[Filtered]`. `user_id` is deliberately not matched (AC-10).
 6. **Stack frames:** `vars` removed from every frame (args are captured because
    `zend.exception_ignore_args` is Off). Source context lines kept — they are our code, and code
