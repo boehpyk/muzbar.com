@@ -69,7 +69,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
 - [x] **T8 (qa):** `tests/Unit/Infrastructure/Shared/Observability/SentryEventScrubberTest.php` —
       canary-in / canary-out over every field in AC-9; 4xx → null, 503 → kept; `user_id` survives;
       minimal empty event does not throw. (AC-3, AC-9, AC-10)
-- [ ] **T9 (qa):** `tests/Integration/Observability/SentryWiringTest.php` — effective client
+- [x] **T9 (qa):** `tests/Integration/Observability/SentryWiringTest.php` — effective client
       options (AC-8, AC-16 values), both test-env guards (AC-14), level threshold on `pruning` and
       `messenger` channels (AC-6), throwing console command → 1 event (AC-5).
 - [ ] **T10 (qa):** `tests/Integration/Observability/MessengerFailureReportingTest.php` — real
