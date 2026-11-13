@@ -56,7 +56,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
       `ENV SENTRY_RELEASE=${SENTRY_RELEASE}`; `deploy.yml` `build-args: SENTRY_RELEASE=${{
       github.sha }}`. Verify locally: `docker build --target production` with **no** build-arg
       succeeds and `printenv SENTRY_RELEASE` → `unknown`. (AC-13 build, AC-15)
-- [ ] **T7 (devops):** `.env.example`: `SENTRY_DSN=` + comment (EU-region DSN from the project
+- [x] **T7 (devops):** `.env.example`: `SENTRY_DSN=` + comment (EU-region DSN from the project
       settings; empty disables; never add `SENTRY_RELEASE` — `env_file:` outranks the image `ENV`).
       `access-setup.md` `.env` bootstrap gains the line. `docker-compose.yml`: comment on
       `messenger-worker` that the DSN arrives via the shared `env_file:`. Run the AC-13 boot matrix
