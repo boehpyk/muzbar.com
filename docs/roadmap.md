@@ -38,6 +38,8 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 - [ ] Sentry error tracking — **deferred by decision (2026-07-25)**, not an oversight.
       infrastructure.md calls it "Phase 0/1, cheap insurance for a solo dev"; the natural moment is the
       first user-facing flow (the Identity slices), which is when a silent 500 starts costing a signup.
+      *2026-11-13:* `identity-password-changed-notification` adds a second silent async failure class —
+      a lost security notice has no compensating action, so its `error` log is the only signal.
 - **Gate — MET** (merged in #1, hardened by #3–#6, 2026-07-23 → 07-24): CI green, `make check` passes,
   the VDS deploy succeeds and `https://muzbar.com/health/ready` returns 200 with Postgres + Redis
   probed. *Caveat:* the "hello" slice is `HealthController` — an Infrastructure endpoint, not a Domain
@@ -182,9 +184,17 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         of the two id types is wider than either — so the type system reaches AC-32's "no shared
         abstraction" conclusion unaided. **Owed by this slice:** nothing. It pays the debt slices 2
         and 3 both recorded, and hands GDPR erasure a written specification rather than a hope.
-  - [ ] `identity-password-changed-notification` — a listener on `UserPasswordChanged` mailing "your
-        password was changed on X". ~40 lines now that the event exists; it is the mechanism by which
-        an account-takeover victim finds out.
+  - [x] `identity-password-changed-notification` (2026-11-13) — a listener on `UserPasswordChanged`
+        mailing "your password was changed on X UTC" with the forgot-password URL. It is how an
+        account-takeover victim finds out, **unless the attacker also owns the mailbox** (today the
+        only producer is the reset link, mailed to that same address); it becomes decisive once an
+        authenticated change-password path exists, and the listener subscribes to the *fact* so that
+        path is covered without touching it. **What it shipped:** zero Domain and zero Application
+        code — one Infrastructure listener and two templates. A complete event payload made a new
+        consequence Infrastructure-only, and no port was added because nothing *inside* the hexagon
+        calls it. It met ADR-0010's "revisit the outbox" trigger and declined it (dated amendment).
+        **Owed:** it adds a second silent async failure class (a lost notice has no compensating
+        action; a template failure in the worker lands in the `failed` transport) — see Sentry.
   - [ ] `identity-google-oauth` — `knpuniversity/oauth2-client-bundle`, `OAuthIdentity` VO, account
         linking by email (never a duplicate `User`).
   - [ ] `identity-login-overlay` — login/register overlay Live Component + intended-action redirect

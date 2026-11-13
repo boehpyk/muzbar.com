@@ -361,3 +361,13 @@ bypass.**
 **The aggregate itself is barely touched:** one public constant (`RETENTION_AFTER_EXPIRY_SECONDS`)
 and one pure static (`retentionThreshold()`). Every rule this ADR established — the four inversions,
 both save orderings, the lifetime, the cap, the exception ordering — is unchanged.
+
+## Amendment, 2026-11-13 — `UserPasswordChanged` has its listener
+
+§Consequences recorded that *"`UserPasswordChanged` ships with no listener."* Discharged by the
+`identity-password-changed-notification` slice: `NotifyUserOnPasswordChanged`
+(`Infrastructure/Identity/EventListener/`) mails the account's address on every event. The event's
+payload was not widened — `UserId` and `occurredAt` were enough, as its docblock promised — and no
+Domain or Application file changed beyond that docblock. The consequence's value claim is softened:
+while the reset link is the only producer, an attacker who owns the mailbox can delete the notice.
+Its failure semantics and the declined outbox are recorded in ADR-0010's 2026-11-13 amendment.

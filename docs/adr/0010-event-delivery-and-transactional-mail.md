@@ -115,3 +115,31 @@ supervisor.
   - **The commit→dispatch window remains open.** It is documented here as accepted, with the resend
     form as its compensating control, and `IssueVerificationOnUserRegistered` logs at error level when
     it fails so an operator sees it even before Sentry lands.
+
+## Amendment, 2026-11-13 — the outbox trigger was met by `UserPasswordChanged`, and declined
+
+§Alternatives says to revisit the outbox *"when an event has a consequence the user cannot compensate
+for."* The `identity-password-changed-notification` slice ships the first such event: a lost
+"your password was changed" notice has no resend form, no retry and no second chance. The trigger is
+**met**. It was evaluated and the outbox is **still declined**; decisions 1–2 are unchanged.
+
+1. **The loss windows are narrow and not silent.** (i) A process death between `users->save()` and
+   dispatch — microseconds, in-process, no I/O between them — coincides with a visible outage.
+   (ii) `send()` failing to write `messenger_messages` means Postgres went away seconds after it
+   accepted the commit; the listener catches it and logs `error` with `user_id`. (iii) **The
+   likeliest loss, and the one the listener never sees:** the SMTP relay refusing the message
+   inside `messenger-worker`. `send()` returned long ago; after Messenger's retries the message
+   lands in the `failed` transport, visible only through `messenger:failed:show`. This window is
+   not narrow — it is the normal failure mode of mail — and it is what Sentry must watch.
+2. **The notice is best-effort by nature.** Its own threat model concedes that an attacker who owns
+   the mailbox deletes it. An outbox (table + relay process + its own monitoring, on a one-box
+   budget) would buy a delivery guarantee for a signal whose value is already probabilistic.
+3. **The trigger's own examples carry money or a promise** (a payment, a search alert). A security
+   notice is informational. When the first event of *that* kind arrives, this clause fires again and
+   the answer may differ.
+
+What changes instead: the listener's catch is documented as having **no compensating control**
+(unlike `IssueVerificationOnUserRegistered`'s resend form), so its `error` log is the only signal for
+**in-request** failures (repository lookup, template render, queue write) — and that log is written
+to be the Sentry alert it will become. Worker-side delivery failures (iii) never reach it; they
+surface only in the `failed` transport. Both add to the Sentry carry-over.

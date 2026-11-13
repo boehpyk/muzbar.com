@@ -15,18 +15,13 @@ use App\Domain\Shared\Event\DomainEvent;
  * being set twice is two things happening, not one thing being re-announced, and that difference is
  * the whole reason `changePassword()` is not idempotent while `verifyEmail()` is.
  *
- * **Nobody listens to it today**, and that is deliberate and recorded (ADR-0011 decision 9). It is
- * not speculative generality: it clears the same two-part bar the other unlistened events clear — it
- * names a fact a domain expert would recognise without being taught the code, and its payload is
- * complete without a second query.
- *
- * **It is also the hook for a specific, already-scheduled thing**, which is what separates it from
- * an event kept "just in case": the *"your password was changed"* security notification, deferred
- * out of this slice and on the roadmap as `identity-password-changed-notification`. That mail is the
- * mechanism by which the victim of an account takeover finds out — the attacker owns the account
- * from the moment the reset completes, and the *only* signal that reaches a channel the attacker
- * does not yet control is a message sent to the old address the instant this event is dispatched.
- * The listener will subscribe here and need nothing else added to the payload.
+ * **Its listener is `Infrastructure\Identity\EventListener\NotifyUserOnPasswordChanged`**, which
+ * sends the *"your password was changed"* security notice (slice `identity-password-changed-
+ * notification`). It shipped with no Domain or Application change and nothing added to this payload
+ * — the promise made when the event shipped unlistened (ADR-0011 decision 9) and kept. The notice is
+ * how an account holder learns of a change they did not make, unless the attacker also owns the
+ * mailbox; it becomes decisive once an authenticated change-password path exists, which this
+ * listener covers automatically because it subscribes to the fact rather than to the reset use case.
  *
  * WHAT THE PAYLOAD DELIBERATELY OMITS (AC-33). No `HashedPassword`, and obviously no plaintext.
  *
