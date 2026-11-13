@@ -52,7 +52,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
 - [x] **T5 (symfony-dev):** `Infrastructure/Shared/Observability/SentryCheckCommand.php` —
       `muzbar:ops:sentry-check` per plan Decision 7 (logger path, canaries, flush, event id, exit
       1 when disabled). (AC-17)
-- [ ] **T6 (devops):** Dockerfile production stage last lines `ARG SENTRY_RELEASE=unknown` +
+- [x] **T6 (devops):** Dockerfile production stage last lines `ARG SENTRY_RELEASE=unknown` +
       `ENV SENTRY_RELEASE=${SENTRY_RELEASE}`; `deploy.yml` `build-args: SENTRY_RELEASE=${{
       github.sha }}`. Verify locally: `docker build --target production` with **no** build-arg
       succeeds and `printenv SENTRY_RELEASE` → `unknown`. (AC-13 build, AC-15)

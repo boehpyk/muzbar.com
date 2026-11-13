@@ -42,3 +42,6 @@ RUN chmod +x /usr/local/bin/docker-entrypoint
 USER www-data
 ENTRYPOINT ["docker-entrypoint"]
 CMD ["php-fpm"]
+# Last, so a changing SHA invalidates no earlier layer. A fixed ENV in the image, not .env: see .env.example.
+ARG SENTRY_RELEASE=unknown
+ENV SENTRY_RELEASE=${SENTRY_RELEASE}
