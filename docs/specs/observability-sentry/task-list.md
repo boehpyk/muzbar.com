@@ -79,7 +79,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
       in `NotifyUserOnPasswordChanged`, `extra.user_id`), AC-2 (uncaught 500 → exactly 1), AC-3
       (404/405 → 0), AC-11 (end-to-end PII). `disableReboot()`, concrete service ids,
       `ClearsRateLimiters`, one client per scenario.
-- [ ] **T12 (qa):** `tests/Functional/Observability/SentryCheckCommandTest.php` — both branches
+- [x] **T12 (qa):** `tests/Functional/Observability/SentryCheckCommandTest.php` — both branches
       (AC-17). Then **non-vacuity pass**: temporarily remove the Monolog handler, the 4xx rule and
       the e-mail regex in turn; confirm the named tests fail; restore. Record it in the commit
       message. Run `make test` **twice** in a row.
