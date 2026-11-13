@@ -49,13 +49,14 @@ Docker Compose · Traefik · Nginx.
 > one. Its catch has **no compensating action** (unlike the verification listener's resend form), so
 > its `error` log is the only signal; ADR-0010 gained an amendment recording that its outbox trigger
 > was met and declined.
+> `observability-sentry` (2026-11-13) closed the Sentry carry-over: **one capture path** — every
+> Monolog record at `error`+ becomes a scrubbed Sentry event — with zero Domain/Application code.
+> The DSN is the owner's to set (task T15); until then it is disabled-safe. Runbook:
+> [docs/infrastructure.md](./docs/infrastructure.md) §*Sentry (runbook)*; [ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md).
 > Current work: the remaining `Identity` slices — next is `identity-google-oauth`.
-> Two Phase 0 items still carry over — the Claude Code hooks from
-> [docs/tooling.md](./docs/tooling.md), and **Sentry, no longer merely overdue**: slice 2 added
-> asynchronous failure paths that are silent by construction (a swallowed listener exception, a
-> failure transport nobody reads), and its verification pass then spent an entire session with
-> `messenger-worker` crash-looping while `make check` and `/health/ready` both reported green. The
-> gap is demonstrated, not theoretical. See [docs/roadmap.md](./docs/roadmap.md).
+> One Phase 0 item still carries over — the Claude Code hooks from
+> [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
+> failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
 
 ## Architecture — non-negotiable
 
@@ -210,6 +211,8 @@ make console cmd="dbal:run-sql 'SELECT email, locale, created_at FROM prelaunch_
 open http://localhost:8025                                # Mailpit — every dev mail lands here
 make console cmd="messenger:failed:show"                  # the failure transport nobody looks at
 make console cmd="messenger:failed:retry"
+# Error tracking — run in BOTH containers after setting SENTRY_DSN; exits 1 when the DSN is empty
+make console cmd="muzbar:ops:sentry-check"                # then the same via `docker compose exec messenger-worker`
 ```
 
 **Async mail** ([ADR-0010](./docs/adr/0010-event-delivery-and-transactional-mail.md)): `SendEmailMessage`
@@ -362,6 +365,9 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   environments. **Verified by removing them and re-running**: a green run wrote **zero bytes** to
   stderr and exited 0. When you add a channel for a job whose failure mode is silence, prove a record
   reaches a handler rather than assuming the channel is the work.
+- **Never put `SENTRY_RELEASE` in the box `.env`.** `env_file:` outranks the image's `ENV`, so it
+  would pin every release to one value and Sentry could not tell a regression from an old bug.
+  The release is the git SHA baked in at build; only `SENTRY_DSN` belongs in `.env`.
 - **A route requirement's failure mode is a bare 404 that no `catch` can convert.** `{token}` on
   `/reset-password/{token}` is deliberately only `[^/]+`, with the format gate living in the
   `ResetToken` value object, so a mangled token reaches the controller and gets the same neutral
@@ -369,6 +375,19 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   people who need the form (mail clients hard-wrap long lines) and would make the controller's
   `InvalidResetToken` arm dead code. **Nothing will tell you**: every test using a well-formed token
   passes with the strict regex in place.
+
+**Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
+§*Sentry (runbook)*):
+
+- **Anything logged at `error` or above leaves the box, on any channel, after scrubbing. The
+  scrubber (`SentryEventScrubber`, `before_send`) is the second line, not the first** — code must
+  still never log an address, token or secret.
+- One capture path: the Monolog `Sentry\Monolog\Handler`. The bundle's error/Messenger listeners
+  stay **off** (duplicate events, two places to get privacy wrong). Don't add a `captureException()`.
+- Log context arrives at **`extra['monolog.context']`**, not the event's top level — assert and
+  scrub there. Retries (`warning`) are never reported; exhausted failures (`critical`) are.
+- Tests read events from `RecordingSentryTransport`; the DSN in `.env.test` is `.invalid` so nothing
+  can send. Prove a Sentry test bites by removing the handler or rule and watching it fail.
 
 ## SDLC
 

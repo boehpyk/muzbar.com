@@ -17,6 +17,26 @@ monolog:
         # only in configuration**, and this slice's entire failure mode is silence.
         - pruning
 
+    # ERROR TRACKING (ADR-0013): one top-level handler, so it applies in dev, test and prod alike —
+    # dev is disabled by its empty SENTRY_DSN, test records into an in-memory transport.
+    #
+    # It sits BESIDE `fingers_crossed`, not inside it. The buffer is irrelevant to a handler that only
+    # ever acts at ERROR, and nesting it would make delivery depend on the buffer's `action_level`
+    # and `excluded_http_codes`. It bubbles, so every existing handler still gets every record.
+    #
+    # NO CHANNEL FILTER, on purpose. `pruning`'s run-failed `error` is exactly what should alert, and
+    # its `info`/`warning`s are below the level anyway. A channel allowlist would silently go stale
+    # the day a new channel appears.
+    #
+    # And it is the ONLY path: the bundle's own error listener, error handler and Messenger listener
+    # are switched off in sentry.yaml. Symfony already logs uncaught HTTP/console exceptions and
+    # exhausted Messenger retries at `critical`, so keeping those listeners would mean two events per
+    # failure and two places to get privacy wrong.
+    handlers:
+        sentry:
+            type: service
+            id: Sentry\Monolog\Handler
+
 when@dev:
     monolog:
         handlers:

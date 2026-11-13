@@ -50,6 +50,8 @@ services:
       dockerfile: docker/php/Dockerfile
       target: production
     env_file: .env
+    # SENTRY_DSN arrives through this shared `env_file:` like every other variable; do not add a
+    # divergent `environment:` line for it here (the worker and `app` must report to the same project).
     # The image's entrypoint exists to publish `public/` into the volume nginx serves. This
     # container mounts no such volume and answers no HTTP, so running it would copy assets into the
     # container's own filesystem for nobody to read — once an hour, forever, thanks to the restart

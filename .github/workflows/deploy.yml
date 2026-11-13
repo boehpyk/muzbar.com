@@ -28,6 +28,7 @@ jobs:
           context: .
           file: docker/php/Dockerfile
           target: production
+          build-args: SENTRY_RELEASE=${{ github.sha }}
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:${{ github.sha }}

@@ -123,6 +123,7 @@ DB_PASSWORD=__STRONG_UNIQUE__
 DATABASE_URL=postgresql://muzbar:__STRONG_UNIQUE__@postgres:5432/muzbar?serverVersion=16&charset=utf8
 REDIS_PASSWORD=__STRONG_UNIQUE__
 REDIS_URL=redis://:__STRONG_UNIQUE__@redis:6379
+SENTRY_DSN=__EU_REGION_DSN_OR_EMPTY__       # empty disables Sentry; never add SENTRY_RELEASE (baked into the image)
 EOF
 sudo -u muzbar-deploy chmod 600 /home/muzbar-deploy/muzbar.com/.env
 ```
