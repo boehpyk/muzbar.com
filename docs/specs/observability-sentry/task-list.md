@@ -36,7 +36,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
       `http_connect_timeout: 1`, `http_timeout: 2`; no `logger`. `src/.env`: `SENTRY_DSN=` with
       comment. Run `config:dump-reference sentry` and record in the commit message any option name
       that differed from the plan. (AC-8, AC-13 partial)
-- [ ] **T2 (symfony-dev):** `Infrastructure/Shared/Observability/SentryEventScrubber.php` —
+- [x] **T2 (symfony-dev):** `Infrastructure/Shared/Observability/SentryEventScrubber.php` —
       invokable `(Event, ?EventHint): ?Event` implementing plan Decision 4 steps 1–7; total over the
       event shape (never throws). Wire as `options.before_send`. Docblock names the reset-token
       journey and why `user_id` is allowed. (AC-3, AC-9, AC-10)

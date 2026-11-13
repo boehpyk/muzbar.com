@@ -52,6 +52,10 @@ sentry:
         enable_logs: false
         enable_metrics: false
 
+        # A service id. Scrubs every event and drops 4xx before anything leaves the process — see
+        # the class docblock for the rules and the reset-token journey they are shaped around.
+        before_send: App\Infrastructure\Shared\Observability\SentryEventScrubber
+
         # Sends are synchronous at capture time; these bound what a Sentry outage can add to an
         # already-failing request (SDK defaults are 2 s / 5 s).
         http_connect_timeout: 1
