@@ -55,7 +55,13 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 >    and `make deptrac` runs `--fail-on-uncovered` — so *any* stray vendor import in `Domain/` fails
 >    `make check`, even an unused one (proven, not assumed). The hook would still catch it earlier — at
 >    write time rather than at commit time.
-> 2. Sentry, deliberately deferred to the first Identity slice (see above).
+> 2. ~~Sentry, deliberately deferred to the first Identity slice (see above).~~
+>    **CLOSED 2026-11-13** by `observability-sentry` (ADR-0013 (pending)): one Monolog capture path,
+>    scrubbed before send, proven by tests. The DSN is set by the owner at first deploy (task T15).
+>    **Remainder, not closed:** crash loops and pre-boot failures never reach Sentry — a worker that
+>    dies before the kernel boots, or is simply stopped, still looks like a healthy system. That is
+>    owned by the Phase 2 queue-age readiness item (infrastructure.md footgun #7) and the deploy's
+>    image check. History below is kept as the record of why it was due.
 >    **Now due.** That trigger condition — "the first user-facing flow, which is when a silent 500
 >    starts costing a signup" — was met on 2026-07-26 when `/register` and `/login` shipped.
 >    **Overdue after slice 2 (2026-07-28), and the argument has changed shape.** Until now the worst

@@ -91,7 +91,7 @@ changed (AC-19). Any task that seems to need one is a plan error — stop and re
       regression → e-mail*), where the DSN lives, `sentry-check` in both containers, the exact
       sent/never-sent list, and **what Sentry does not see** (crash loops, pre-boot failures).
       Footgun table row for `SENTRY_RELEASE` in `.env`. (AC-20)
-- [ ] **T14 (symfony-dev):** CLAUDE.md (status line, Sentry convention block incl. "anything at
+- [x] **T14 (symfony-dev):** CLAUDE.md (status line, Sentry convention block incl. "anything at
       `error` leaves the box after scrubbing", commands, `SENTRY_RELEASE` footgun); roadmap
       carry-over item 2 closed with date, crash-loop remainder pointed at the Phase 2 readiness
       item; ADR-0010 dated note; FORboehpyk.md chapter (the six alerts nobody read, why one path,
