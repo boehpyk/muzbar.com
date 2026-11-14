@@ -136,6 +136,20 @@ final class GoogleSignInPrivacyTest extends WebTestCase
         self::assertSame(\App\Domain\Identity\Exception\EmailAlreadyRegistered::class, $app[0]->context['reason'] ?? null);
     }
 
+    public function testASecondGoogleSubjectIsLoggedAtWarningNamingTheAccountByIdOnly(): void
+    {
+        $account = $this->account(sub: 'SUB-OTHER-CANARY');
+        $this->signIn($this->claims(self::SUB, self::ACCOUNT_EMAIL));
+
+        $app = $this->appLogRecords();
+        self::assertCount(1, $app);
+        self::assertSame(Level::Warning, $app[0]->level);
+        self::assertSame([
+            'reason' => \App\Domain\Identity\Exception\OAuthProviderAlreadyLinked::class,
+            'user_id' => $account->id()->toString(),
+        ], $app[0]->context);
+    }
+
     public function testAnUnverifiedProviderEmailIsLoggedAtInfo(): void
     {
         $this->exercise('unverified provider email (AC-9)');

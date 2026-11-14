@@ -117,10 +117,13 @@ final class GoogleAuthenticator extends OAuth2Authenticator
             $this->logger->info('Google sign-in refused: Google has not verified the email address.', ['reason' => $e::class]);
 
             throw new CustomUserMessageAuthenticationException(self::EMAIL_NOT_VERIFIED);
-        } catch (InvalidOAuthIdentity|InvalidEmail|OAuthProviderAlreadyLinked|EmailAlreadyRegistered $e) {
-            // Malformed claims, an account already linked to a different Google subject (AC-11), or
-            // a lost provisioning race (a retry takes the link path). Class only:
-            // `EmailAlreadyRegistered`'s message contains the address.
+        } catch (OAuthProviderAlreadyLinked $e) {
+            // The account already holds a different Google subject (AC-11, I-28). The user id names
+            // the account for the operator; it is not an address or a claim.
+            throw $this->fail('warning', 'Google sign-in refused.', $e::class, ['user_id' => $e->userId->toString()]);
+        } catch (InvalidOAuthIdentity|InvalidEmail|EmailAlreadyRegistered $e) {
+            // Malformed claims, or a lost provisioning race (a retry takes the link path). Class
+            // only: `EmailAlreadyRegistered`'s message contains the address.
             throw $this->fail('warning', 'Google sign-in refused.', $e::class);
         } catch (\Throwable $e) {
             // Postgres down, or a bug. Not the visitor's doing.
@@ -157,11 +160,12 @@ final class GoogleAuthenticator extends OAuth2Authenticator
     }
 
     /**
-     * @param 'warning'|'error' $level
+     * @param 'warning'|'error'     $level
+     * @param array<string, string> $context
      */
-    private function fail(string $level, string $message, string $reason): CustomUserMessageAuthenticationException
+    private function fail(string $level, string $message, string $reason, array $context = []): CustomUserMessageAuthenticationException
     {
-        $this->logger->log($level, $message, ['reason' => $reason]);
+        $this->logger->log($level, $message, ['reason' => $reason] + $context);
 
         return new CustomUserMessageAuthenticationException(self::NEUTRAL_FAILURE);
     }
