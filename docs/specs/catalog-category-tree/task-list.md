@@ -30,7 +30,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       before C-5, no-op on the same parent), `rename()`, `changeSlug()` and the readers. Plus
       `CategoryTreeTooDeep` and `CategoryMoveWouldCreateCycle`. The class docblock states the D2
       contract. (AC-5…AC-9)
-- [ ] **T4:** Ports `CategoryRepository` and `CategoryTreeLock` (generic `@template T` docblock on
+- [x] **T4:** Ports `CategoryRepository` and `CategoryTreeLock` (generic `@template T` docblock on
       `exclusively`). Plus `CategoryNotFound`, `CategorySlugAlreadyTaken`, `CategoryHasChildren`
       and `CorruptCategoryTree` (the last one extends `\LogicException`).
 
