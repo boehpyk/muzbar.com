@@ -2,6 +2,10 @@
 
 {% block title %}Create an account{% endblock %}
 
+{# No overlay trigger here: registration is a full page (ADR-0015), and the trigger would only lead
+   back to the sign-in form this page already links to. #}
+{% block auth_nav %}{% endblock %}
+
 {% block body %}
     <h1>Create an account</h1>
 

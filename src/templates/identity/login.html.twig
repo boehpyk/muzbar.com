@@ -2,8 +2,15 @@
 
 {% block title %}Sign in{% endblock %}
 
+{# The overlay trigger lives in the layout; on the page it would open, it only opens itself. #}
+{% block auth_nav %}{% endblock %}
+
 {% block body %}
-    <h1>Sign in</h1>
+    {# The auth panel (ADR-0015): the overlay in assets/app.js fetches this page and lifts exactly
+       this element into a <dialog>, so everything a visitor needs to sign in must sit inside it and
+       nothing page-specific may. `aria-labelledby` names the heading, which the dialog reuses. #}
+    <section data-auth-panel aria-labelledby="auth-panel-title">
+    <h1 id="auth-panel-title">Sign in</h1>
 
     {#
         AC-12 / AC-13 — USER ENUMERATION.
@@ -56,4 +63,5 @@
        and it would announce to anyone reading the page that verification state is a thing this form
        distinguishes. Shown to everybody, it tells nobody anything. #}
     <p><a href="{{ path('app_verify_email_resend') }}">Didn't get the verification email?</a></p>
+    </section>
 {% endblock %}

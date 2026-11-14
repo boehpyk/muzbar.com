@@ -34,7 +34,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
       `Security::getFirewallConfig()`. No logging. (AC-2, AC-3, AC-6, AC-8, AC-10, AC-15)
 - [x] **T4:** `GoogleAuthenticator::onAuthenticationSuccess()` → `HttpUtils::createRedirectResponse()`
       with a comment naming `form_login` as its twin. (AC-14, AC-16)
-- [ ] **T5:** `login.html.twig` — wrap in `section[data-auth-panel][aria-labelledby=auth-panel-title]`,
+- [x] **T5:** `login.html.twig` — wrap in `section[data-auth-panel][aria-labelledby=auth-panel-title]`,
       `h1#auth-panel-title`, empty `auth_nav` override; `register.html.twig` — empty `auth_nav`
       override. No other markup change. (AC-21, AC-22)
 - [ ] **T6:** `base.html.twig` — `{% block auth_nav %}`: guest → `a[data-auth-overlay]` "Profile" to
