@@ -6,8 +6,11 @@
 # (there is no `pkceMethod` constructor option to set), and knpu's `google` type accepts no
 # `provider_options` anyway. knpu ships `OAuth2PKCEClient`, which generates the S256 challenge on
 # `redirect()`, keeps the verifier in the session under `pkce_code_verifier`, and sends it on
-# `getAccessToken()` — but only the `generic` type lets us pick a client class. So: same league
-# `Google` provider, knpu's PKCE client, no code of ours.
+# `getAccessToken()` — but only the `generic` type lets us pick a client class. So: knpu's PKCE
+# client, and no PKCE code of ours.
+#
+# `GoogleProvider` is league's `Google` with `profile` removed from the default scopes, which league
+# otherwise merges into every request (AC-1: exactly `openid email`).
 #
 # BOOT PATH: `default::` on purpose. A bare `%env(GOOGLE_CLIENT_ID)%` would make the variable a boot
 # dependency of every kernel — the messenger worker, every console command, CI and `docker build` —
@@ -18,7 +21,7 @@ knpu_oauth2_client:
     clients:
         google:
             type: generic
-            provider_class: League\OAuth2\Client\Provider\Google
+            provider_class: App\Infrastructure\Identity\Security\GoogleProvider
             client_class: KnpU\OAuth2ClientBundle\Client\OAuth2PKCEClient
             client_id: '%env(default::GOOGLE_CLIENT_ID)%'
             client_secret: '%env(default::GOOGLE_CLIENT_SECRET)%'
