@@ -23,7 +23,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 - (none — no use case; session plumbing owned by Symfony Security)
 
 ## Infrastructure
-- [ ] **T1:** `Infrastructure/Identity/Http/IntendedActionPath.php` — `fromUntrusted(mixed): ?string`,
+- [x] **T1:** `Infrastructure/Identity/Http/IntendedActionPath.php` — `fromUntrusted(mixed): ?string`,
       `MAX_BYTES = 2048`, the five rules from the plan's *Interface boundary*; docblock names the one
       writer. (AC-9, AC-11, AC-12)
 - [ ] **T2:** `ProfileController` (`/profile`, `app_profile`, `#[IsGranted('ROLE_USER')]`, no
