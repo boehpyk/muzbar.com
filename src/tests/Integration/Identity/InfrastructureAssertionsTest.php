@@ -48,12 +48,13 @@ final class InfrastructureAssertionsTest extends KernelTestCase
         // Bulk SQL rather than the Foundry factory: this needs volume (tens of thousands of rows)
         // fast enough to run inside a single test, not aggregate-faithful construction.
         $connection->executeStatement(<<<'SQL'
-            INSERT INTO identity_user (id, email, password_hash, roles, email_verified_at, registered_at)
+            INSERT INTO identity_user (id, email, password_hash, roles, oauth_identities, email_verified_at, registered_at)
             SELECT
                 gen_random_uuid(),
                 'planner-seed-' || gs || '@example.com',
                 '$2y$04$0000000000000000000000',
                 '["ROLE_USER"]',
+                '[]',
                 NULL,
                 now()
             FROM generate_series(1, 20000) gs

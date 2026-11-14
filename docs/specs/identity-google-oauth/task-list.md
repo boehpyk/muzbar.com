@@ -30,9 +30,9 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       → link → provision). (AC-5, AC-6, AC-8, AC-9, AC-10)
 
 ## Infrastructure
-- [ ] **T8:** `Type/OAuthIdentitySetType` + `doctrine.dbal.types` registration; `User.orm.xml`
+- [x] **T8:** `Type/OAuthIdentitySetType` + `doctrine.dbal.types` registration; `User.orm.xml`
       (nullable hash, `oauth_identities`); `DoctrineUserRepository::findByOAuthIdentity()`.
-- [ ] **T9:** Migration (drop NOT NULL; add column with default, then drop default; guarded `down()`).
+- [x] **T9:** Migration (drop NOT NULL; add column with default, then drop default; guarded `down()`).
       Run `make migrate` + `make migration.make` → empty diff. (AC-23)
 - [ ] **T10:** `composer require knpuniversity/oauth2-client-bundle league/oauth2-google`;
       `knpu_oauth2_client.yaml` with `default::` env, `pkceMethod: S256`; env vars in `src/.env`
