@@ -24,7 +24,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
 - [x] **T1:** VOs `CategoryId` (the `UserId` shape, docblock naming D8), `CategoryName` (C-1) and
       `CategorySlug` (C-2), plus `InvalidCategoryId`, `InvalidCategoryName` and
       `InvalidCategorySlug`. (AC-1…AC-3)
-- [ ] **T2:** VO `Lineage` (`ofRoot`, `fromRootDown`, `depth`, `last`, `contains`) plus
+- [x] **T2:** VO `Lineage` (`ofRoot`, `fromRootDown`, `depth`, `last`, `contains`) plus
       `InvalidLineage`. The docblock says it is only true while the tree lock is held. (AC-4)
 - [ ] **T3:** Aggregate `Category` with `MAX_DEPTH = 4`, `create()`, `moveUnder()` (C-4 checked
       before C-5, no-op on the same parent), `rename()`, `changeSlug()` and the readers. Plus
