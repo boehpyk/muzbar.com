@@ -32,7 +32,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 - [x] **T3:** `SecurityController::login()` — on `GET`, `query->all()['_target_path']` →
       `IntendedActionPath` → `saveTargetPath()` with the firewall name from
       `Security::getFirewallConfig()`. No logging. (AC-2, AC-3, AC-6, AC-8, AC-10, AC-15)
-- [ ] **T4:** `GoogleAuthenticator::onAuthenticationSuccess()` → `HttpUtils::createRedirectResponse()`
+- [x] **T4:** `GoogleAuthenticator::onAuthenticationSuccess()` → `HttpUtils::createRedirectResponse()`
       with a comment naming `form_login` as its twin. (AC-14, AC-16)
 - [ ] **T5:** `login.html.twig` — wrap in `section[data-auth-panel][aria-labelledby=auth-panel-title]`,
       `h1#auth-panel-title`, empty `auth_nav` override; `register.html.twig` — empty `auth_nav`
