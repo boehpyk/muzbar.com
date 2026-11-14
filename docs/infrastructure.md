@@ -343,8 +343,10 @@ Google sign-in is knpu's `OAuth2PKCEClient` over league's Google provider
 
 ### When it breaks
 
-- `redirect_uri=http%3A…` → `trusted_proxies` is not applied (check `APP_ENV=prod` — see the
-  `production` incident) or Traefik is not sending `X-Forwarded-Proto`. Google answers
+- `redirect_uri=http%3A…` → `trusted_proxies` is not applied. First check
+  `docker compose exec app printenv TRUSTED_PROXIES`: it must be the full CIDR list from
+  `.env.example` (the 2026-11-14 cause — the box `.env` simply lacked it). Then `APP_ENV=prod`, then
+  Traefik sending `X-Forwarded-Proto`. Google answers
   `redirect_uri_mismatch`.
 - Every callback fails with an `IdentityProviderException` in Sentry → wrong/rotated secret, or the
   redirect URI in the Console differs by a character.

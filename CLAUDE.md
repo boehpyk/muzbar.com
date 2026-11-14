@@ -396,8 +396,11 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   passes with the strict regex in place.
 
 - **Google's `redirect_uri` is only as right as `trusted_proxies`.** It is built from the request's
-  scheme and host, so behind Traefik it is `https://muzbar.com/...` only when the `when@prod` trust
-  list applies — exactly what the `APP_ENV=production` incident silently disabled. `KernelBrowser`
+  scheme and host, so behind Traefik it is `https://muzbar.com/...` only when trust is configured.
+  **Prod trust comes solely from `TRUSTED_PROXIES` in the box `.env`** — there is no `when@prod`
+  block, and the image's `src/.env` sets it empty (trust nobody). The box `.env` lacked it until
+  2026-11-14, so rate limiters were one global bucket and `isSecure()` false from launch; only the
+  first Google deploy's smoke check noticed. `KernelBrowser`
   never goes through a proxy, so **only `deploy.yml`'s smoke check** (`location` of
   `/connect/google` contains the https `redirect_uri`) can catch it. It also fails when
   `GOOGLE_CLIENT_ID` is empty on the box — by design.
