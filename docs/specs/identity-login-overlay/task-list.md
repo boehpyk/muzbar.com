@@ -50,7 +50,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 ## Tests (qa)
 - [x] **T9:** Unit `tests/Unit/Infrastructure/Identity/Http/IntendedActionPathTest.php` — hostile list
       → `null`, accepted examples → unchanged, 2048/2049, non-strings. No kernel.
-- [ ] **T10:** Functional `ProfilePageTest` (AC-1) and `IntendedActionRedirectTest` — `/profile` and
+- [x] **T10:** Functional `ProfilePageTest` (AC-1) and `IntendedActionRedirectTest` — `/profile` and
       `/` targets, default unchanged, entry point, newest-wins, consumed-once, failed attempt keeps
       target, hostile list at the writer, non-clobber, array param, length boundary, Symfony's POST
       `_target_path` (browser-style host parse), reader defence (password half), no echo/no log,
