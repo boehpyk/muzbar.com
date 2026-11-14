@@ -40,7 +40,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
 - [x] **T6:** `EditCategory` + handler: move, then rename, then reslug, then the sibling pre-check
       with `except`, then save, all in one `exclusively()`. Includes the call-site comment on the
       order.
-- [ ] **T7:** `Application/Identity`: `GrantRole` / `RevokeRole` + handlers over the existing
+- [x] **T7:** `Application/Identity`: `GrantRole` / `RevokeRole` + handlers over the existing
       `User::grantRole()` / `revokeRole()`.
 
 ## Infrastructure
