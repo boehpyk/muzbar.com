@@ -96,7 +96,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       and record the results in the commit message. Then run `make test` twice. (AC-34, AC-35)
 
 ## Docs
-- [ ] **T22:** CLAUDE.md: status line (Catalog slice 1 shipped); the cross-instance-invariant
+- [x] **T22:** CLAUDE.md: status line (Catalog slice 1 shipped); the cross-instance-invariant
       rule (*aggregate decides on facts, the tree lock makes them true, an index is the backstop
       where one exists*); `CategoryTreeLock` + DAMA (the lock is held until the test ends); the EM
       after a failed flush (use the DBAL outline to re-render); the `grant-role` command in

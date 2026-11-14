@@ -74,7 +74,12 @@ Docker Compose · Traefik · Nginx.
 > (AC-15, AC-19), amended in place with "the test won, on purpose". The JS overlay (AC-25) was checked
 > in a real Chromium, 8/8. ADR-0015 now records the accepted risk: **no GET route may change state on
 > behalf of the signed-in user** — any site can choose where a victim lands after signing in.
-> Next: Phase 1's `Catalog` context.
+> `catalog-category-tree` (2026-11-14, **built, not yet `/verify`ed**) — Catalog slice 1 of 3: one
+> `Category` aggregate **per node** on an adjacency list, and the repo's **first cross-instance
+> invariants** (no cycles, depth ≤ `MAX_DEPTH = 4`), decided by the aggregate on facts read under one
+> tree-wide advisory lock. Admin CRUD under `/admin` (`ROLE_ADMIN`, granted only from the console).
+> [ADR-0016](./docs/adr/0016-category-tree-per-node-aggregates-under-one-tree-lock.md) + ADR-0005/0009 amendments.
+> Next: `/verify` this slice, then `catalog-attribute-schema`.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -174,6 +179,17 @@ established by the fourth slice, which shipped the repository's **first `DELETE`
   duration is measured with `hrtime(true)`. `Clock` remains the only source of "now" for anything the
   Domain sees.
 
+**Invariants that span many instances** ([ADR-0016](./docs/adr/0016-category-tree-per-node-aggregates-under-one-tree-lock.md)) —
+established by `catalog-category-tree`, inherited by every context:
+
+- **The aggregate decides, on facts passed in; the lock makes the facts true; a unique index is the
+  backstop where one exists.** `Category::moveUnder(Lineage, int $subtreeHeight)` owns C-4/C-5 as pure
+  logic; the handler reads the facts through the port; `CategoryTreeLock::exclusively()` wraps the
+  reads *and* the save so no concurrent write can make them stale (write skew). **Every** Catalog
+  write handler runs inside it — a new one needs it too, and AC-17's recording double to prove it.
+- **Persist `CategoryId`, never a slug or path.** Slugs and paths change on rename and move; the id
+  never does. Depth, path and lineage are derived, never stored.
+
 **Structurally identical aggregates still do not share a base class.** `PasswordResetRequest` is ~80%
 the same file as `EmailVerificationRequest` and shares no supertype with it. They share a *shape*,
 not *behaviour*, and they differ on **four** rules — replay refused vs absorbed, reissue invalidating
@@ -220,6 +236,8 @@ make check                     # cs + stan + deptrac + test — run before every
 # Identity operations
 make console cmd="muzbar:identity:verify-email <email>"   # break-glass: mark an email verified,
                                                           #   bypassing the token flow entirely
+make console cmd="muzbar:identity:grant-role <email> ROLE_ADMIN"           # the only way to make an admin
+make console cmd="muzbar:identity:grant-role <email> ROLE_ADMIN --revoke"  # bites on their next request
 # Challenge pruning — cron line (`17 * * * *`) is documented but NOT YET INSTALLED: deferred to the
 #   end of the roadmap (2026-08-02). Run by hand until then. See docs/infrastructure.md's runbook.
 make console cmd="muzbar:identity:prune-challenges --dry-run"    # report only; deletes nothing
@@ -282,6 +300,11 @@ worker.
   taken after an HTTP-driven mutation can hand back the pre-request object rather than the committed
   row. Fetch a fresh repository from the container immediately before any assertion that must reflect
   a request that just finished.
+  **`CategoryTreeLock` under DAMA: the xact advisory lock is held until the *test* ends**, because
+  DAMA's outer transaction never commits. Probe it from a second, non-DAMA connection **inside** the
+  work closure — a probe after `exclusively()` returns reads "held" even if the adapter took no lock.
+  **Changing a signed-in user's roles logs them out on their next request** (Symfony compares the
+  refreshed user's roles) — grant `ROLE_ADMIN` *before* logging the test client in.
 - **Swapping an adapter inside a test needs two things, and each fails silently alone.** Target the
   **concrete class's** service id, never the port alias — Symfony's `ResolveReferencesToAliasesPass`
   rewrites alias references to their target at *compile* time, so a handler's constructor is already
@@ -458,6 +481,18 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   route itself too, so the entry point covers direct visits — with an **anchored** `access_control`
   regex (`^/profile(/|$)`, not `^/profile`, which would also lock a future public `/profiles/{slug}`). The overlay's background fetch of
   `/login` renders (and so consumes) flash messages on a page whose layout is discarded.
+
+- **A unique violation during `flush()` closes the EntityManager.** The category forms therefore
+  re-render from `DbalCategoryOutline` (DBAL), never through the EM. For the same reason
+  `PostgresCategoryTreeLock` uses DBAL `transactional()` + `EntityManager::clear()` on failure, **not**
+  `wrapInTransaction()` — which closes the EM on *any* throwable, so a plain domain refusal (a cycle)
+  would leave the request holding a dead EM.
+- **Partial-index `where` must be written in PostgreSQL's normalised form** — `(parent_id IS NULL)`,
+  parenthesised. Written as `parent_id IS NULL`, every `make migration.make` re-diffs the index as a
+  DROP/CREATE. Proved by flipping it.
+- **Symfony's default `slugger` maps `&` to `and`** (and follows the request locale), so
+  `"Bass & Guitars"` became `bass-and-guitars`. `CategorySlugDeriver` gets its own
+  `AsciiSlugger('en', [])` in `services.yaml`; do not "simplify" it to the framework service.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):
