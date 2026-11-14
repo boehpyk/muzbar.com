@@ -144,89 +144,89 @@ console command `muzbar:identity:grant-role`.
 
 ### Values and the aggregate (Domain unit tests, no kernel)
 
-- [ ] **AC-1 (C-1):** `CategoryName` trims surrounding whitespace and accepts 1–100 characters,
+- [x] **AC-1 (C-1):** `CategoryName` trims surrounding whitespace and accepts 1–100 characters,
       counted with `mb_strlen`, so `str_repeat('я', 100)` is accepted. It rejects an empty or
       whitespace-only string, 101 characters, and any string containing a character in `\p{Cc}`
       (e.g. `"Bass\nGuitars"`). Every rejection throws `InvalidCategoryName`.
-- [ ] **AC-2 (C-2):** `CategorySlug` trims and lower-cases, so `" Bass-Guitars "` becomes
+- [x] **AC-2 (C-2):** `CategorySlug` trims and lower-cases, so `" Bass-Guitars "` becomes
       `bass-guitars`. It then accepts `5-string`, `a` and 64 characters. It rejects `""`, 65
       characters, `-bass`, `bass-`, `bass--guitars`, `bass_guitars`, `bass guitars`, `basś` and `/`.
       Every rejection throws `InvalidCategorySlug`.
-- [ ] **AC-3:** `CategoryId` accepts an RFC 4122 string, normalises it to lower case, and rejects
+- [x] **AC-3:** `CategoryId` accepts an RFC 4122 string, normalises it to lower case, and rejects
       anything else with `InvalidCategoryId`. `equals()` is typed to `CategoryId`, so passing a
       `UserId` is a PHPStan error and a `TypeError` at runtime.
-- [ ] **AC-4:** `Lineage::ofRoot()` has depth 0 and no last element. `Lineage::fromRootDown([a, b,
+- [x] **AC-4:** `Lineage::ofRoot()` has depth 0 and no last element. `Lineage::fromRootDown([a, b,
       c])` has depth 3, `last() == c`, `contains(b) === true`, and `contains(x) === false` for an id
       not in the list. A list containing a duplicate id is rejected with `InvalidLineage` (a
       duplicate would mean a cycle).
-- [ ] **AC-5 (C-5, create):** `Category::create()` with `Lineage::ofRoot()` gives `parentId() ===
+- [x] **AC-5 (C-5, create):** `Category::create()` with `Lineage::ofRoot()` gives `parentId() ===
       null`. With a lineage of depth 3 it gives `parentId()` equal to the lineage's last id. With a
       lineage of depth 4 it throws `CategoryTreeTooDeep`.
-- [ ] **AC-6 (C-4):** `moveUnder()` throws `CategoryMoveWouldCreateCycle` when the new parent's
+- [x] **AC-6 (C-4):** `moveUnder()` throws `CategoryMoveWouldCreateCycle` when the new parent's
       lineage contains the category's own id. That covers moving under itself, under a child and
       under a grandchild. `parentId()` is unchanged afterwards.
-- [ ] **AC-7 (C-5, move):** `moveUnder(lineage of depth d, height h)` succeeds when `d + h == 4`
+- [x] **AC-7 (C-5, move):** `moveUnder(lineage of depth d, height h)` succeeds when `d + h == 4`
       and throws `CategoryTreeTooDeep` when `d + h == 5`, leaving `parentId()` unchanged.
       `moveUnder(Lineage::ofRoot(), h)` succeeds for every `h ≤ 4`. A height below 1 is a
       programming error (`\InvalidArgumentException`).
-- [ ] **AC-8:** `rename()` and `changeSlug()` replace the value and leave `id()` and `parentId()`
+- [x] **AC-8:** `rename()` and `changeSlug()` replace the value and leave `id()` and `parentId()`
       untouched (C-8). Moving under the current parent is a no-op that does not throw.
-- [ ] **AC-9:** `Category` records no domain events. It does not use the `RecordsEvents` trait.
+- [x] **AC-9:** `Category` records no domain events. It does not use the `RecordsEvents` trait.
       Nothing in `src/src/Domain/Catalog/` or `src/src/Application/Catalog/` imports anything from
       `App\Domain\Identity` (checked by `grep` in `/verify`).
 
 ### Use cases against a real database (Application/Integration, DAMA)
 
-- [ ] **AC-10 (create):** `CreateCategory("Guitars", "guitars", parent: null)` persists one row in
+- [x] **AC-10 (create):** `CreateCategory("Guitars", "guitars", parent: null)` persists one row in
       `catalog_category` with `parent_id IS NULL`. A child created under it has
       `parent_id = <guitars id>`. A great-great-grandchild (depth 5) is refused with
       `CategoryTreeTooDeep`, and the row count is unchanged.
-- [ ] **AC-11 (C-3):** A second root with slug `guitars` is refused with `CategorySlugAlreadyTaken`.
+- [x] **AC-11 (C-3):** A second root with slug `guitars` is refused with `CategorySlugAlreadyTaken`.
       So is a second `electric` under `guitars`. `electric` under `basses` is **accepted**. The same
       rule applies when the slug comes from `EditCategory` (slug change) or from a **move** into a
       parent that already has a child with that slug.
-- [ ] **AC-12 (C-3 backstop):** Inserting a duplicate `(parent_id, slug)` with raw DBAL fails with
+- [x] **AC-12 (C-3 backstop):** Inserting a duplicate `(parent_id, slug)` with raw DBAL fails with
       a unique violation, and so does inserting a duplicate root slug. When the pre-check is
       bypassed, `DoctrineCategoryRepository::save()` raises `CategorySlugAlreadyTaken`, not a DBAL
       exception.
-- [ ] **AC-13 (C-4, C-5 through the handler):** On the tree `guitars > electric > solid-body`,
+- [x] **AC-13 (C-4, C-5 through the handler):** On the tree `guitars > electric > solid-body`,
       `EditCategory` moving `guitars` under `solid-body` throws `CategoryMoveWouldCreateCycle`. Moving
       `electric` (height 2) under a depth-3 node throws `CategoryTreeTooDeep`. Moving `electric` to
       the root succeeds and leaves `solid-body.parent_id` unchanged, so **exactly one row is
       updated**. After every refusal the table is byte-for-byte unchanged.
-- [ ] **AC-14 (C-6):** `CreateCategory` or `EditCategory` naming a parent id that does not exist
+- [x] **AC-14 (C-6):** `CreateCategory` or `EditCategory` naming a parent id that does not exist
       (including a malformed id) throws `CategoryNotFound`, and no row is written. `EditCategory` or
       `DeleteCategory` on an unknown id throws `CategoryNotFound`.
-- [ ] **AC-15 (C-7):** `DeleteCategory` on a leaf removes its row. On a category with a child it
+- [x] **AC-15 (C-7):** `DeleteCategory` on a leaf removes its row. On a category with a child it
       throws `CategoryHasChildren`, and both rows remain.
-- [ ] **AC-16 (EditCategory is all-or-nothing):** An edit that changes the name **and** makes an
+- [x] **AC-16 (EditCategory is all-or-nothing):** An edit that changes the name **and** makes an
       invalid move (cycle or depth) persists **neither** change. Re-reading the row from a fresh
       repository shows the old name. A follow-up `flush()` in the same test does not write the
       half-applied rename either, because the lock adapter clears the EntityManager on failure.
-- [ ] **AC-17 (the tree lock is real):** While a handler's work is running inside
+- [x] **AC-17 (the tree lock is real):** While a handler's work is running inside
       `CategoryTreeLock::exclusively()`, a **second** database session's
       `pg_try_advisory_xact_lock(<tree key>)` returns `false`. Every one of the three handlers runs
       its reads and its save inside `exclusively()`. This is proven by a test that fails when the
       `exclusively()` call is removed from any one of them. Release at commit is PostgreSQL's
       `_xact_` semantics, not our code. It is not asserted, because DAMA's outer transaction holds
       the lock until the test ends (plan, *Test plan*).
-- [ ] **AC-18 (C-4b):** With a cycle planted by raw SQL (`a.parent = b`, `b.parent = a`),
+- [x] **AC-18 (C-4b):** With a cycle planted by raw SQL (`a.parent = b`, `b.parent = a`),
       `lineageOf(a)` and `heightOf(a)` each throw `CorruptCategoryTree` (a `\LogicException`
       naming the id) after at most `MAX_DEPTH + 1` recursion steps. Neither hangs. The SQL bounds
       the recursion; PHP does not detect the cycle after the fact.
 
 ### Persistence conventions (ADR-0007 / ADR-0009)
 
-- [ ] **AC-19:** Table `catalog_category` has `id uuid PK`, `parent_id uuid NULL`,
+- [x] **AC-19:** Table `catalog_category` has `id uuid PK`, `parent_id uuid NULL`,
       `slug varchar(64) NOT NULL` and `name varchar(100) NOT NULL`. It has **no foreign key** and
       **no `<many-to-one>`**. It has the two partial unique indexes
       `uniq_catalog_category_sibling_slug (parent_id, slug) WHERE parent_id IS NOT NULL` and
       `uniq_catalog_category_root_slug (slug) WHERE parent_id IS NULL`. Both are declared in the XML
       **and** in the migration.
-- [ ] **AC-20:** After `make migrate`, `doctrine:schema:validate` passes and `make migration.make`
+- [x] **AC-20:** After `make migrate`, `doctrine:schema:validate` passes and `make migration.make`
       generates **no** migration. This is the proof that the partial-index predicates do not show up
       as diff noise.
-- [ ] **AC-21:** Ids are UUIDv7 minted by `CategoryRepository::nextIdentity()`, using
+- [x] **AC-21:** Ids are UUIDv7 minted by `CategoryRepository::nextIdentity()`, using
       `<generator strategy="NONE"/>`. The DBAL types are registered as `catalog_category_id`,
       `catalog_category_name` and `catalog_category_slug`. The mapping lives at
       `src/Infrastructure/Catalog/Persistence/Doctrine/mapping/Category.orm.xml` in a `Catalog`
@@ -234,7 +234,7 @@ console command `muzbar:identity:grant-role`.
 
 ### Admin HTTP surface (Functional)
 
-- [ ] **AC-22 (authz):** For every route under `/admin` (`GET /admin/categories`,
+- [x] **AC-22 (authz):** For every route under `/admin` (`GET /admin/categories`,
       `GET|POST /admin/categories/new`, `GET|POST /admin/categories/{id}/edit` and
       `POST /admin/categories/{id}/delete`):
       - an **anonymous** request is redirected to `/login`, and no row changes;
@@ -243,53 +243,53 @@ console command `muzbar:identity:grant-role`.
 
       The `access_control` rule is anchored as `^/admin(/|$)`, and a request to `/administrator`
       is not affected by it. The controller also carries `#[IsGranted('ROLE_ADMIN')]`.
-- [ ] **AC-23 (index):** `GET /admin/categories` lists every category depth-first. Each row is
+- [x] **AC-23 (index):** `GET /admin/categories` lists every category depth-first. Each row is
       indented by its depth and shows name and slug. Siblings are ordered by name,
       case-insensitively, with id as the tie-break. Each row has "Edit", "Delete" and "Add child".
       **"Add child" is absent on depth-4 rows.** There is one "Add root category" link. The page
       issues a **single** SQL query for the tree.
-- [ ] **AC-24 (create via form):** Submitting the new-category form with name, an optional slug and
+- [x] **AC-24 (create via form):** Submitting the new-category form with name, an optional slug and
       a parent chosen from a select ("— none (root) —" plus every category, indented) creates the
       category. The response is a 303 to `/admin/categories` with a flash naming it.
       `/admin/categories/new?parent=<id>` preselects that parent.
-- [ ] **AC-25 (slug derivation):** A blank slug is derived from the name with Symfony's
+- [x] **AC-25 (slug derivation):** A blank slug is derived from the name with Symfony's
       `AsciiSlugger`, lower-cased and cut to 64 characters with no trailing hyphen.
       `"Bass & Guitars"` gives `bass-guitars` and `"Электрогитары"` gives `elektrogitary`. If
       derivation gives an empty string (e.g. name `"!!!"`), the form shows *"Enter a slug: one could
       not be derived from this name."* on the slug field, and nothing is persisted.
-- [ ] **AC-26 (errors render on the right field, status 422):** Each domain refusal re-renders the
+- [x] **AC-26 (errors render on the right field, status 422):** Each domain refusal re-renders the
       form with HTTP **422**, nothing persisted, and the exact message on the field given in the
       failure contract below. Every other field keeps the value that was submitted.
-- [ ] **AC-27 (edit):** The edit form is pre-filled. One submit can rename, change the slug and move.
+- [x] **AC-27 (edit):** The edit form is pre-filled. One submit can rename, change the slug and move.
       Its parent select lists every category except the edited one. A move into a descendant is
       still possible by tampering, and the domain refuses it (AC-26).
-- [ ] **AC-28 (delete):** `POST /admin/categories/{id}/delete` with a valid CSRF token deletes a
+- [x] **AC-28 (delete):** `POST /admin/categories/{id}/delete` with a valid CSRF token deletes a
       leaf and redirects 303 with a flash. For a non-leaf it redirects 303 with the error flash
       *"“<name>” has subcategories. Move or delete them first."* and deletes nothing. There is **no
       GET route that deletes** (ADR-0015's accepted risk: no GET may change state).
-- [ ] **AC-29 (CSRF):** A create, edit or delete POST with a missing or wrong CSRF token mutates
+- [x] **AC-29 (CSRF):** A create, edit or delete POST with a missing or wrong CSRF token mutates
       nothing. Create and edit re-render with 422. Delete answers **403**.
-- [ ] **AC-30 (unknown ids):** `GET /admin/categories/<valid but unknown uuid>/edit` and the delete
+- [x] **AC-30 (unknown ids):** `GET /admin/categories/<valid but unknown uuid>/edit` and the delete
       POST for such an id return **404**. A malformed `{id}` also returns 404 (route requirement
       `Requirement::UUID`). Neither case writes anything.
 
 ### Admin role (Identity, console)
 
-- [ ] **AC-31:** `muzbar:identity:grant-role <email> ROLE_ADMIN` grants the role and exits 0, and
+- [x] **AC-31:** `muzbar:identity:grant-role <email> ROLE_ADMIN` grants the role and exits 0, and
       running it again is still exit 0 (idempotent, I-3). `--revoke` removes the role and exits 0.
       An unknown email exits 1 with *`No user found with email "<email>"`*. An unknown role exits 1
       and lists the valid values. `--revoke ROLE_USER` exits 1 with the `CannotRevokeBaseRole`
       message and changes nothing.
-- [ ] **AC-32 (revocation bites immediately):** An admin who is signed in and then has `ROLE_ADMIN`
+- [x] **AC-32 (revocation bites immediately):** An admin who is signed in and then has `ROLE_ADMIN`
       revoked from the console does **not** get a 200 from `/admin/categories` on their next request.
       Symfony's user refresh sees the role change. The test asserts this; it does not assume it.
 
 ### Cross-cutting
 
-- [ ] **AC-33:** Domain refusals (every row of the failure contract marked *user error*) are **not**
+- [x] **AC-33:** Domain refusals (every row of the failure contract marked *user error*) are **not**
       logged at `error`, so they never reach Sentry (ADR-0013). C-4b corruption **is**: it surfaces
       as an uncaught `\LogicException` and a 500.
-- [ ] **AC-34 (tests bite):** Each of these mutations makes a named test fail, and the commit
+- [x] **AC-34 (tests bite):** Each of these mutations makes a named test fail, and the commit
       message records which:
       (a) delete the cycle guard in `moveUnder()`;
       (b) change `+ subtreeHeight` to `+ 1`;
@@ -297,7 +297,7 @@ console command `muzbar:identity:grant-role`.
       (d) remove `exclusively()` from `EditCategoryHandler`;
       (e) remove `access_control`'s `/admin` line **and** the `#[IsGranted]`;
       (f) remove the recursion bound in `lineageOf()`.
-- [ ] **AC-35:** `make check` is green, and `make test` passes **twice in a row**. Deptrac reports
+- [x] **AC-35:** `make check` is green, and `make test` passes **twice in a row**. Deptrac reports
       0 violations with `--fail-on-uncovered`.
 
 ---

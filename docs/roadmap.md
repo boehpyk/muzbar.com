@@ -223,7 +223,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         One aggregate per node on an adjacency list; cycles and depth decided by the aggregate on
         facts read under one tree-wide advisory lock; `ROLE_ADMIN` granted from the console.
         [ADR-0016](./adr/0016-category-tree-per-node-aggregates-under-one-tree-lock.md).
-        **Owed:** `/verify` (T23).
+        Passed `/verify` 2026-11-15 in one iteration (reviewer PASS, 4 MINOR + 1 STYLE open).
   - [ ] `catalog-attribute-schema` — `Attribute` + `AttributeOption`: typed attributes (enum,
         number, boolean, text), units, validation rules, attached to categories. Open question for
         `/plan`: is `AttributeOption` its own aggregate or a value collection inside `Attribute` (as

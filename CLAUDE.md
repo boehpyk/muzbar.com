@@ -74,12 +74,12 @@ Docker Compose · Traefik · Nginx.
 > (AC-15, AC-19), amended in place with "the test won, on purpose". The JS overlay (AC-25) was checked
 > in a real Chromium, 8/8. ADR-0015 now records the accepted risk: **no GET route may change state on
 > behalf of the signed-in user** — any site can choose where a victim lands after signing in.
-> `catalog-category-tree` (2026-11-14, **built, not yet `/verify`ed**) — Catalog slice 1 of 3: one
+> `catalog-category-tree` (2026-11-14, **passed `/verify` 2026-11-15 first time**) — Catalog slice 1 of 3: one
 > `Category` aggregate **per node** on an adjacency list, and the repo's **first cross-instance
 > invariants** (no cycles, depth ≤ `MAX_DEPTH = 4`), decided by the aggregate on facts read under one
 > tree-wide advisory lock. Admin CRUD under `/admin` (`ROLE_ADMIN`, granted only from the console).
 > [ADR-0016](./docs/adr/0016-category-tree-per-node-aggregates-under-one-tree-lock.md) + ADR-0005/0009 amendments.
-> Next: `/verify` this slice, then `catalog-attribute-schema`.
+> Next: `catalog-attribute-schema`.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).

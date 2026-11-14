@@ -106,7 +106,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       DDD reasons, not speed).
 
 ## Verify
-- [ ] **T23:** `/verify` → reviewer PASS, AC-1…AC-35 checked. `grep -rn 'Domain\\Identity'
+- [x] **T23:** `/verify` → reviewer PASS, AC-1…AC-35 checked. `grep -rn 'Domain\\Identity'
       src/src/Domain/Catalog src/src/Application/Catalog` is empty. `make migration.make` produces
       no diff. Manually walk through the admin screens on the dev stack (create a 4-level branch,
       attempt a cycle, attempt depth 5, delete a non-leaf), and if a hand-check contradicts the
