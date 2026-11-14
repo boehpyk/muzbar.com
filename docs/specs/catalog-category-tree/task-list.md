@@ -85,7 +85,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
 - [x] **T18:** Lock tests: the second-connection `pg_try_advisory_xact_lock` probe from inside the
       closure, and the "every handler takes the lock" recording double (concrete service id +
       `disableReboot()`). The docblock explains why release is not asserted under DAMA. (AC-17)
-- [ ] **T19:** Functional `CategoryAdminTest`: authz matrix over all routes, index order,
+- [x] **T19:** Functional `CategoryAdminTest`: authz matrix over all routes, index order,
       indentation and suppression, create with `?parent=`, Cyrillic slug derivation, every
       failure-contract row (exact message, field, 422, other fields keep their values), edit and
       move, delete leaf/non-leaf, no GET delete, CSRF, and the 404s. Also the C-3 race re-render

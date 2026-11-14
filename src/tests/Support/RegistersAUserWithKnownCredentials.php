@@ -20,7 +20,7 @@ use App\Tests\Factory\UserFactory;
  */
 trait RegistersAUserWithKnownCredentials
 {
-    private function registerUserWithKnownCredentials(string $email, string $plainPassword, bool $verified = false): User
+    private function registerUserWithKnownCredentials(string $email, string $plainPassword, bool $verified = false, bool $admin = false): User
     {
         $hasher = self::getContainer()->get(PasswordHasher::class);
         self::assertInstanceOf(PasswordHasher::class, $hasher);
@@ -29,6 +29,13 @@ trait RegistersAUserWithKnownCredentials
 
         $factory = UserFactory::new(['email' => Email::fromString($email), 'passwordHash' => $hash]);
 
-        return $verified ? $factory->verified()->create() : $factory->create();
+        if ($verified) {
+            $factory = $factory->verified();
+        }
+        if ($admin) {
+            $factory = $factory->admin();
+        }
+
+        return $factory->create();
     }
 }
