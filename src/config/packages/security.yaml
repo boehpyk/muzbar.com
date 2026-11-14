@@ -102,6 +102,7 @@ security:
         # requirement where a reader of the action will see it, this rule enforces it even if the
         # controller is later refactored or a sub-path appears under /account.
         - { path: ^/account, roles: ROLE_USER }
+        - { path: ^/profile, roles: ROLE_USER }
 
 when@test:
     security:

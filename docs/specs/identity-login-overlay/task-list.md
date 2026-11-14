@@ -26,7 +26,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 - [x] **T1:** `Infrastructure/Identity/Http/IntendedActionPath.php` — `fromUntrusted(mixed): ?string`,
       `MAX_BYTES = 2048`, the five rules from the plan's *Interface boundary*; docblock names the one
       writer. (AC-9, AC-11, AC-12)
-- [ ] **T2:** `ProfileController` (`/profile`, `app_profile`, `#[IsGranted('ROLE_USER')]`, no
+- [x] **T2:** `ProfileController` (`/profile`, `app_profile`, `#[IsGranted('ROLE_USER')]`, no
       variables) + `templates/identity/profile.html.twig` (h1 "Profile", one placeholder sentence) +
       `security.yaml` `access_control` `^/profile`. (AC-1)
 - [ ] **T3:** `SecurityController::login()` — on `GET`, `query->all()['_target_path']` →
