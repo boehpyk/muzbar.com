@@ -37,7 +37,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 - [x] **T5:** `login.html.twig` — wrap in `section[data-auth-panel][aria-labelledby=auth-panel-title]`,
       `h1#auth-panel-title`, empty `auth_nav` override; `register.html.twig` — empty `auth_nav`
       override. No other markup change. (AC-21, AC-22)
-- [ ] **T6:** `base.html.twig` — `{% block auth_nav %}`: guest → `a[data-auth-overlay]` "Profile" to
+- [x] **T6:** `base.html.twig` — `{% block auth_nav %}`: guest → `a[data-auth-overlay]` "Profile" to
       `path('app_login', {_target_path: path('app_profile')})`; signed in → plain "Profile" link to
       `path('app_profile')`. (AC-23, AC-24)
 - [ ] **T7:** `assets/app.js` — drop the skeleton `console.log`; delegated click handler, modifier

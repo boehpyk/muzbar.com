@@ -24,6 +24,19 @@
         {% endif %}
     </head>
     <body>
+        {# The one overlay trigger (ADR-0015), and the shape every future action link ("Sell Gear")
+           copies: an ordinary link to `/login?_target_path=<intended action>` that works without JS,
+           which assets/app.js upgrades to a dialog when it can. The target comes from `path()`, so
+           it cannot drift from the route. A signed-in visitor has nothing to sign in for, so they get
+           a plain link. Pages that are themselves the sign-in flow override this block to empty. #}
+        {% block auth_nav %}
+            {% if is_granted('IS_AUTHENTICATED') %}
+                <a href="{{ path('app_profile') }}">Profile</a>
+            {% else %}
+                <a href="{{ path('app_login', {_target_path: path('app_profile')}) }}" data-auth-overlay>Profile</a>
+            {% endif %}
+        {% endblock %}
+
         {# Flashes live in the layout, not in each page: a flash is set by the request that
            redirects away, so the page that displays it is never the page that produced it. #}
         {% block flashes %}
