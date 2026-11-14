@@ -61,7 +61,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       `services.yaml`. (AC-16, AC-17)
 - [x] **T12:** `DbalCategoryOutline`: one depth-first recursive CTE ordered by
       `lower(name), id` per level. It returns the rows, including `depth`. (AC-23)
-- [ ] **T13:** `CategoryFormType` + `CategoryFormData` (no business constraints) and slug derivation
+- [x] **T13:** `CategoryFormType` + `CategoryFormData` (no business constraints) and slug derivation
       with `SluggerInterface` (lower-cased, cut to 64, trailing hyphen trimmed, empty → the slug
       field error). (AC-25)
 - [ ] **T14:** `CategoryAdminController` (`#[IsGranted('ROLE_ADMIN')]`, `Requirement::UUID`) with
