@@ -129,7 +129,7 @@ final class UserTest extends TestCase
 
         $user->changePassword($newHash, $changedAt);
 
-        self::assertTrue($user->passwordHash()->equals($newHash));
+        self::assertTrue($user->passwordHash()?->equals($newHash));
         self::assertEquals($changedAt, $user->passwordChangedAt());
     }
 

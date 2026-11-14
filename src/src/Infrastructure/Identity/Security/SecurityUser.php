@@ -30,14 +30,16 @@ final readonly class SecurityUser implements UserInterface, PasswordAuthenticate
     /**
      * @param non-empty-string $email        the login identifier
      * @param list<string>     $roles        `Role` backed values, which are literally what Symfony expects
-     * @param string           $passwordHash the opaque hash the firewall verifies against
+     * @param ?string          $passwordHash the opaque hash the firewall verifies against; `null` for a
+     *                                       passwordless account, which Symfony's `CheckCredentialsListener`
+     *                                       rejects like a wrong password
      * @param bool             $usable       `User::isUsable()` at the moment this snapshot was taken
      */
     private function __construct(
         private string $id,
         private string $email,
         private array $roles,
-        private string $passwordHash,
+        private ?string $passwordHash,
         private bool $usable,
     ) {
     }
@@ -56,7 +58,7 @@ final readonly class SecurityUser implements UserInterface, PasswordAuthenticate
             $user->id()->toString(),
             $email,
             array_map(static fn (Role $role): string => $role->value, $user->roles()),
-            $user->passwordHash()->toString(),
+            $user->passwordHash()?->toString(),
 
             // `isUsable()`, NOT `isEmailVerified()` — and the difference is the entire point of the
             // line. The two methods return the same boolean today, so picking either one passes
@@ -104,7 +106,7 @@ final readonly class SecurityUser implements UserInterface, PasswordAuthenticate
         return $this->roles;
     }
 
-    public function getPassword(): string
+    public function getPassword(): ?string
     {
         return $this->passwordHash;
     }
