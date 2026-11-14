@@ -61,7 +61,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
 - [x] **T21:** Functional, security: state mismatch, cross-session, `access_denied`; passwordless vs
       wrong password compared live; passwordless → reset → both logins; `/register` over a Google
       account. (AC-13, 14, 15, 17)
-- [ ] **T22:** Functional, privacy: log scan for email/sub/code/state/verifier/token; provider
+- [x] **T22:** Functional, privacy: log scan for email/sub/code/state/verifier/token; provider
       failure → exactly one Sentry event; user-caused → zero. (AC-19, AC-20)
 - [ ] **T23:** Prove the security tests bite: temporarily remove the I-29 line, the strict `=== true`,
       and the PKCE restore, and confirm a test fails each time. Record it in the commit message. `make test` × 2. (AC-24)
