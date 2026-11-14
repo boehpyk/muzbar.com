@@ -26,7 +26,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
 - [x] **T6:** `UserRepository::findByOAuthIdentity()` on the port.
 
 ## Application
-- [ ] **T7:** `Command/SignInWithOAuth` + `Handler/SignInWithOAuthHandler` (recognise → verified gate
+- [x] **T7:** `Command/SignInWithOAuth` + `Handler/SignInWithOAuthHandler` (recognise → verified gate
       → link → provision). (AC-5, AC-6, AC-8, AC-9, AC-10)
 
 ## Infrastructure
