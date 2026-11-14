@@ -22,6 +22,7 @@ final class LoginVerificationEnforcementTest extends WebTestCase
 {
     use ClearsRateLimiters;
     use RegistersAUserWithKnownCredentials;
+    private const string THROTTLED_MESSAGE = '/^Too many failed login attempts, please try again in 1[56] minutes\.$/';
 
     private KernelBrowser $client;
 
@@ -99,7 +100,9 @@ final class LoginVerificationEnforcementTest extends WebTestCase
 
         self::assertResponseRedirects('/login');
         $error = trim($this->client->followRedirect()->filter('p.error')->text());
-        self::assertSame('Too many failed login attempts, please try again in 15 minutes.', $error);
+        // 15-minute window, sliding: the five hits count in full until it closes and then fade, so
+        // the honest wait is just over 15 minutes and Symfony (>= 7.4.23) rounds it up to 16.
+        self::assertMatchesRegularExpression(self::THROTTLED_MESSAGE, $error);
         self::assertNotSame('Please verify your email address before signing in.', $error);
     }
 
