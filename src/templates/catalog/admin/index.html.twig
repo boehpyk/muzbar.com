@@ -1,0 +1,41 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Categories{% endblock %}
+
+{% block body %}
+    <h1>Categories</h1>
+
+    <p><a href="{{ path('admin_category_new') }}">Add root category</a></p>
+
+    {# Rows come depth-first from `DbalCategoryOutline` in one query (AC-23); indentation is one
+       `— ` per level below the root (guarded, because Twig's `2..1` counts down). Unstyled on purpose (plan D9). #}
+    {% if rows is empty %}
+        <p>No categories yet.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Slug</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td>{% if row.depth > 1 %}{% for i in 2..row.depth %}— {% endfor %}{% endif %}{{ row.name }}</td>
+                        <td>{{ row.slug }}</td>
+                        <td>
+                            <a href="{{ path('admin_category_edit', {id: row.id}) }}">Edit</a>
+                            {# Absent at the depth ceiling: a child there would be refused (C-5). #}
+                            {% if row.depth < maxDepth %}
+                                <a href="{{ path('admin_category_new', {parent: row.id}) }}">Add child</a>
+                            {% endif %}
+                            {# A form, never a link: no GET may change state (ADR-0015, AC-28). #}
+                            <form method="post" action="{{ path('admin_category_delete', {id: row.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('delete-category-' ~ row.id) }}">
+                                <button type="submit">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock %}

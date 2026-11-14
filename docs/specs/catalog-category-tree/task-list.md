@@ -64,7 +64,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
 - [x] **T13:** `CategoryFormType` + `CategoryFormData` (no business constraints) and slug derivation
       with `SluggerInterface` (lower-cased, cut to 64, trailing hyphen trimmed, empty → the slug
       field error). (AC-25)
-- [ ] **T14:** `CategoryAdminController` (`#[IsGranted('ROLE_ADMIN')]`, `Requirement::UUID`) with
+- [x] **T14:** `CategoryAdminController` (`#[IsGranted('ROLE_ADMIN')]`, `Requirement::UUID`) with
       index, new (`?parent=`), edit and POST-only delete (token `delete-category-{id}`, 403 on a bad
       token). Maps domain exceptions to fields per the failure contract with 422, and logs nothing.
       Templates `templates/catalog/admin/{index,new,edit}.html.twig`, unstyled, with "Add child"

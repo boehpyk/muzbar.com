@@ -104,6 +104,10 @@ security:
         - { path: ^/account, roles: ROLE_USER }
         # Anchored: a bare `^/profile` prefix would also lock a future public `/profiles/{slug}`.
         - { path: ^/profile(/|$), roles: ROLE_USER }
+        # Anchored for the same reason: `^/admin` would also catch a future public `/administrator…`
+        # or `/admins…` page. Belt and braces with `#[IsGranted('ROLE_ADMIN')]` on
+        # `CategoryAdminController`; ROLE_ADMIN is granted only from the console (ADR-0005 amendment).
+        - { path: ^/admin(/|$), roles: ROLE_ADMIN }
 
 when@test:
     security:
