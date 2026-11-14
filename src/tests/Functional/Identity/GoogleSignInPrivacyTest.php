@@ -6,12 +6,15 @@ namespace App\Tests\Functional\Identity;
 
 use App\Domain\Identity\Entity\User;
 use App\Domain\Identity\ValueObject\Email;
+use App\Infrastructure\Identity\Persistence\Doctrine\DoctrineUserRepository;
 use App\Tests\Factory\UserFactory;
 use App\Tests\Fixture\FakeGoogleHttpClient;
+use App\Tests\Fixture\StaleEmailLookupUserRepository;
 use App\Tests\Support\ClearsRateLimiters;
 use App\Tests\Support\DrivesGoogleOAuth;
 use App\Tests\Support\ReadsSentryEvents;
 use App\Tests\Support\RegistersAUserWithKnownCredentials;
+use Doctrine\ORM\EntityManagerInterface;
 use Monolog\Level;
 use Monolog\LogRecord;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -88,6 +91,7 @@ final class GoogleSignInPrivacyTest extends WebTestCase
             'invalid asserted email (AC-10)',
             'second Google subject (AC-11)',
             'pre-hijack link (AC-12)',
+            'lost provision race',
             'bad state (AC-13)',
             'other session (AC-13)',
             'access_denied (AC-13)',
@@ -110,6 +114,26 @@ final class GoogleSignInPrivacyTest extends WebTestCase
         self::assertCount(1, $app);
         self::assertSame(Level::Warning, $app[0]->level);
         self::assertSame(['reason'], array_keys($app[0]->context));
+    }
+
+    public function testACallbackInAnotherSessionIsLoggedAtWarningBecauseTheVisitorCausedIt(): void
+    {
+        $this->exercise('other session (AC-13)');
+
+        $app = $this->appLogRecords();
+        self::assertCount(1, $app);
+        self::assertSame(Level::Warning, $app[0]->level);
+        self::assertSame('missing_pkce_verifier', $app[0]->context['reason'] ?? null);
+    }
+
+    public function testALostProvisionRaceIsLoggedAtWarningNamingTheExceptionClassNotItsMessage(): void
+    {
+        $this->exercise('lost provision race');
+
+        $app = $this->appLogRecords();
+        self::assertCount(1, $app);
+        self::assertSame(Level::Warning, $app[0]->level);
+        self::assertSame(\App\Domain\Identity\Exception\EmailAlreadyRegistered::class, $app[0]->context['reason'] ?? null);
     }
 
     public function testAnUnverifiedProviderEmailIsLoggedAtInfo(): void
@@ -196,6 +220,7 @@ final class GoogleSignInPrivacyTest extends WebTestCase
             'unverified provider email (AC-9)',
             'invalid asserted email (AC-10)',
             'second Google subject (AC-11)',
+            'lost provision race',
             'bad state (AC-13)',
             'other session (AC-13)',
             'access_denied (AC-13)',
@@ -246,6 +271,16 @@ final class GoogleSignInPrivacyTest extends WebTestCase
                 break;
             case 'pre-hijack link (AC-12)':
                 $this->registerUserWithKnownCredentials(self::ACCOUNT_EMAIL, 'the-attackers-password-1');
+                $secrets = $this->signIn($this->claims(self::SUB, self::ACCOUNT_EMAIL));
+                break;
+            case 'lost provision race':
+                // Another callback provisioned this address between our lookup and our save: the
+                // lookup is made stale, so the unique index (not the handler) refuses the insert,
+                // and `EmailAlreadyRegistered`'s message contains the address.
+                $this->account(verified: true);
+                $entityManager = self::getContainer()->get(EntityManagerInterface::class);
+                self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+                self::getContainer()->set(DoctrineUserRepository::class, new StaleEmailLookupUserRepository(new DoctrineUserRepository($entityManager)));
                 $secrets = $this->signIn($this->claims(self::SUB, self::ACCOUNT_EMAIL));
                 break;
             case 'bad state (AC-13)':
