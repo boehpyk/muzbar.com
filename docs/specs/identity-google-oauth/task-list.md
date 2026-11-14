@@ -15,7 +15,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       discards the password; I-5 not widened; PKCE added by us). No code.
 
 ## Domain
-- [ ] **T1:** `ValueObject/OAuthProvider` enum + `ValueObject/OAuthIdentity` + `Exception/InvalidOAuthIdentity`.
+- [x] **T1:** `ValueObject/OAuthProvider` enum + `ValueObject/OAuthIdentity` + `Exception/InvalidOAuthIdentity`.
       (AC-21)
 - [ ] **T2:** `Event/UserOAuthIdentityLinked` (userId, provider, linkedAt, passwordDiscarded). No sub, no email.
 - [ ] **T3:** `Exception/OAuthProviderAlreadyLinked`, `Exception/OAuthEmailNotVerified`.
