@@ -69,7 +69,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
       `make test` × 2. (AC-31)
 
 ## Docs
-- [ ] **T15:** CLAUDE.md — status (Identity 7/7 complete), the one-writer/`HttpUtils`-readers
+- [x] **T15:** CLAUDE.md — status (Identity 7/7 complete), the one-writer/`HttpUtils`-readers
       footgun, browser TAB/backslash normalisation, 1440 s session idle lifetime, how a future action
       link becomes an overlay trigger. `docs/roadmap.md` — tick, amend "Live Component" → "native
       `<dialog>` + plain JS", close the AC-4 TODO, note `/profile` as a placeholder.

@@ -256,7 +256,8 @@ The **hostile list** (each value URL-encoded into the query string as a whole):
       is empty.
 - [ ] **AC-27 (neutral errors unchanged):** with `/profile` stashed, a wrong password for a real
       account and any password for an unknown email produce **byte-identical** response bodies
-      (asserted against each other, live); every existing login, throttling and Google test passes
+      (asserted against each other, live, after normalising the echoed email and the re-issued CSRF
+      token — the only two values that legitimately differ); every existing login, throttling and Google test passes
       **unmodified**.
 - [ ] **AC-28 (throttling unchanged):** with `/profile` stashed, the 6th failed `POST /login` for one
       username in 15 minutes is refused by the throttle exactly as in `ThrottlingTest`.
