@@ -40,7 +40,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 - [x] **T6:** `base.html.twig` — `{% block auth_nav %}`: guest → `a[data-auth-overlay]` "Profile" to
       `path('app_login', {_target_path: path('app_profile')})`; signed in → plain "Profile" link to
       `path('app_profile')`. (AC-23, AC-24)
-- [ ] **T7:** `assets/app.js` — drop the skeleton `console.log`; delegated click handler, modifier
+- [x] **T7:** `assets/app.js` — drop the skeleton `console.log`; delegated click handler, modifier
       guard, `fetch` + `DOMParser` + `importNode`, one lazily created `<dialog>` with a
       `method="dialog"` close button, `showModal()`, navigate-on-any-failure; comment on the
       flash-consumption caveat (plan Risk 3). No imports. (AC-25, AC-30)
