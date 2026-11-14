@@ -64,7 +64,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 - [x] **T13:** Functional, templates & no-JS — panel contract, Google links on `/login` and
       `/register` (closes the google-oauth AC-4 TODO), "Profile" trigger href / suppression /
       signed-in variant, `clickLink('Profile')` → `submitForm` end to end. (AC-21…AC-24)
-- [ ] **T14:** Prove the tests bite — identity `fromUntrusted()`, revert T4, drop rule 4, drop rule 5,
+- [x] **T14:** Prove the tests bite — identity `fromUntrusted()`, revert T4, drop rule 4, drop rule 5,
       drop both `/profile` guards; a named test fails each time; record in the commit message. Then
       `make test` × 2. (AC-31)
 
