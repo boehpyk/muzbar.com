@@ -21,7 +21,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       duplicated; the trait route meets the criterion and is proposed as its own refactor). No code.
 
 ## Domain (`src/src/Domain/Catalog/`)
-- [ ] **T1:** VOs `CategoryId` (the `UserId` shape, docblock naming D8), `CategoryName` (C-1) and
+- [x] **T1:** VOs `CategoryId` (the `UserId` shape, docblock naming D8), `CategoryName` (C-1) and
       `CategorySlug` (C-2), plus `InvalidCategoryId`, `InvalidCategoryName` and
       `InvalidCategorySlug`. (AC-1…AC-3)
 - [ ] **T2:** VO `Lineage` (`ofRoot`, `fromRootDown`, `depth`, `last`, `contains`) plus
