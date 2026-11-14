@@ -1,0 +1,26 @@
+# Google sign-in (ADR-0014). Service ids: `knpu.oauth2.client.google`, `knpu.oauth2.provider.google`.
+#
+# WHY `type: generic` AND NOT `type: google`.
+# PKCE is required (ADR-0005 amendment), and neither half of the stack does it for Google out of the
+# box: league's `AbstractProvider::getPkceMethod()` returns null and `Google` does not override it
+# (there is no `pkceMethod` constructor option to set), and knpu's `google` type accepts no
+# `provider_options` anyway. knpu ships `OAuth2PKCEClient`, which generates the S256 challenge on
+# `redirect()`, keeps the verifier in the session under `pkce_code_verifier`, and sends it on
+# `getAccessToken()` — but only the `generic` type lets us pick a client class. So: same league
+# `Google` provider, knpu's PKCE client, no code of ours.
+#
+# BOOT PATH: `default::` on purpose. A bare `%env(GOOGLE_CLIENT_ID)%` would make the variable a boot
+# dependency of every kernel — the messenger worker, every console command, CI and `docker build` —
+# and a missing value would be `EnvNotFoundException` there (see CLAUDE.md). Empty instead means
+# "Google sign-in is off": `GoogleOAuthController` logs one error and sends the visitor back to
+# /login (AC-3).
+knpu_oauth2_client:
+    clients:
+        google:
+            type: generic
+            provider_class: League\OAuth2\Client\Provider\Google
+            client_class: KnpU\OAuth2ClientBundle\Client\OAuth2PKCEClient
+            client_id: '%env(default::GOOGLE_CLIENT_ID)%'
+            client_secret: '%env(default::GOOGLE_CLIENT_SECRET)%'
+            redirect_route: app_oauth_google_check
+            redirect_params: {}

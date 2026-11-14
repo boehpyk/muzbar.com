@@ -34,7 +34,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       (nullable hash, `oauth_identities`); `DoctrineUserRepository::findByOAuthIdentity()`.
 - [x] **T9:** Migration (drop NOT NULL; add column with default, then drop default; guarded `down()`).
       Run `make migrate` + `make migration.make` → empty diff. (AC-23)
-- [ ] **T10:** `composer require knpuniversity/oauth2-client-bundle league/oauth2-google`;
+- [x] **T10:** `composer require knpuniversity/oauth2-client-bundle league/oauth2-google`;
       `knpu_oauth2_client.yaml` with `default::` env, `pkceMethod: S256`; env vars in `src/.env`
       (empty), `src/.env.test` (dummy), `.env.example`. Confirm `docker build` + worker boot with
       vars unset. (AC-3 boot half)

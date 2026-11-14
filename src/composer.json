@@ -11,6 +11,8 @@
         "doctrine/doctrine-migrations-bundle": "^4.0",
         "doctrine/orm": "^3.6",
         "egulias/email-validator": "^4.0",
+        "knpuniversity/oauth2-client-bundle": "^2.20",
+        "league/oauth2-google": "^5.0",
         "predis/predis": "^3.5",
         "sentry/sentry-symfony": "^5.16",
         "symfony/asset": "7.4.*",
