@@ -61,7 +61,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 - [x] **T12:** Functional, registrant — register → not authenticated → verify link in the same client
       → still not authenticated → sign in → `/profile`; unverified refusal keeps the target. Fresh
       repository before DB assertions. (AC-19, AC-20)
-- [ ] **T13:** Functional, templates & no-JS — panel contract, Google links on `/login` and
+- [x] **T13:** Functional, templates & no-JS — panel contract, Google links on `/login` and
       `/register` (closes the google-oauth AC-4 TODO), "Profile" trigger href / suppression /
       signed-in variant, `clickLink('Profile')` → `submitForm` end to end. (AC-21…AC-24)
 - [ ] **T14:** Prove the tests bite — identity `fromUntrusted()`, revert T4, drop rule 4, drop rule 5,
