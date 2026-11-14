@@ -41,6 +41,15 @@ security:
                 enable_csrf: true
                 default_target_path: app_account
 
+            # Google sign-in (ADR-0014): handles only `/connect/google/check`. It is not an entry
+            # point (knpu's base class does not implement one), so `form_login` stays the place an
+            # anonymous visitor is sent, and `user_checker` and `login_throttling` below apply to it
+            # as to every authenticator on this firewall. The throttle is keyed on the account's
+            # email, so a Google sign-in for an address under a password-guessing lockout is refused
+            # until the window passes — accepted (plan Risk 4).
+            custom_authenticators:
+                - App\Infrastructure\Identity\Security\GoogleAuthenticator
+
             # `enable_csrf: true` is not optional here. Logout is state-changing, so without a token
             # `GET /logout` is a one-tag cross-site attack: an `<img src="https://muzbar.com/logout">`
             # on any page anywhere signs out every visitor who is logged in. Nobody loses data, but

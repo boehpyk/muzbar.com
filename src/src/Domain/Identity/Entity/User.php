@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Domain\Identity\Entity;
 
 use App\Domain\Identity\Event\UserEmailVerified;
+use App\Domain\Identity\Event\UserOAuthIdentityLinked;
 use App\Domain\Identity\Event\UserPasswordChanged;
 use App\Domain\Identity\Event\UserRegistered;
 use App\Domain\Identity\Exception\CannotRevokeBaseRole;
+use App\Domain\Identity\Exception\OAuthProviderAlreadyLinked;
 use App\Domain\Identity\ValueObject\Email;
 use App\Domain\Identity\ValueObject\HashedPassword;
+use App\Domain\Identity\ValueObject\OAuthIdentity;
 use App\Domain\Identity\ValueObject\Role;
 use App\Domain\Identity\ValueObject\UserId;
 use App\Domain\Shared\Event\RecordsEvents;
@@ -18,8 +21,9 @@ use App\Domain\Shared\Event\RecordsEvents;
  * The `Identity` aggregate root: one person's account on muzbar.
  *
  * It is the consistency boundary for its own credentials, roles and verification state — and it is
- * kept small on purpose. `OAuthIdentity` joins it as a collection in `identity-google-oauth`;
- * `ApiKey` is a *separate* aggregate in Phase 3, because an API key has its own lifecycle and
+ * kept small on purpose. Linked `OAuthIdentity` values live inside it (ADR-0014), because the
+ * rules about them — one per provider (I-28), and linking discarding an unproven password (I-29) —
+ * are rules about this user's credentials changing together. `ApiKey` is a *separate* aggregate in Phase 3, because an API key has its own lifecycle and
  * nothing about revoking one needs to be transactionally consistent with a user's roles.
  *
  * Two things this class deliberately does **not** do:
@@ -37,7 +41,9 @@ final class User
 
     /**
      * When this account's password was last changed — `null` for an account that still has the one
-     * it registered with (invariant I-22).
+     * it registered with, *or never had one* (a Google-provisioned account; invariant I-22). Setting
+     * a first password is a change like any other, and dropping one under I-29 is not a change at
+     * all: nobody chose a new password, so this stays untouched.
      *
      * Declared here rather than promoted into the constructor on purpose: it is derived state that
      * no creation path supplies, so a constructor parameter would force `register()` and every
@@ -59,6 +65,18 @@ final class User
     private ?\DateTimeImmutable $passwordChangedAt = null;
 
     /**
+     * The provider identities this account can sign in with (ADR-0014): at most one per provider
+     * (I-28), and together with the password at least one credential exists (I-27).
+     *
+     * Declared here, outside the constructor, for the same reason as `passwordChangedAt`: `register()`
+     * has nothing to supply, and the one creation path that does (`registerWithOAuth()`) sets it
+     * after construction.
+     *
+     * @var list<OAuthIdentity>
+     */
+    private array $oauthIdentities = [];
+
+    /**
      * Properties are plain `private`, not `readonly`, even where nothing ever reassigns them
      * (`id`, `registeredAt`): Doctrine hydrates this object by reflection and readonly properties
      * still trip its refresh/proxy paths. Immutability from the outside is guaranteed by the
@@ -69,7 +87,7 @@ final class User
     private function __construct(
         private UserId $id,
         private Email $email,
-        private HashedPassword $passwordHash,
+        private ?HashedPassword $passwordHash,
         private array $roles,
         private ?\DateTimeImmutable $emailVerifiedAt,
         private \DateTimeImmutable $registeredAt,
@@ -93,6 +111,80 @@ final class User
         $user->recordThat(new UserRegistered($id, $email, $registeredAt));
 
         return $user;
+    }
+
+    /**
+     * The second way a User comes into existence: through a provider, with no password at all.
+     *
+     * PRECONDITION, ENFORCED BY THE CALLER: the provider verified `$email`. That is why the account is
+     * born email-verified (`emailVerifiedAt = $registeredAt`) — the proof already happened, at the
+     * provider — and why invariant I-5 holds from the first instant. The aggregate cannot check a
+     * boolean it never sees; `SignInWithOAuthHandler` refuses an unverified address before calling
+     * this.
+     *
+     * I-27 (a password, an identity, or both) is held by the signature: there is no way to call this
+     * without an identity.
+     *
+     * Records `UserRegistered` then `UserEmailVerified`, in that order — the same two facts a
+     * password registration followed by a verification click would record. There is deliberately no
+     * `UserRegisteredWithOAuth`: the fact is "a user registered", and each listener decides whether
+     * it applies (the verification-mail listener treats an already-verified account as nothing to
+     * do).
+     */
+    public static function registerWithOAuth(UserId $id, Email $email, OAuthIdentity $identity, \DateTimeImmutable $registeredAt): self
+    {
+        $user = new self($id, $email, null, [Role::User], $registeredAt, $registeredAt);
+        $user->oauthIdentities = [$identity];
+        $user->recordThat(new UserRegistered($id, $email, $registeredAt));
+        $user->recordThat(new UserEmailVerified($id, $registeredAt));
+
+        return $user;
+    }
+
+    /**
+     * Attach a provider identity to this existing account (ADR-0014).
+     *
+     * PRECONDITION, ENFORCED BY THE CALLER: the provider verified an address equal to this account's
+     * email. Both sides then proved the same mailbox, which is what makes linking by email safe.
+     *
+     * - Linking an identity already held is a no-op with no event — idempotent, like `verifyEmail()`.
+     * - A *different* identity from a provider already linked is refused (I-28).
+     * - On an **unverified** account the password is discarded (I-29): see the comment at the line.
+     *
+     * Records `UserEmailVerified` (only if this verified the address) then `UserOAuthIdentityLinked`.
+     */
+    public function linkOAuthIdentity(OAuthIdentity $identity, \DateTimeImmutable $at): void
+    {
+        if ($this->hasOAuthIdentity($identity)) {
+            return;
+        }
+
+        foreach ($this->oauthIdentities as $held) {
+            if ($held->isFrom($identity->provider())) {
+                throw OAuthProviderAlreadyLinked::forUser($this->id, $identity->provider());
+            }
+        }
+
+        $passwordDiscarded = false;
+
+        if (!$this->isEmailVerified()) {
+            // I-29, THE PRE-HIJACK DEFENCE, AND DELIBERATELY NOT `changePassword()`. An unverified
+            // account's password predates any proof of the mailbox: anyone could have registered this
+            // address first and be waiting for its owner to sign in with Google. The owner has just
+            // proved the mailbox, so a password nobody proved does not survive it.
+            //
+            // It is a plain assignment rather than `changePassword()` because nobody chose a new
+            // password: there is no new hash, so `passwordChangedAt` stays as it was and
+            // `UserPasswordChanged` is not recorded — that event would send a "your password was
+            // changed" mail to someone who changed nothing. Any reset link still outstanding for this
+            // address sits in the very mailbox that just proved itself, so I-23 needs nothing extra.
+            $this->passwordHash = null;
+            $passwordDiscarded = true;
+        }
+
+        $this->oauthIdentities[] = $identity;
+        $this->verifyEmail($at);
+        $this->recordThat(new UserOAuthIdentityLinked($this->id, $identity->provider(), $at, $passwordDiscarded));
     }
 
     /**
@@ -175,18 +267,17 @@ final class User
 
     /**
      * ADR-0005's invariant I-5 — *"a usable account has a verified email or a linked verified
-     * OAuth identity"* — in executable form.
+     * OAuth identity"* — in executable form, enforced at login by `VerifiedAccountUserChecker`.
      *
-     * It reads trivially today because the second half of the sentence has no model yet.
-     * `identity-google-oauth` widens it to `isEmailVerified() || hasVerifiedOAuthIdentity()` by
-     * adding one clause *inside this method*, which is the whole reason it exists now: the
-     * aggregate's design never has to reopen, and no caller changes.
-     *
-     * ENFORCEMENT IS DEFERRED, ON PURPOSE (AC-24). This slice installs no `UserCheckerInterface`
-     * on the firewall, so an unverified user can still log in: the Domain holds the opinion, the
-     * Security layer does not yet act on it — and per ADR-0005 the Security layer is exactly where
-     * authentication policy belongs. `identity-email-verification` adds the checker and inverts
-     * AC-24 without touching a line of `Domain` or `Application`.
+     * THE PREDICTED SECOND CLAUSE WAS DECLINED (ADR-0014, AC-16). ADR-0005 expected
+     * `identity-google-oauth` to widen this to `isEmailVerified() || hasVerifiedOAuthIdentity()`. It
+     * did not, because that clause could never be the one that decides: an identity is only ever
+     * linked on a provider-verified address that is also the account's own address, so
+     * `registerWithOAuth()` sets `emailVerifiedAt` and `linkOAuthIdentity()` calls `verifyEmail()`.
+     * Every account holding an identity is therefore already email-verified, and the extra clause
+     * would be dead code with a security-sounding name. Should a future provider ever be linked
+     * without verifying the email, *that* is when the clause earns its place — here, so no caller
+     * changes.
      */
     public function isUsable(): bool
     {
@@ -231,13 +322,42 @@ final class User
         return $this->email;
     }
 
-    public function passwordHash(): HashedPassword
+    /**
+     * `null` for a passwordless account: provisioned through a provider, or one whose unproven
+     * password was discarded under I-29. Form login then fails exactly like a wrong password.
+     */
+    public function passwordHash(): ?HashedPassword
     {
         return $this->passwordHash;
     }
 
+    public function hasPassword(): bool
+    {
+        return null !== $this->passwordHash;
+    }
+
     /**
-     * `null` means "never changed since registration", which is a different statement from
+     * @return list<OAuthIdentity>
+     */
+    public function oauthIdentities(): array
+    {
+        return $this->oauthIdentities;
+    }
+
+    public function hasOAuthIdentity(OAuthIdentity $identity): bool
+    {
+        foreach ($this->oauthIdentities as $held) {
+            if ($held->equals($identity)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * `null` means "never changed since registration" (including "never had a password at all"),
+     * which is a different statement from
      * "changed at the moment of registration" — and the difference is why this is nullable rather
      * than defaulted to `registeredAt`. `ResetPasswordWithTokenHandler` reads it for invariant I-23
      * and treats `null` as "no request can be stale", which is exactly right: an account whose

@@ -30,14 +30,16 @@ final readonly class SecurityUser implements UserInterface, PasswordAuthenticate
     /**
      * @param non-empty-string $email        the login identifier
      * @param list<string>     $roles        `Role` backed values, which are literally what Symfony expects
-     * @param string           $passwordHash the opaque hash the firewall verifies against
+     * @param ?string          $passwordHash the opaque hash the firewall verifies against; `null` for a
+     *                                       passwordless account, which Symfony's `CheckCredentialsListener`
+     *                                       rejects like a wrong password
      * @param bool             $usable       `User::isUsable()` at the moment this snapshot was taken
      */
     private function __construct(
         private string $id,
         private string $email,
         private array $roles,
-        private string $passwordHash,
+        private ?string $passwordHash,
         private bool $usable,
     ) {
     }
@@ -56,21 +58,19 @@ final readonly class SecurityUser implements UserInterface, PasswordAuthenticate
             $user->id()->toString(),
             $email,
             array_map(static fn (Role $role): string => $role->value, $user->roles()),
-            $user->passwordHash()->toString(),
+            $user->passwordHash()?->toString(),
 
-            // `isUsable()`, NOT `isEmailVerified()` — and the difference is the entire point of the
-            // line. The two methods return the same boolean today, so picking either one passes
-            // every test in the suite. They stop agreeing in `identity-google-oauth`, which widens
-            // `User::isUsable()` to `isEmailVerified() || hasVerifiedOAuthIdentity()` *inside the
-            // aggregate*, exactly where ADR-0005's invariant I-5 lives. Read `isUsable()` here and
-            // `VerifiedAccountUserChecker` inherits that widening for free, with no Infrastructure
-            // diff at all. Read `isEmailVerified()` and the checker silently keeps refusing users
-            // who signed up with Google and have no password to verify an address with — a bug that
-            // ships in a slice whose diff does not contain this file.
+            // `isUsable()`, NOT `isEmailVerified()`, although the two return the same boolean — and
+            // `identity-google-oauth` kept it that way on purpose (ADR-0014 decision 7). This comment
+            // used to predict that slice would widen I-5 to `|| hasVerifiedOAuthIdentity()`. It did
+            // not: every Google link or provision happens on a provider-verified address that *is*
+            // the account's address, so the aggregate calls `verifyEmail()` and the second disjunct
+            // could never be the deciding one. The prediction was wrong; the line below was not.
             //
-            // The general rule worth taking away: an adapter should copy the *decision* the Domain
-            // exposes, never re-derive it from the facts underneath. `isUsable()` is the decision;
-            // `emailVerifiedAt` is a fact it happens to be made of today.
+            // The rule still holds, and is why this reads `isUsable()`: an adapter copies the
+            // *decision* the Domain exposes, never re-derives it from the facts underneath. If I-5
+            // ever does change, it changes inside the aggregate and `VerifiedAccountUserChecker`
+            // follows with no Infrastructure diff.
             $user->isUsable(),
         );
     }
@@ -104,7 +104,7 @@ final readonly class SecurityUser implements UserInterface, PasswordAuthenticate
         return $this->roles;
     }
 
-    public function getPassword(): string
+    public function getPassword(): ?string
     {
         return $this->passwordHash;
     }

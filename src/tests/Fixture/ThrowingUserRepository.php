@@ -7,6 +7,7 @@ namespace App\Tests\Fixture;
 use App\Domain\Identity\Entity\User;
 use App\Domain\Identity\Port\UserRepository;
 use App\Domain\Identity\ValueObject\Email;
+use App\Domain\Identity\ValueObject\OAuthIdentity;
 use App\Domain\Identity\ValueObject\UserId;
 
 /**
@@ -37,6 +38,11 @@ final class ThrowingUserRepository implements UserRepository
     }
 
     public function existsByEmail(Email $email): bool
+    {
+        throw $this->down();
+    }
+
+    public function findByOAuthIdentity(OAuthIdentity $identity): ?User
     {
         throw $this->down();
     }

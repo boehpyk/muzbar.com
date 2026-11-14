@@ -60,7 +60,7 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
         self::assertNotSame($user, $found, 'clear() must force a fresh hydration, not return the same object');
         self::assertTrue($found->id()->equals($id));
         self::assertTrue($found->email()->equals($email));
-        self::assertTrue($found->passwordHash()->equals($hash));
+        self::assertTrue($found->passwordHash()?->equals($hash));
         self::assertSame([Role::User], $found->roles());
         self::assertNull($found->emailVerifiedAt());
         self::assertEquals($registeredAt, $found->registeredAt());

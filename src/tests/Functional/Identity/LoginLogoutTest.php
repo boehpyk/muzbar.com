@@ -206,7 +206,7 @@ final class LoginLogoutTest extends WebTestCase
     public function testNoPasswordHashOrRoleStringAppearsInAnyRenderedPage(): void
     {
         $user = $this->registerUserWithKnownCredentials('privacy-check@example.com', 'a-correct-password-1', verified: true);
-        $storedHash = $user->passwordHash()->toString();
+        $storedHash = $user->passwordHash()?->toString() ?? self::fail('A password-registered user must hold a hash.');
 
         $registerHtml = (string) $this->client->request('GET', '/register')->outerHtml();
         self::assertStringNotContainsString($storedHash, $registerHtml);

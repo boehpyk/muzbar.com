@@ -7,6 +7,7 @@ namespace App\Domain\Identity\Port;
 use App\Domain\Identity\Entity\User;
 use App\Domain\Identity\Exception\EmailAlreadyRegistered;
 use App\Domain\Identity\ValueObject\Email;
+use App\Domain\Identity\ValueObject\OAuthIdentity;
 use App\Domain\Identity\ValueObject\UserId;
 
 /**
@@ -53,4 +54,14 @@ interface UserRepository
     public function findByEmail(Email $email): ?User;
 
     public function existsByEmail(Email $email): bool;
+
+    /**
+     * The user this provider identity is linked to, if any — how a returning provider sign-in is
+     * recognised (the subject is the identifier, not the email; ADR-0014).
+     *
+     * Matches provider and subject exactly. That one `(provider, subject)` belongs to at most one
+     * user is guaranteed by the application, not by an index: an identity is only ever attached
+     * after this lookup missed, and only to the single user owning the asserted email.
+     */
+    public function findByOAuthIdentity(OAuthIdentity $identity): ?User;
 }

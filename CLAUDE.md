@@ -16,7 +16,7 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 slices 1–5 of 7 complete**.
+> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 slices 1–6 of 7 complete**.
 > `identity-user-password-auth` (2026-07-26) shipped the repo's first Domain code — the `User`
 > aggregate, value objects, ports, two domain events, the first migration, and
 > register/login/logout/`/account`. `identity-email-verification` (2026-07-28) added the **second
@@ -53,7 +53,17 @@ Docker Compose · Traefik · Nginx.
 > Monolog record at `error`+ becomes a scrubbed Sentry event — with zero Domain/Application code.
 > **Live in prod since 2026-11-13** (events verified from both `app` and `messenger-worker`). Runbook:
 > [docs/infrastructure.md](./docs/infrastructure.md) §*Sentry (runbook)*; [ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md).
-> Current work: the remaining `Identity` slices — next is `identity-google-oauth`.
+> `identity-google-oauth` (2026-11-14) put **a collection of value objects inside an aggregate** —
+> `User` holds `list<OAuthIdentity>` (jsonb) — and an invariant that exists only because of it:
+> **I-29, linking Google to an *unverified* account discards its password** (the pre-hijack defence;
+> deliberately not `changePassword()`, so no event and no mail). Passwords became optional
+> (`?HashedPassword`); a returning user is recognised by **`sub`, never the email**; I-5 was
+> **not** widened, because the predicted clause could never decide. Google never crosses into the
+> Domain: no port, the authenticator hands plain claims to `SignInWithOAuth`.
+> [ADR-0014](./docs/adr/0014-google-sign-in-linked-identities-on-the-user-aggregate.md) + an ADR-0005 amendment.
+> **Not yet live:** needs the Google Console client and `GOOGLE_CLIENT_ID`/`_SECRET` in the box `.env`
+> (runbook: docs/infrastructure.md §*Google sign-in*); the deploy smoke check fails until then.
+> Current work: the last `Identity` slice — `identity-login-overlay`.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -211,6 +221,9 @@ make console cmd="dbal:run-sql 'SELECT email, locale, created_at FROM prelaunch_
 open http://localhost:8025                                # Mailpit — every dev mail lands here
 make console cmd="messenger:failed:show"                  # the failure transport nobody looks at
 make console cmd="messenger:failed:retry"
+# Google sign-in — GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (box .env; dev: src/.env.local). Empty = off:
+#   /connect/google logs one error and bounces to /login. Runbook: docs/infrastructure.md §Google sign-in
+curl -sI localhost:8080/connect/google | grep -i ^location   # expect code_challenge_method=S256, scope=openid email
 # Error tracking — run in BOTH containers after setting SENTRY_DSN; exits 1 when the DSN is empty
 make console cmd="muzbar:ops:sentry-check"                # then the same via `docker compose exec messenger-worker`
 ```
@@ -381,6 +394,35 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   people who need the form (mail clients hard-wrap long lines) and would make the controller's
   `InvalidResetToken` arm dead code. **Nothing will tell you**: every test using a well-formed token
   passes with the strict regex in place.
+
+- **Google's `redirect_uri` is only as right as `trusted_proxies`.** It is built from the request's
+  scheme and host, so behind Traefik it is `https://muzbar.com/...` only when the `when@prod` trust
+  list applies — exactly what the `APP_ENV=production` incident silently disabled. `KernelBrowser`
+  never goes through a proxy, so **only `deploy.yml`'s smoke check** (`location` of
+  `/connect/google` contains the https `redirect_uri`) can catch it. It also fails when
+  `GOOGLE_CLIENT_ID` is empty on the box — by design.
+- **knpu does no PKCE unless you pick `OAuth2PKCEClient`, and that needs `type: generic`.** The
+  default `OAuth2Client` and league's `Google` (`getPkceMethod()` returns null) both silently skip
+  it, and the flow still works — so nothing tells you. League also **always adds the `profile`
+  scope**; `GoogleProvider` (ours, `final`) removes it. Do not "simplify" back to `type: google`.
+- **A passwordless `SecurityUser` has `getPassword() === null`.** Symfony's
+  `CheckCredentialsListener` then rejects form login with the same `BadCredentialsException` as a
+  wrong password — that is the design (AC-14). Code reading `passwordHash()` must handle `null`.
+- **`UserRegistered` now fires for users who are already verified** (Google provisioning). A listener
+  on it must not assume "unverified": `IssueVerificationOnUserRegistered` returns early on
+  `EmailAlreadyVerified`, or every Google sign-up becomes an `error` → Sentry.
+- **The OAuth test seam is the provider's HTTP client, not the provider.** `when@test` in
+  `knpu_oauth2_client.yaml` re-declares `knpu.oauth2.provider.google` with
+  `FakeGoogleHttpClient` (Guzzle `MockHandler`) as its `httpClient`, so the real scopes, state check,
+  PKCE body and error mapping all run. An empty mock queue throws, so no test can reach Google. Take
+  the `state` from the start response's `Location`, stay in **one** `KernelBrowser`, and
+  `disableReboot()` before scripting it.
+- **A failed request in prod flushes the `fingers_crossed` buffer — including framework debug lines.**
+  The `request` channel's "Matched route" record carries `request_uri`, so on a Google callback that
+  ends in an `error` (provider down, 5xx) the callback's `code` and `state` reach stderr, and
+  `doctrine` records carry SQL parameters (emails). Not Sentry — that path is scrubbed — only the
+  box's container log. The code is single-use and already spent, so this is accepted for now; it is
+  a pre-existing property of every route, surfaced (not introduced) by this slice's log scan.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):

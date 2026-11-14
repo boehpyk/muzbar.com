@@ -122,3 +122,11 @@ jobs:
             echo "::error::Production is in debug mode (x-debug-exception header). Check APP_ENV=prod in the box .env."
             exit 1
           fi
+          # Google's redirect_uri must be https://muzbar.com/... — that depends on trusted_proxies
+          # (X-Forwarded-Proto), which no functional test can exercise (AC-2). An empty
+          # GOOGLE_CLIENT_ID also fails here: /connect/google then 302s to /login instead (AC-3).
+          google="$(curl -sS -o /dev/null -D - https://muzbar.com/connect/google)"
+          if ! printf '%s' "$google" | grep -qi '^location:.*redirect_uri=https%3A%2F%2Fmuzbar\.com%2Fconnect%2Fgoogle%2Fcheck'; then
+            echo "::error::/connect/google does not redirect to Google with the https redirect_uri. Check GOOGLE_CLIENT_ID in the box .env and trusted_proxies."
+            exit 1
+          fi

@@ -56,8 +56,13 @@
         <!-- Length mirrors `Email::MAX_LENGTH`; the VO owns the rule, the column enforces it. -->
         <field name="email" column="email" type="identity_email" length="180" nullable="false"/>
 
-        <!-- Length mirrors `HashedPassword::MAX_LENGTH` — wide enough for bcrypt and Argon2id. -->
-        <field name="passwordHash" column="password_hash" type="identity_password_hash" length="255" nullable="false"/>
+        <!--
+            Length mirrors `HashedPassword::MAX_LENGTH` — wide enough for bcrypt and Argon2id.
+            Nullable since `identity-google-oauth` (ADR-0014): an account provisioned by Google, or
+            linked to an unverified account whose password was discarded, has no password at all.
+            `NULL` means "no password", never "unknown".
+        -->
+        <field name="passwordHash" column="password_hash" type="identity_password_hash" length="255" nullable="true"/>
 
         <!--
             No `jsonb` column option here on purpose: `RoleSetType` extends Doctrine's `JsonbType`,
@@ -66,6 +71,15 @@
             happens to use it — see `RoleSetType` for why `jsonb` over textual `json`.
         -->
         <field name="roles" column="roles" type="identity_role_set" nullable="false"/>
+
+        <!--
+            Added by `identity-google-oauth` (ADR-0014): `[{"provider":"google","subject":"…"}]`.
+            `jsonb` comes from `OAuthIdentitySetType`, as for `roles`. **No `default` option here**:
+            the migration adds the column with `DEFAULT '[]'` only to backfill existing rows, then
+            drops it, so that the schema and this mapping agree and `make migration.make` stays empty.
+            The aggregate always writes the value itself.
+        -->
+        <field name="oauthIdentities" column="oauth_identities" type="identity_oauth_identity_set" nullable="false"/>
 
         <!--
             `datetimetz_immutable`, not `datetime_immutable`: Postgres `TIMESTAMP WITH TIME ZONE`

@@ -145,3 +145,18 @@ before any Domain code existed, and both turned out to answer a question the Dom
 itself. The remaining named dependency, `knpuniversity/oauth2-client-bundle`, is a *protocol client*
 rather than a model — a different kind of thing — and `identity-google-oauth` should still expect to
 use it.
+
+### Amendment, 2026-11-14 — linking discards an unproven password; I-5 is not widened; PKCE added
+
+`identity-google-oauth` implements this ADR's Google half. Three refinements, recorded in full in
+[ADR-0014](./0014-google-sign-in-linked-identities-on-the-user-aggregate.md):
+
+1. **"Links to the same `User`" is kept, with one condition.** Linking Google to an account whose
+   email is **unverified** discards that account's password (I-29). Done literally, the Decision
+   above is the account pre-hijacking hole: an attacker's unverified password would survive the
+   victim proving the mailbox.
+2. **The usable-account invariant is not widened** to "verified email *or* linked verified OAuth
+   identity". Every link and provision verifies the account's own email, so the second clause could
+   never decide. `User::isUsable()` stays `isEmailVerified()`.
+3. **knpu is used as planned**, and PKCE (S256) is added by us, because knpu does not persist a code
+   verifier.

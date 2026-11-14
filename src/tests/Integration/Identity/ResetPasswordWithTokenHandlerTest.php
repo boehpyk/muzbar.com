@@ -84,7 +84,7 @@ final class ResetPasswordWithTokenHandlerTest extends KernelTestCase
     public function testHappyPathChangesTheHashSetsPasswordChangedAtRedeemsTheRequestAndDispatchesOneEvent(): void
     {
         $user = UserFactory::new(['email' => Email::fromString('reset-verified@example.com')])->verified()->create();
-        $originalHash = $user->passwordHash()->toString();
+        $originalHash = $user->passwordHash()?->toString();
         $token = $this->tokens->generate();
         $hash = $this->tokens->hash($token);
         PasswordResetRequestFactory::new(['userId' => $user->id(), 'tokenHash' => $hash])->create();
@@ -93,7 +93,9 @@ final class ResetPasswordWithTokenHandlerTest extends KernelTestCase
 
         $foundUser = $this->users->findById($user->id());
         self::assertNotNull($foundUser);
-        self::assertNotSame($originalHash, $foundUser->passwordHash()->toString());
+        self::assertNotNull($originalHash);
+        self::assertTrue($foundUser->hasPassword(), 'A reset must replace the hash, never null it.');
+        self::assertNotSame($originalHash, $foundUser->passwordHash()?->toString());
         self::assertEquals(new \DateTimeImmutable('2026-07-29T09:00:00+00:00'), $foundUser->passwordChangedAt());
 
         $foundRequest = $this->requests->findByTokenHash($hash);
@@ -138,7 +140,7 @@ final class ResetPasswordWithTokenHandlerTest extends KernelTestCase
     public function testAnExpiredTokenThrowsPasswordResetLinkExpiredAndLeavesThePasswordUnchanged(): void
     {
         $user = UserFactory::createOne(['email' => Email::fromString('reset-expired@example.com')]);
-        $originalHash = $user->passwordHash()->toString();
+        $originalHash = $user->passwordHash()?->toString();
         $token = $this->tokens->generate();
         $hash = $this->tokens->hash($token);
         PasswordResetRequestFactory::new([
@@ -154,7 +156,7 @@ final class ResetPasswordWithTokenHandlerTest extends KernelTestCase
         } finally {
             $foundUser = $this->users->findById($user->id());
             self::assertNotNull($foundUser);
-            self::assertSame($originalHash, $foundUser->passwordHash()->toString());
+            self::assertSame($originalHash, $foundUser->passwordHash()?->toString());
             self::assertSame([], $this->events->dispatched());
         }
     }
@@ -280,7 +282,7 @@ final class ResetPasswordWithTokenHandlerTest extends KernelTestCase
         PasswordResetRequestFactory::new(['userId' => $user->id(), 'tokenHash' => $hash])->create();
 
         ($this->handler)(new ResetPasswordWithToken($token->reveal(), self::A_STRONG_NEW_PASSWORD));
-        $hashAfterFirstReset = $this->users->findById($user->id())?->passwordHash()->toString();
+        $hashAfterFirstReset = $this->users->findById($user->id())?->passwordHash()?->toString();
         self::assertNotNull($hashAfterFirstReset);
 
         $laterClock = new FrozenClock(new \DateTimeImmutable('2026-07-29T09:30:00+00:00'));
@@ -292,7 +294,7 @@ final class ResetPasswordWithTokenHandlerTest extends KernelTestCase
         try {
             $laterHandler(new ResetPasswordWithToken($token->reveal(), 'a-completely-different-password'));
         } finally {
-            self::assertSame($hashAfterFirstReset, $this->users->findById($user->id())?->passwordHash()->toString(), 'A replay must not change the password a second time.');
+            self::assertSame($hashAfterFirstReset, $this->users->findById($user->id())?->passwordHash()?->toString(), 'A replay must not change the password a second time.');
             self::assertSame([], $laterEvents->dispatched());
         }
     }

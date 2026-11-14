@@ -8,7 +8,9 @@ use App\Domain\Identity\Entity\User;
 use App\Domain\Identity\Exception\EmailAlreadyRegistered;
 use App\Domain\Identity\Port\UserRepository;
 use App\Domain\Identity\ValueObject\Email;
+use App\Domain\Identity\ValueObject\OAuthIdentity;
 use App\Domain\Identity\ValueObject\UserId;
+use App\Infrastructure\Identity\Persistence\Doctrine\Type\OAuthIdentitySetType;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
@@ -118,6 +120,34 @@ final readonly class DoctrineUserRepository implements UserRepository
     public function existsByEmail(Email $email): bool
     {
         return $this->users()->count(['email' => $email]) > 0;
+    }
+
+    /**
+     * `@>` containment over the jsonb column, with the needle — a one-element list — encoded by
+     * `OAuthIdentitySetType` itself, so the stored shape and the searched shape share one encoder.
+     * DBAL and not DQL because DQL has no `@>`; the id it finds then goes through `findById()`, so
+     * the aggregate still comes from the identity map like every other read here.
+     *
+     * Global by design: this is what makes a subject identify at most one *user* in practice
+     * (ADR-0014), alongside I-28 inside the aggregate.
+     *
+     * ponytail: sequential scan, no GIN index. Add `USING gin (oauth_identities jsonb_path_ops)`
+     * when `identity_user` passes ~100k rows; Doctrine cannot express it in XML, so it will then need
+     * a `schema_filter` or an ignored-asset note to keep `make migration.make` quiet.
+     */
+    public function findByOAuthIdentity(OAuthIdentity $identity): ?User
+    {
+        $id = $this->entityManager->getConnection()->fetchOne(
+            'SELECT id FROM identity_user WHERE oauth_identities @> CAST(:needle AS jsonb) LIMIT 1',
+            ['needle' => [$identity]],
+            ['needle' => OAuthIdentitySetType::NAME],
+        );
+
+        if (!\is_string($id)) {
+            return null;
+        }
+
+        return $this->findById(UserId::fromString($id));
     }
 
     /**

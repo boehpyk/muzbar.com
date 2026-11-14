@@ -1,0 +1,57 @@
+# Google sign-in (ADR-0014). Service ids: `knpu.oauth2.client.google`, `knpu.oauth2.provider.google`.
+#
+# WHY `type: generic` AND NOT `type: google`.
+# PKCE is required (ADR-0005 amendment), and neither half of the stack does it for Google out of the
+# box: league's `AbstractProvider::getPkceMethod()` returns null and `Google` does not override it
+# (there is no `pkceMethod` constructor option to set), and knpu's `google` type accepts no
+# `provider_options` anyway. knpu ships `OAuth2PKCEClient`, which generates the S256 challenge on
+# `redirect()`, keeps the verifier in the session under `pkce_code_verifier`, and sends it on
+# `getAccessToken()` — but only the `generic` type lets us pick a client class. So: knpu's PKCE
+# client, and no PKCE code of ours.
+#
+# `GoogleProvider` is league's `Google` with `profile` removed from the default scopes, which league
+# otherwise merges into every request (AC-1: exactly `openid email`).
+#
+# BOOT PATH: `default::` on purpose. A bare `%env(GOOGLE_CLIENT_ID)%` would make the variable a boot
+# dependency of every kernel — the messenger worker, every console command, CI and `docker build` —
+# and a missing value would be `EnvNotFoundException` there (see CLAUDE.md). Empty instead means
+# "Google sign-in is off": `GoogleOAuthController` logs one error and sends the visitor back to
+# /login (AC-3).
+knpu_oauth2_client:
+    clients:
+        google:
+            type: generic
+            provider_class: App\Infrastructure\Identity\Security\GoogleProvider
+            client_class: KnpU\OAuth2ClientBundle\Client\OAuth2PKCEClient
+            client_id: '%env(default::GOOGLE_CLIENT_ID)%'
+            client_secret: '%env(default::GOOGLE_CLIENT_SECRET)%'
+            redirect_route: app_oauth_google_check
+            redirect_params: {}
+
+# THE TEST SEAM. The real `GoogleProvider` (scopes, token/userinfo requests, error mapping) is kept;
+# only the HTTP client it talks through is swapped for a scripted one, so no test can reach Google
+# and every test can read the requests that would have gone there. `GoogleProvider` is `final`, so a
+# fake *provider* subclass is not an option — and would skip the very code under test.
+#
+# It re-states the bundle's own definition of `knpu.oauth2.provider.google` (a factory call) with one
+# extra collaborator, because the bundle exposes no way to pass collaborators through config. It is
+# `public` so a test can fetch the client without a kernel reboot discarding it.
+when@test:
+    services:
+        App\Tests\Fixture\FakeGoogleHttpClient:
+            public: true
+
+        fake_google.guzzle:
+            class: GuzzleHttp\Client
+            factory: ['@App\Tests\Fixture\FakeGoogleHttpClient', client]
+
+        knpu.oauth2.provider.google:
+            class: App\Infrastructure\Identity\Security\GoogleProvider
+            public: true
+            factory: ['@knpu.oauth2.provider_factory', createProvider]
+            arguments:
+                - App\Infrastructure\Identity\Security\GoogleProvider
+                - { clientId: '%env(default::GOOGLE_CLIENT_ID)%', clientSecret: '%env(default::GOOGLE_CLIENT_SECRET)%' }
+                - app_oauth_google_check
+                - {}
+                - { httpClient: '@fake_google.guzzle' }
