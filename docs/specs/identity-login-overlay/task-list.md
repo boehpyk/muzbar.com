@@ -48,7 +48,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
       `config/packages/csrf.yaml` reason 1 (the site now ships JS; still session-backed, and why).
 
 ## Tests (qa)
-- [ ] **T9:** Unit `tests/Unit/Infrastructure/Identity/Http/IntendedActionPathTest.php` — hostile list
+- [x] **T9:** Unit `tests/Unit/Infrastructure/Identity/Http/IntendedActionPathTest.php` — hostile list
       → `null`, accepted examples → unchanged, 2048/2049, non-strings. No kernel.
 - [ ] **T10:** Functional `ProfilePageTest` (AC-1) and `IntendedActionRedirectTest` — `/profile` and
       `/` targets, default unchanged, entry point, newest-wins, consumed-once, failed attempt keeps
