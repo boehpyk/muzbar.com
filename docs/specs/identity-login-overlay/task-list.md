@@ -58,7 +58,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 - [x] **T11:** Functional, Google — `/profile` across the round trip, failure-then-retry,
       provisioning lands on `/profile`, reader defence (Google half). One client, `disableReboot()`,
       `state` from the start `Location`. (AC-14, AC-16…AC-18)
-- [ ] **T12:** Functional, registrant — register → not authenticated → verify link in the same client
+- [x] **T12:** Functional, registrant — register → not authenticated → verify link in the same client
       → still not authenticated → sign in → `/profile`; unverified refusal keeps the target. Fresh
       repository before DB assertions. (AC-19, AC-20)
 - [ ] **T13:** Functional, templates & no-JS — panel contract, Google links on `/login` and
