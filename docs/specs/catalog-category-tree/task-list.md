@@ -76,7 +76,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
 ## Tests (qa)
 - [x] **T16:** Domain unit tests: `CategoryNameTest`, `CategorySlugTest`, `CategoryIdTest`,
       `LineageTest` and `CategoryTest`. No kernel. (AC-1…AC-9)
-- [ ] **T17:** `CategoryFactory` (Foundry, `instantiateWith()` → `Category::create()`, plus a
+- [x] **T17:** `CategoryFactory` (Foundry, `instantiateWith()` → `Category::create()`, plus a
       `childOf()` state using the real repository's lineage). Integration tests for the handlers and
       the adapter: create/edit/delete, C-3 including moves and the raw-SQL backstop, C-4/C-5 through
       `EditCategory`, one-row moves, all-or-nothing edit plus the follow-up `flush()`, C-6/C-7, and
