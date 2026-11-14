@@ -59,7 +59,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       `pg_advisory_xact_lock(KEY)`, then `$work()`. Calls `EntityManager::clear()` on a throwable.
       The comment explains why this is not `wrapInTransaction()`. Wire both ports in
       `services.yaml`. (AC-16, AC-17)
-- [ ] **T12:** `DbalCategoryOutline`: one depth-first recursive CTE ordered by
+- [x] **T12:** `DbalCategoryOutline`: one depth-first recursive CTE ordered by
       `lower(name), id` per level. It returns the rows, including `depth`. (AC-23)
 - [ ] **T13:** `CategoryFormType` + `CategoryFormData` (no business constraints) and slug derivation
       with `SluggerInterface` (lower-cased, cut to 64, trailing hyphen trimmed, empty → the slug
