@@ -70,7 +70,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       Templates `templates/catalog/admin/{index,new,edit}.html.twig`, unstyled, with "Add child"
       suppressed at depth 4. In `security.yaml`, add `^/admin(/|$)` → `ROLE_ADMIN` with the
       anchoring comment. (AC-22…AC-30, AC-33)
-- [ ] **T15:** `GrantRoleCommand` (`muzbar:identity:grant-role <email> <role> [--revoke]`), with exit
+- [x] **T15:** `GrantRoleCommand` (`muzbar:identity:grant-role <email> <role> [--revoke]`), with exit
       codes and messages per AC-31.
 
 ## Tests (qa)
