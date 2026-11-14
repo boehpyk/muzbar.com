@@ -7,12 +7,11 @@ namespace App\Tests\Functional\Identity;
 use App\Tests\Support\ClearsRateLimiters;
 use App\Tests\Support\DrivesGoogleOAuth;
 use App\Tests\Support\RegistersAUserWithKnownCredentials;
+use App\Tests\Support\StashesTargetPath;
 use Monolog\Level;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
-use Symfony\Component\BrowserKit\Cookie;
-use Symfony\Component\HttpFoundation\Session\SessionFactoryInterface;
 
 /**
  * The intended-action redirect (ADR-0015) through the real firewall: the one writer
@@ -27,6 +26,7 @@ final class IntendedActionRedirectTest extends WebTestCase
     use ClearsRateLimiters;
     use DrivesGoogleOAuth;
     use RegistersAUserWithKnownCredentials;
+    use StashesTargetPath;
 
     private const string EMAIL = 'intended@example.com';
     private const string PASSWORD = 'a-correct-password-1';
@@ -200,7 +200,7 @@ final class IntendedActionRedirectTest extends WebTestCase
 
     public function testAForeignTargetInTheSessionStillNeverLeavesTheOriginOnPasswordSignIn(): void
     {
-        $this->stashTargetPathDirectly('https://evil.example/x');
+        $this->stashTargetPathDirectly($this->client, 'https://evil.example/x');
 
         $this->signIn();
 
@@ -412,20 +412,6 @@ final class IntendedActionRedirectTest extends WebTestCase
         $host = parse_url(str_replace(["\t", "\r", "\n", '\\'], ['', '', '', '/'], $location), \PHP_URL_HOST);
 
         return \is_string($host) ? $host : null;
-    }
-
-    /**
-     * Simulates a careless future writer: puts a value straight into the firewall's target path,
-     * bypassing `IntendedActionPath`. The one place a test touches the attribute.
-     */
-    private function stashTargetPathDirectly(string $value): void
-    {
-        $factory = self::getContainer()->get('session.factory');
-        self::assertInstanceOf(SessionFactoryInterface::class, $factory);
-        $session = $factory->createSession();
-        $session->set('_security.main.target_path', $value);
-        $session->save();
-        $this->client->getCookieJar()->set(new Cookie($session->getName(), $session->getId()));
     }
 
     /**

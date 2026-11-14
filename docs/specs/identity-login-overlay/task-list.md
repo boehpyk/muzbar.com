@@ -55,7 +55,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
       target, hostile list at the writer, non-clobber, array param, length boundary, Symfony's POST
       `_target_path` (browser-style host parse), reader defence (password half), no echo/no log,
       neutral errors compared live, throttle, CSRF. `ClearsRateLimiters`. (AC-1…AC-15, AC-27…AC-29)
-- [ ] **T11:** Functional, Google — `/profile` across the round trip, failure-then-retry,
+- [x] **T11:** Functional, Google — `/profile` across the round trip, failure-then-retry,
       provisioning lands on `/profile`, reader defence (Google half). One client, `disableReboot()`,
       `state` from the start `Location`. (AC-14, AC-16…AC-18)
 - [ ] **T12:** Functional, registrant — register → not authenticated → verify link in the same client
