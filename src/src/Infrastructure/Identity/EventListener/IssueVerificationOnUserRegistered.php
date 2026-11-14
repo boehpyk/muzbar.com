@@ -7,6 +7,7 @@ namespace App\Infrastructure\Identity\EventListener;
 use App\Application\Identity\Command\RequestEmailVerification;
 use App\Application\Identity\Handler\RequestEmailVerificationHandler;
 use App\Domain\Identity\Event\UserRegistered;
+use App\Domain\Identity\Exception\EmailAlreadyVerified;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
@@ -76,6 +77,14 @@ final readonly class IssueVerificationOnUserRegistered
     {
         try {
             ($this->requestEmailVerification)(new RequestEmailVerification($event->email()->toString()));
+        } catch (EmailAlreadyVerified) {
+            // Not a failure: since `identity-google-oauth`, `UserRegistered` also fires for an account
+            // that is *born verified* — `User::registerWithOAuth()` records `UserRegistered` and then
+            // `UserEmailVerified`, because Google vouched for the address (ADR-0014). There is nothing
+            // to verify and no mail to send (AC-7). Without this arm the `\Throwable` arm below would
+            // log every Google sign-up at `error`, i.e. page Sentry for the feature working.
+            // The general lesson: a listener must not assume what an event used to imply.
+            return;
         } catch (\Throwable $e) {
             // THE USER ID, NOT THE ADDRESS. The address is available — it is right there on the
             // event — and logging it would make this line marginally easier to triage. It is left

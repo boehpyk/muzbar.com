@@ -43,7 +43,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
 - [x] **T13:** `GoogleAuthenticator` (state via knpu, PKCE restore, strict `email_verified`,
       exception→log-level map, no secrets in context, target-path success, session-error failure);
       `security.yaml` `custom_authenticators`. (AC-5…AC-13, AC-18, AC-19, AC-20)
-- [ ] **T14:** `IssueVerificationOnUserRegistered`: `catch (EmailAlreadyVerified) { return; }` above
+- [x] **T14:** `IssueVerificationOnUserRegistered`: `catch (EmailAlreadyVerified) { return; }` above
       the `\Throwable` arm, commented. (AC-7)
 - [ ] **T15:** "Continue with Google" link on `login.html.twig` and `register.html.twig`. (AC-4)
 - [ ] **T16 (devops):** `deploy.yml` smoke check: `location` of `/connect/google` contains the https
