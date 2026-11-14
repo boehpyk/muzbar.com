@@ -42,6 +42,8 @@ services:
     App\Domain\Identity\Port\PasswordResetRequestRepository: '@App\Infrastructure\Identity\Persistence\Doctrine\DoctrinePasswordResetRequestRepository'
     App\Domain\Identity\Port\ResetTokenGenerator: '@App\Infrastructure\Identity\Security\RandomResetTokenGenerator'
     App\Domain\Identity\Port\PasswordResetMailer: '@App\Infrastructure\Identity\Mail\TwigPasswordResetMailer'
+    App\Domain\Catalog\Port\CategoryRepository: '@App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineCategoryRepository'
+    App\Domain\Catalog\Port\CategoryTreeLock: '@App\Infrastructure\Catalog\Persistence\Doctrine\PostgresCategoryTreeLock'
 
     # Redis client (Predis) built from REDIS_URL; aliased for autowiring by interface.
     Predis\Client:

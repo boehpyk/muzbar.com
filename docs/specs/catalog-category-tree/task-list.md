@@ -55,7 +55,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       `CategorySlugAlreadyTaken`, `remove`, and the bounded recursive-CTE `lineageOf` and
       `subtreeHeightOf` (bound = `Category::MAX_DEPTH + 1`, corruption → `CorruptCategoryTree`).
       Also `hasChildren` and `isSlugTakenAmongSiblings` (`IS NOT DISTINCT FROM`). (AC-12, AC-18)
-- [ ] **T11:** `PostgresCategoryTreeLock`: DBAL `transactional()`, then
+- [x] **T11:** `PostgresCategoryTreeLock`: DBAL `transactional()`, then
       `pg_advisory_xact_lock(KEY)`, then `$work()`. Calls `EntityManager::clear()` on a throwable.
       The comment explains why this is not `wrapInTransaction()`. Wire both ports in
       `services.yaml`. (AC-16, AC-17)
