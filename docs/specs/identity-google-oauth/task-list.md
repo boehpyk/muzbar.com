@@ -10,7 +10,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
 (`make deptrac`).
 
 ## Decisions & prerequisites
-- [ ] **T0:** `/adr` → **ADR-0014** *"Google sign-in: linked identities on the User aggregate, and
+- [x] **T0:** `/adr` → **ADR-0014** *"Google sign-in: linked identities on the User aggregate, and
       the account-linking rules"* + dated **ADR-0005 amendment** (unverified-account linking
       discards the password; I-5 not widened; PKCE added by us). No code.
 
