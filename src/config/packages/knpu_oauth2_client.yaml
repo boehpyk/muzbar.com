@@ -27,3 +27,31 @@ knpu_oauth2_client:
             client_secret: '%env(default::GOOGLE_CLIENT_SECRET)%'
             redirect_route: app_oauth_google_check
             redirect_params: {}
+
+# THE TEST SEAM. The real `GoogleProvider` (scopes, token/userinfo requests, error mapping) is kept;
+# only the HTTP client it talks through is swapped for a scripted one, so no test can reach Google
+# and every test can read the requests that would have gone there. `GoogleProvider` is `final`, so a
+# fake *provider* subclass is not an option — and would skip the very code under test.
+#
+# It re-states the bundle's own definition of `knpu.oauth2.provider.google` (a factory call) with one
+# extra collaborator, because the bundle exposes no way to pass collaborators through config. It is
+# `public` so a test can fetch the client without a kernel reboot discarding it.
+when@test:
+    services:
+        App\Tests\Fixture\FakeGoogleHttpClient:
+            public: true
+
+        fake_google.guzzle:
+            class: GuzzleHttp\Client
+            factory: ['@App\Tests\Fixture\FakeGoogleHttpClient', client]
+
+        knpu.oauth2.provider.google:
+            class: App\Infrastructure\Identity\Security\GoogleProvider
+            public: true
+            factory: ['@knpu.oauth2.provider_factory', createProvider]
+            arguments:
+                - App\Infrastructure\Identity\Security\GoogleProvider
+                - { clientId: '%env(default::GOOGLE_CLIENT_ID)%', clientSecret: '%env(default::GOOGLE_CLIENT_SECRET)%' }
+                - app_oauth_google_check
+                - {}
+                - { httpClient: '@fake_google.guzzle' }

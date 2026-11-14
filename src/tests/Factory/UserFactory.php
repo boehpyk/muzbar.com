@@ -7,6 +7,8 @@ namespace App\Tests\Factory;
 use App\Domain\Identity\Entity\User;
 use App\Domain\Identity\ValueObject\Email;
 use App\Domain\Identity\ValueObject\HashedPassword;
+use App\Domain\Identity\ValueObject\OAuthIdentity;
+use App\Domain\Identity\ValueObject\OAuthProvider;
 use App\Domain\Identity\ValueObject\UserId;
 use Symfony\Component\Uid\Uuid;
 use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
@@ -90,6 +92,42 @@ final class UserFactory extends PersistentObjectFactory
     {
         return $this->afterInstantiate(static function (User $user) use ($at): void {
             $user->verifyEmail($at ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')));
+            $user->releaseEvents();
+        });
+    }
+
+    /**
+     * A user provisioned the way "Continue with Google" creates one: through
+     * `User::registerWithOAuth()` — passwordless, email-verified, one linked identity. The
+     * factory's `passwordHash` default is ignored. Replaces the `register()` instantiator, so
+     * the `afterInstantiate` event release from `initialize()` still applies.
+     */
+    public function provisionedViaGoogle(string $subject = 'google-sub-fixture'): static
+    {
+        return $this->instantiateWith(static function (array $attributes) use ($subject): User {
+            /** @var UserId $id */
+            $id = $attributes['id'];
+            /** @var Email $email */
+            $email = $attributes['email'];
+            /** @var \DateTimeImmutable $registeredAt */
+            $registeredAt = $attributes['registeredAt'];
+
+            return User::registerWithOAuth($id, $email, OAuthIdentity::of(OAuthProvider::Google, $subject), $registeredAt);
+        });
+    }
+
+    /**
+     * Links a Google identity through `User::linkOAuthIdentity()` after the password registration,
+     * so I-29 applies as in production: on an unverified user this discards the password. Call it
+     * after `verified()` to keep the password.
+     */
+    public function linkedToGoogle(string $subject = 'google-sub-fixture'): static
+    {
+        return $this->afterInstantiate(static function (User $user) use ($subject): void {
+            $user->linkOAuthIdentity(
+                OAuthIdentity::of(OAuthProvider::Google, $subject),
+                new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
+            );
             $user->releaseEvents();
         });
     }

@@ -93,6 +93,8 @@ final class ResetPasswordWithTokenHandlerTest extends KernelTestCase
 
         $foundUser = $this->users->findById($user->id());
         self::assertNotNull($foundUser);
+        self::assertNotNull($originalHash);
+        self::assertTrue($foundUser->hasPassword(), 'A reset must replace the hash, never null it.');
         self::assertNotSame($originalHash, $foundUser->passwordHash()?->toString());
         self::assertEquals(new \DateTimeImmutable('2026-07-29T09:00:00+00:00'), $foundUser->passwordChangedAt());
 

@@ -50,7 +50,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       `redirect_uri`. (AC-2)
 
 ## Tests (qa)
-- [ ] **T17:** `tests/Fixture/FakeGoogleProvider` + `when@test` override of `knpu.oauth2.provider.google`;
+- [x] **T17:** `tests/Fixture/FakeGoogleProvider` + `when@test` override of `knpu.oauth2.provider.google`;
       `UserFactory` path through `registerWithOAuth()`.
 - [ ] **T18:** Domain unit: `OAuthIdentity`; `registerWithOAuth`; `linkOAuthIdentity` × 4 cases incl.
       no `UserPasswordChanged` on discard; `changePassword` on passwordless. (AC-6, 8, 11, 12, 16)
