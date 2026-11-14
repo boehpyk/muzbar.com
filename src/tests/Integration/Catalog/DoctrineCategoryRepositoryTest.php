@@ -201,7 +201,7 @@ final class DoctrineCategoryRepositoryTest extends KernelTestCase
         $this->categories->subtreeHeightOf($a);
     }
 
-    public function testLineageOfAChainLongerThanTheCeilingThrowsCorruptCategoryTree(): void
+    public function testLineageOfAChainLongerThanTheWalkBoundThrowsCorruptCategoryTree(): void
     {
         $this->db->executeStatement('SET LOCAL statement_timeout = 3000');
         $parent = null;
@@ -217,7 +217,7 @@ final class DoctrineCategoryRepositoryTest extends KernelTestCase
         $this->categories->lineageOf(CategoryId::fromString($leaf));
     }
 
-    public function testSubtreeHeightOfAChainLongerThanTheCeilingThrowsCorruptCategoryTree(): void
+    public function testSubtreeHeightOfAChainLongerThanTheWalkBoundThrowsCorruptCategoryTree(): void
     {
         $this->db->executeStatement('SET LOCAL statement_timeout = 3000');
         $parent = null;

@@ -66,7 +66,8 @@ final readonly class DoctrineCategoryRepository implements CategoryRepository
         }
 
         // A walk that ran past the bound, or stopped on a row that still has a parent, never reached
-        // a root: a cycle, or a chain deeper than the ceiling allows.
+        // a root: a cycle, or a chain of more than WALK_BOUND rows. A stored chain of exactly
+        // WALK_BOUND rows is not reported here; anything placed under it is still refused by C-5.
         if (\count($rows) > self::WALK_BOUND || null !== $rows[0]['parent_id']) {
             throw CorruptCategoryTree::at($id, self::WALK_BOUND);
         }

@@ -381,7 +381,12 @@ final class CategoryHandlersTest extends KernelTestCase
         self::assertSame('acoustic', $this->db->fetchOne('SELECT slug FROM catalog_category WHERE id = ?', [$acoustic->id()->toString()]));
     }
 
-    public function testAFailedMoveWithARenamePersistsNeitherChange(): void
+    /**
+     * The handler refuses the move before it renames, so nothing is dirty when it throws. This
+     * proves the order, not the lock adapter's clear(); for that see
+     * testAFailedEditThatHadAlreadyRenamedPersistsNothingEvenAfterAFollowUpFlush.
+     */
+    public function testACycleIsRefusedBeforeTheRenameSoNeitherChangePersists(): void
     {
         $tree = $this->guitarsTree();
         $originalName = $this->nameOf($tree['guitars']);
@@ -403,13 +408,18 @@ final class CategoryHandlersTest extends KernelTestCase
         self::assertNull($this->parentOf($tree['guitars']));
     }
 
-    public function testAFailedEditLeavesTheNameReadableThroughAFreshAggregate(): void
+    /**
+     * A rollback check through a fresh aggregate. It clears the EM itself, so it says nothing
+     * about the lock adapter's clear().
+     */
+    public function testAFailedEditLeavesTheStoredNameUnchanged(): void
     {
         $tree = $this->guitarsTree();
         $id = $tree['guitars']->id();
 
         try {
             ($this->edit)(new EditCategory($id->toString(), 'Renamed', 'guitars', $tree['solidBody']->id()->toString()));
+            self::fail('Expected CategoryMoveWouldCreateCycle.');
         } catch (CategoryMoveWouldCreateCycle) {
         }
 

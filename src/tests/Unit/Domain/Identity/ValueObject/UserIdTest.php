@@ -55,6 +55,7 @@ final class UserIdTest extends TestCase
         yield 'too short' => ['018f5b2a-0000-7000-8000'];
         yield 'wrong grouping' => ['018f5b2a00007000800000000000000'];
         yield 'empty string' => [''];
+        yield 'trailing newline' => ["018f5b2a-0000-7000-8000-000000000000\n"];
     }
 
     #[DataProvider('malformedIdProvider')]

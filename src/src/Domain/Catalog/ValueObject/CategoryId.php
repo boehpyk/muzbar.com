@@ -24,7 +24,7 @@ use App\Domain\Catalog\Exception\InvalidCategoryId;
  */
 final readonly class CategoryId
 {
-    private const string FORMAT = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
+    private const string FORMAT = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iD'; // D: a bare `$` also matches before a trailing "\n"
 
     private function __construct(
         private string $value,

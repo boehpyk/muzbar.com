@@ -38,6 +38,7 @@ final class CategoryIdTest extends TestCase
         yield 'missing hyphens' => ['018f5b2a000070008000000000000000'];
         yield 'non-hex digit' => ['018f5b2a-0000-7000-8000-00000000000g'];
         yield 'trailing junk' => ['018f5b2a-0000-7000-8000-000000000000x'];
+        yield 'trailing newline' => ["018f5b2a-0000-7000-8000-000000000000\n"];
     }
 
     #[DataProvider('rejected')]

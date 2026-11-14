@@ -21,6 +21,10 @@ use Doctrine\ORM\EntityManagerInterface;
  * forgets the half-mutated aggregate — so a later `flush()` cannot write a rename whose move was
  * refused (AC-16) — without disabling the EM. A unique violation during `flush()` still closes it;
  * that is Doctrine's behaviour, which is why the admin forms re-render from `DbalCategoryOutline`.
+ *
+ * `clear()` detaches EVERY managed entity, not only categories. Safe today because no caller holds
+ * other managed entities across a Catalog handler. A use case that calls one mid-way through its
+ * own unit of work must re-fetch its entities after a refusal, or narrow this to Catalog entities.
  */
 final readonly class PostgresCategoryTreeLock implements CategoryTreeLock
 {

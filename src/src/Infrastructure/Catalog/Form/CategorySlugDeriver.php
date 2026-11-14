@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Catalog\Form;
 
+use App\Domain\Catalog\ValueObject\CategorySlug;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 /**
@@ -16,8 +17,6 @@ use Symfony\Component\String\Slugger\SluggerInterface;
  */
 final readonly class CategorySlugDeriver
 {
-    private const int MAX_LENGTH = 64;
-
     public function __construct(
         private SluggerInterface $slugger,
     ) {
@@ -26,6 +25,6 @@ final readonly class CategorySlugDeriver
     /** `"Bass & Guitars"` → `bass-guitars`; `"Электрогитары"` → `elektrogitary`; `"!!!"` → `''`. */
     public function derive(string $name): string
     {
-        return $this->slugger->slug($name)->lower()->truncate(self::MAX_LENGTH)->trimEnd('-')->toString();
+        return $this->slugger->slug($name)->lower()->truncate(CategorySlug::MAX_LENGTH)->trimEnd('-')->toString();
     }
 }
