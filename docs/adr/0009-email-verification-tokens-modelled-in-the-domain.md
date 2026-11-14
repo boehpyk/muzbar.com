@@ -220,3 +220,23 @@ rather than the conclusion:
 **Also discharged:** the consequence *"a pruning job later has a natural unit to prune"* — it did, and
 the unit turned out to be a column rather than an aggregate, because deletion is not a state
 transition and needs no aggregate to agree to it (ADR-0012 decision 2).
+
+## Amendment, 2026-11-14 — the shared-UUID trigger fired at `CategoryId`; still duplicated
+
+The 2026-07-29 amendment set the trigger: *"Revisit at the first aggregate id outside `Identity`, and
+only if the extraction can preserve cross-type comparison as a compile-time error."* `CategoryId`
+([ADR-0016](./0016-category-tree-per-node-aggregates-under-one-tree-lock.md)) is that id, so the
+question is answered on record rather than skipped.
+
+**Answer: still duplicated.** `CategoryId` is a ~40-line copy of `UserId`'s shape, and its docblock
+names this amendment.
+
+**The second half of the criterion can now be met, and that is new.** A **trait**, unlike a base
+class, keeps the type: `self` inside a trait resolves to the *using* class, so `equals(self $other)`
+in `CategoryId` still refuses a `UserId` with a `TypeError`. The type hole described above belongs to
+the base class, not to extraction as such.
+
+**Why not now:** extracting it means editing three `Identity` value objects (`UserId`,
+`EmailVerificationRequestId`, `PasswordResetRequestId`) from inside a `Catalog` slice. That is scope
+creep into the context holding the credentials. It is **proposed as its own small refactor**, whose
+test is that every cross-type `equals()` is still a `TypeError`.

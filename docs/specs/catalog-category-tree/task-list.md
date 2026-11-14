@@ -12,7 +12,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
 - No `<many-to-one>`, no FK, no `RecordsEvents` in Catalog.
 
 ## Decisions & prerequisites
-- [ ] **T0:** `/adr` → **ADR-0016** *"Category tree: per-node aggregates on an adjacency list;
+- [x] **T0:** `/adr` → **ADR-0016** *"Category tree: per-node aggregates on an adjacency list;
       cross-instance invariants decided by the aggregate on facts read under one tree lock"* (plan
       D1–D4, D7, with the rejected whole-tree aggregate, trigger, SERIALIZABLE, Redis lock, ltree,
       materialized path, nested set and closure table). Also a dated **ADR-0005 amendment** (D10:

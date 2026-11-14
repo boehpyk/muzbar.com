@@ -172,3 +172,24 @@ waits in the session and is honoured when they sign in. No intended action trave
 registrant who verifies on another device lands on `/account`. Google provisioning — the 1-click
 registration path — honours the target directly. The overlay is a native `<dialog>`, not a Live
 Component; ADR-0015 says why.
+
+### Amendment, 2026-11-14 — `ROLE_ADMIN` is granted and revoked only from the console
+
+`catalog-category-tree` ships the first admin screen (`/admin/categories`,
+[ADR-0016](./0016-category-tree-per-node-aggregates-under-one-tree-lock.md)), so "who is an admin"
+needs an answer. It is `ROLE_ADMIN`, already in the `Role` enum, and:
+
+1. **Granted and revoked only from the console:** `muzbar:identity:grant-role <email> <ROLE_…>
+   [--revoke]`, a thin adapter over `GrantRole` / `RevokeRole` Application handlers that call the
+   existing `User::grantRole()` / `revokeRole()`. No event (today's `grantRole()` records none).
+   Shell access to the box is the authority to mint an admin.
+2. **No web UI for roles and no role hierarchy.** An admin who can mint admins needs its own threat
+   model; nothing needs one yet.
+3. **Two locks on the door:** `access_control: { path: ^/admin(/|$), roles: ROLE_ADMIN }` (anchored,
+   per ADR-0015's `/profile` precedent) **and** `#[IsGranted('ROLE_ADMIN')]` on the controller (the
+   `/account` precedent).
+4. **Revocation bites on the next request**, because Symfony's `ContextListener` deauthenticates a
+   refreshed user whose roles changed. That is asserted by AC-32, not assumed.
+
+Rejected: an env-var allow-list of admin emails (config that knows about users, and a redeploy to
+revoke); an admin-only `grant-admin` command (the same size as the general one).
