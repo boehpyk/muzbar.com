@@ -8,8 +8,10 @@ namespace App\Infrastructure\Identity\Http;
  * The one validator between an untrusted `_target_path` and the firewall's session target path
  * (ADR-0015).
  *
- * **There is exactly one writer: `SecurityController::login()` on `GET`.** Add a second writer and
- * it must go through here — a value that reaches the session unvalidated is an open redirect waiting
+ * **There is exactly one writer we own: `SecurityController::login()` on `GET`.** (The firewall
+ * entry point also writes — the absolute URI of a protected page visited anonymously — which is
+ * trusted by construction and must not be run through here.) Add a second writer and it must go
+ * through here — a value that reaches the session unvalidated is an open redirect waiting
  * for a reader that forgets `HttpUtils`.
  *
  * Accepts only a same-origin path: one that, placed in a `Location` header, cannot leave our origin

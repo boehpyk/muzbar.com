@@ -159,7 +159,7 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         // `new RedirectResponse($target)` on a session value is an open redirect the moment any
         // writer forgets the validator — `/\t/evil.example` becomes `//evil.example` in a browser
         // (ADR-0015 decision 4).
-        return $this->httpUtils->createRedirectResponse($request, $target ?? 'app_account');
+        return $this->httpUtils->createRedirectResponse($request, $target ?: 'app_account');
     }
 
     /**

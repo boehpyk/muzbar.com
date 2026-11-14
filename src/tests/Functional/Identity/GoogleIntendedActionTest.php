@@ -11,6 +11,7 @@ use App\Tests\Factory\UserFactory;
 use App\Tests\Support\ClearsRateLimiters;
 use App\Tests\Support\DrivesGoogleOAuth;
 use App\Tests\Support\StashesTargetPath;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -34,17 +35,35 @@ final class GoogleIntendedActionTest extends WebTestCase
         $this->clearRateLimiterPool();
     }
 
-    public function testAForeignTargetInTheSessionNeverLeavesTheOriginOnGoogleSignIn(): void
+    /**
+     * Both of `HttpUtils`' jobs: an absolute foreign URL has its host reset, and a relative value a
+     * browser would read as scheme-relative (`/\t/evil.example` → `//evil.example`) is absolutised
+     * onto our host. A hand-written host check instead of `HttpUtils` passes the first and fails the
+     * second; a raw `RedirectResponse` fails both.
+     */
+    #[DataProvider('foreignTargets')]
+    public function testAForeignTargetInTheSessionNeverLeavesTheOriginOnGoogleSignIn(string $target): void
     {
         UserFactory::new(['email' => Email::fromString('known@example.com')])->provisionedViaGoogle('sub-known')->create();
-        $this->stashTargetPathDirectly($this->client, 'https://evil.example/x');
+        $this->stashTargetPathDirectly($this->client, $target);
 
         $this->signInWithGoogle($this->client, $this->claims('sub-known', 'known@example.com'));
 
         self::assertResponseStatusCodeSame(302);
         $location = (string) $this->client->getResponse()->headers->get('Location');
-        self::assertSame('localhost', parse_url($location, \PHP_URL_HOST));
-        self::assertStringNotContainsString('evil.example', $location);
+        // A prefix, not `parse_url`: a browser resolves the header, and only an absolute URL already
+        // anchored on our origin is safe whatever the browser does with what follows.
+        self::assertStringStartsWith('http://localhost/', $location);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function foreignTargets(): iterable
+    {
+        yield 'absolute foreign URL' => ['https://evil.example/x'];
+        yield 'TAB-smuggled scheme-relative' => ["/\t/evil.example"];
+        yield 'scheme-relative' => ['//evil.example'];
     }
 
     public function testAKnownGoogleUserLandsOnTheIntendedAction(): void

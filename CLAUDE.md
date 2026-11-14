@@ -70,6 +70,10 @@ Docker Compose · Traefik · Nginx.
 > `/login`'s `[data-auth-panel]` lifted into a native `<dialog>` by plain JS in `assets/app.js` — not
 > a Live Component (login must go through the firewall). `/profile` is a **placeholder** proving
 > target. [ADR-0015](./docs/adr/0015-intended-action-redirect-and-login-overlay.md) + an ADR-0005 amendment.
+> Passed `/verify` on 2026-11-14 in two iterations; the one MAJOR finding was **two unkeepable ACs**
+> (AC-15, AC-19), amended in place with "the test won, on purpose". The JS overlay (AC-25) was checked
+> in a real Chromium, 8/8. ADR-0015 now records the accepted risk: **no GET route may change state on
+> behalf of the signed-in user** — any site can choose where a victim lands after signing in.
 > Next: Phase 1's `Catalog` context.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
@@ -451,7 +455,8 @@ These are documented failure modes we design against (see [docs/infrastructure.m
 - **To make a future action link an overlay trigger** ("Sell Gear"), copy the layout's "Profile"
   link: `<a href="{{ path('app_login', {_target_path: path('app_<action>')}) }}" data-auth-overlay>`.
   Without JS it is an ordinary link; the target is generated from the route, never typed. Protect the
-  route itself too, so the entry point covers direct visits. The overlay's background fetch of
+  route itself too, so the entry point covers direct visits — with an **anchored** `access_control`
+  regex (`^/profile(/|$)`, not `^/profile`, which would also lock a future public `/profiles/{slug}`). The overlay's background fetch of
   `/login` renders (and so consumes) flash messages on a page whose layout is discarded.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)

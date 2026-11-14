@@ -201,7 +201,11 @@ The **hostile list** (each value URL-encoded into the query string as a whole):
       Google callback answer with a `Location` on `localhost` — never `evil.example`.
 - [ ] **AC-15 (no echo, no log):** across AC-9…AC-13, no log record's message or context contains
       any hostile value or the substring `evil.example` (`RecordingLogger` scan), and no response
-      body contains `evil.example`.
+      body contains `evil.example`. *Amended at `/verify`:* the scan covers every `app`-channel record
+      and every record at `warning`+ on any channel; framework records below `warning` are exempt,
+      because the `request` channel's "Matched route" line carries `request_uri` by design (the
+      pre-existing footgun in CLAUDE.md) and is not this slice's code. The AC as first written could
+      not be met; the test won, on purpose.
 
 ### The Google round trip
 
@@ -216,7 +220,10 @@ The **hostile list** (each value URL-encoded into the query string as a whole):
 ### The unverified registrant
 
 - [ ] **AC-19:** `GET /login?_target_path=/profile`, then `POST /register` (valid) → 302 to
-      `/verify-email/sent`; the visitor is **not** authenticated (`GET /profile` → 302 `/login`).
+      `/verify-email/sent`; the visitor is **not** authenticated (the session holds no
+      `_security_main` token — *amended at `/verify`:* the originally written probe, `GET /profile`
+      → 302 `/login`, would itself overwrite the stashed target via the entry point, so the AC as
+      written could not pass; the test won, on purpose).
       Following the verification link from the recorded mail → 302 to `/login`, and the visitor is
       **still not** authenticated. Signing in → `Location: http://localhost/profile`.
 - [ ] **AC-20:** an unverified account's correct-password sign-in attempt with `/profile` stashed is

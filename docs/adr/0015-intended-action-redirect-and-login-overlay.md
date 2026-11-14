@@ -82,3 +82,9 @@ Symfony UX **Live Component** for the overlay. Implementing it surfaced four for
   The background fetch consumes flash messages on the fetched page. The target lives only as long as
   the session — PHP's default 1440 s idle lifetime, not overridden — so a slow registrant lands on
   `/account`.
+- **Accepted risk — "same origin" is not "harmless":** any site can send a victim to
+  `/login?_target_path=<any same-origin path>` as a top-level navigation (SameSite=Lax cookies ride
+  along), and after signing in the victim lands where the attacker chose. Nothing is exploitable today
+  — the only state-changing GETs (`/verify-email/{token}`, `/reset-password/{token}`) act on the
+  token's owner, not the signed-in user. It makes one rule permanent: **no GET route may change state
+  on behalf of the signed-in user.** (Recorded at `/verify`.)
