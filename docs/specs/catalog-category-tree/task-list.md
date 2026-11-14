@@ -37,7 +37,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
 ## Application
 - [x] **T5:** `Application/Catalog`: `CreateCategory` + handler (returns `CategoryId`) and
       `DeleteCategory` + handler, each fully inside `exclusively()`. (C-3 pre-check, C-6, C-7)
-- [ ] **T6:** `EditCategory` + handler: move, then rename, then reslug, then the sibling pre-check
+- [x] **T6:** `EditCategory` + handler: move, then rename, then reslug, then the sibling pre-check
       with `except`, then save, all in one `exclusively()`. Includes the call-site comment on the
       order.
 - [ ] **T7:** `Application/Identity`: `GrantRole` / `RevokeRole` + handlers over the existing
