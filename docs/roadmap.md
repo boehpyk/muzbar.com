@@ -217,6 +217,17 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         awaiting real profile content.
 - [ ] `Catalog` context: `Category` + `Attribute` + `AttributeOption` aggregates with invariants;
       admin CRUD for categories and attribute schemas (FR-1). This is the core DDD exercise.
+      **Too big for one cycle — sliced (2026-11-14):**
+  - [ ] `catalog-category-tree` — the `Category` aggregate: hierarchy (parent by id, never an
+        association), invariants (no cycles, sibling-unique slug, a depth ceiling), and admin CRUD.
+        Smallest standalone piece; everything else hangs off it.
+  - [ ] `catalog-attribute-schema` — `Attribute` + `AttributeOption`: typed attributes (enum,
+        number, boolean, text), units, validation rules, attached to categories. Open question for
+        `/plan`: is `AttributeOption` its own aggregate or a value collection inside `Attribute` (as
+        `User` holds `list<OAuthIdentity>`)? Lean: value collection — argue it, don't assume it.
+  - [ ] `catalog-schema-inheritance` — a child category inherits its ancestors' attributes; decide
+        what may be overridden and what happens to the tree when a parent's schema changes. This is
+        where the Phase 1 gate's "without corrupting existing rows" gets designed.
 - [ ] `Listing` context (skeleton): `Listing` aggregate + `listing_attribute_value` model and the
       hot-column promotion mechanism (ADR-0004). No search/wizard UI yet.
 - [ ] API-key issuance (hashed, revocable) — model only; endpoints in Phase 3.
