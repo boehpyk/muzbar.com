@@ -61,11 +61,13 @@ final class RegistrationController extends AbstractController
                 // cannot succeed is shipping a lie on purpose, and the resulting confusion arrives
                 // at the exact moment a new user is deciding whether this site works.
                 //
-                // The user is still deliberately NOT authenticated here. Auto-login after
-                // registration is a real convenience and it belongs to `identity-login-overlay`,
-                // which owns the one-step flow end to end. Bolting it on now would mean two places
-                // deciding when a session starts — and, since this slice, it would also mean
-                // handing out a session that `isUsable()` says should not exist.
+                // The user is deliberately NOT authenticated here, and `identity-login-overlay`
+                // declined auto-login for good (ADR-0015 decision 6): a session here is one that
+                // `isUsable()` says must not exist (I-5). Nor does clicking the verification link
+                // sign anyone in — ADR-0009 makes that link replay-absorbing, so it would become a
+                // reusable login token sitting in a mailbox. What survives instead is the intended
+                // action: the session target path is untouched by registering, and the first
+                // successful sign-in in this browser honours it.
                 //
                 // Note what this redirect does *not* wait for. The verification mail is issued by
                 // `IssueVerificationOnUserRegistered` listening on `UserRegistered`, which dispatches

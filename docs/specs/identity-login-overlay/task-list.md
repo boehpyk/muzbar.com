@@ -44,7 +44,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
       guard, `fetch` + `DOMParser` + `importNode`, one lazily created `<dialog>` with a
       `method="dialog"` close button, `showModal()`, navigate-on-any-failure; comment on the
       flash-consumption caveat (plan Risk 3). No imports. (AC-25, AC-30)
-- [ ] **T8:** Comment corrections — `RegistrationController` (auto-login declined, D6) and
+- [x] **T8:** Comment corrections — `RegistrationController` (auto-login declined, D6) and
       `config/packages/csrf.yaml` reason 1 (the site now ships JS; still session-backed, and why).
 
 ## Tests (qa)

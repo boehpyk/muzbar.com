@@ -23,10 +23,13 @@
 # It is kept above because it documents why the decision was made, and because dev/test
 # deliberately disable proxy trust.
 #
-# Reason 1 still stands on its own and is why this stays session-backed today: no JS, so the
-# double-submit leg cannot fire. Revisit when the public UI gains its asset pipeline — stateless
-# CSRF is the better fit for an HTTP-cacheable, JS-enabled front end, and the proxy precondition
-# is already met.
+# Reason 1 as written ("no JS") stopped being literally true with `identity-login-overlay`: the
+# site now ships one small module (assets/app.js). It still does not justify switching. The
+# overlay fetches /login and shows the panel it renders, so the token it submits is the ordinary
+# session-backed one from that page, and every form still works with JS off — where the
+# double-submit leg could never fire. The revisit trigger is unchanged and still unmet: an
+# HTTP-cacheable public front end, for which stateless CSRF is the better fit (and the proxy
+# precondition is already met).
 framework:
     form:
         csrf_protection: true
