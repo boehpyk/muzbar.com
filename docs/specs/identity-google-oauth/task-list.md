@@ -38,7 +38,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       `knpu_oauth2_client.yaml` with `default::` env, `pkceMethod: S256`; env vars in `src/.env`
       (empty), `src/.env.test` (dummy), `.env.example`. Confirm `docker build` + worker boot with
       vars unset. (AC-3 boot half)
-- [ ] **T11:** `SecurityUser::getPassword(): ?string`. (AC-14)
+- [x] **T11:** `SecurityUser::getPassword(): ?string`. (AC-14)
 - [ ] **T12:** `GoogleOAuthController` (start with empty-id guard + PKCE stash; check stub). (AC-1, AC-3)
 - [ ] **T13:** `GoogleAuthenticator` (state via knpu, PKCE restore, strict `email_verified`,
       exception→log-level map, no secrets in context, target-path success, session-error failure);
