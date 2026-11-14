@@ -30,6 +30,7 @@ use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationExc
 use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
 use Symfony\Component\Security\Http\Authenticator\Passport\Passport;
 use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPassport;
+use Symfony\Component\Security\Http\HttpUtils;
 use Symfony\Component\Security\Http\SecurityRequestAttributes;
 use Symfony\Component\Security\Http\Util\TargetPathTrait;
 
@@ -68,6 +69,7 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         private readonly SignInWithOAuthHandler $signIn,
         private readonly UrlGeneratorInterface $urls,
         private readonly LoggerInterface $logger,
+        private readonly HttpUtils $httpUtils,
     ) {
     }
 
@@ -152,7 +154,12 @@ final class GoogleAuthenticator extends OAuth2Authenticator
             $this->removeTargetPath($request->getSession(), $firewallName);
         }
 
-        return new RedirectResponse($target ?? $this->urls->generate('app_account'));
+        // Through `HttpUtils`, exactly as `form_login`'s success handler (its twin) does: it
+        // absolutises a relative path onto our host and resets a foreign host to `/`. A raw
+        // `new RedirectResponse($target)` on a session value is an open redirect the moment any
+        // writer forgets the validator — `/\t/evil.example` becomes `//evil.example` in a browser
+        // (ADR-0015 decision 4).
+        return $this->httpUtils->createRedirectResponse($request, $target ?: 'app_account');
     }
 
     /**

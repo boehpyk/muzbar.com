@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Identity\Http\Controller;
 
+use App\Infrastructure\Identity\Http\IntendedActionPath;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
+use Symfony\Component\Security\Http\Util\TargetPathTrait;
 
 /**
  * Login and logout — both of which are mostly *not* implemented here.
@@ -20,9 +24,25 @@ use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
  */
 final class SecurityController extends AbstractController
 {
+    use TargetPathTrait;
+
     #[Route('/login', name: 'app_login', methods: ['GET', 'POST'])]
-    public function login(AuthenticationUtils $authenticationUtils): Response
+    public function login(Request $request, AuthenticationUtils $authenticationUtils, Security $security): Response
     {
+        // The one writer of the session target path (ADR-0015), and only on GET: the failed-login
+        // re-render arrives as a GET without the parameter, so it leaves a stashed target alone.
+        // `all()`, never `get()`: `get()` throws on `_target_path[]=`. A rejected value is ignored
+        // silently — it is attacker-controlled text, so it is neither logged nor echoed.
+        if ($request->isMethod('GET') && $request->hasSession()) {
+            $path = IntendedActionPath::fromUntrusted($request->query->all()['_target_path'] ?? null);
+            $firewall = $security->getFirewallConfig($request);
+            if (null !== $path && null !== $firewall) {
+                // The firewall's own name rather than a `'main'` literal, so it cannot drift from
+                // security.yaml.
+                $this->saveTargetPath($request->getSession(), $firewall->getName(), $path);
+            }
+        }
+
         return $this->render('identity/login.html.twig', [
             // Whatever the firewall stashed on the last failed attempt. It is an exception object,
             // not a string, and the template renders its translated message key — see the template

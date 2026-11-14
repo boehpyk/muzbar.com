@@ -16,7 +16,7 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 slices 1–6 of 7 complete**.
+> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 `Identity` complete (7 of 7)**.
 > `identity-user-password-auth` (2026-07-26) shipped the repo's first Domain code — the `User`
 > aggregate, value objects, ports, two domain events, the first migration, and
 > register/login/logout/`/account`. `identity-email-verification` (2026-07-28) added the **second
@@ -63,7 +63,18 @@ Docker Compose · Traefik · Nginx.
 > [ADR-0014](./docs/adr/0014-google-sign-in-linked-identities-on-the-user-aggregate.md) + an ADR-0005 amendment.
 > **Not yet live:** needs the Google Console client and `GOOGLE_CLIENT_ID`/`_SECRET` in the box `.env`
 > (runbook: docs/infrastructure.md §*Google sign-in*); the deploy smoke check fails until then.
-> Current work: the last `Identity` slice — `identity-login-overlay`.
+> `identity-login-overlay` (2026-11-14) closed `Identity` with **no Domain or Application code, because
+> there was no domain**: "where was this visitor going?" is navigation state of one session. One
+> carrier (Symfony's session target path), **one writer** (`GET /login?_target_path=`), **one
+> validator** (`IntendedActionPath`), and every reader redirects through `HttpUtils`. The overlay is
+> `/login`'s `[data-auth-panel]` lifted into a native `<dialog>` by plain JS in `assets/app.js` — not
+> a Live Component (login must go through the firewall). `/profile` is a **placeholder** proving
+> target. [ADR-0015](./docs/adr/0015-intended-action-redirect-and-login-overlay.md) + an ADR-0005 amendment.
+> Passed `/verify` on 2026-11-14 in two iterations; the one MAJOR finding was **two unkeepable ACs**
+> (AC-15, AC-19), amended in place with "the test won, on purpose". The JS overlay (AC-25) was checked
+> in a real Chromium, 8/8. ADR-0015 now records the accepted risk: **no GET route may change state on
+> behalf of the signed-in user** — any site can choose where a victim lands after signing in.
+> Next: Phase 1's `Catalog` context.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -426,6 +437,27 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   `doctrine` records carry SQL parameters (emails). Not Sentry — that path is scrubbed — only the
   box's container log. The code is single-use and already spent, so this is accepted for now; it is
   a pre-existing property of every route, surfaced (not introduced) by this slice's log scan.
+
+- **The session target path has exactly one writer and every reader goes through `HttpUtils`.**
+  The writer is `SecurityController::login()` on `GET`, behind `IntendedActionPath::fromUntrusted()`.
+  A new writer must use that validator; a reader that does `new RedirectResponse($target)` on a
+  session value is an open redirect (`GoogleAuthenticator` did, until ADR-0015). "Starts with `/`" is
+  not a defence: **browsers strip TAB/CR/LF from URLs and read `\` as `/`**, so `/\t/evil.example`
+  *becomes* `//evil.example`, and `%2F`/`%5C`/`%09` do the same after a downstream decode. Symfony's
+  own `_target_path` **POST** parameter is a second door we cannot remove; it is safe only because
+  `HttpUtils` absolutises and host-checks, and `IntendedActionRedirectTest` proves it.
+- **An anonymous `GET` of any protected route overwrites the stashed target** (the firewall entry
+  point is a writer too). A test that "probes" `/account` to check it is signed out silently replaces
+  the intended action — read `_security_main` from the session instead.
+- **The intended action lives only as long as the session: PHP's default 1440 s idle lifetime**
+  (`RedisSessionHandler` has no `ttl`, nothing sets `session.gc_maxlifetime`). A registrant who takes
+  longer to click the verification link lands on `/account`. Not a bug in the redirect.
+- **To make a future action link an overlay trigger** ("Sell Gear"), copy the layout's "Profile"
+  link: `<a href="{{ path('app_login', {_target_path: path('app_<action>')}) }}" data-auth-overlay>`.
+  Without JS it is an ordinary link; the target is generated from the route, never typed. Protect the
+  route itself too, so the entry point covers direct visits — with an **anchored** `access_control`
+  regex (`^/profile(/|$)`, not `^/profile`, which would also lock a future public `/profiles/{slug}`). The overlay's background fetch of
+  `/login` renders (and so consumes) flash messages on a page whose layout is discarded.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):

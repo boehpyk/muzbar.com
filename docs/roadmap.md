@@ -208,11 +208,13 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         [ADR-0014](./adr/0014-google-sign-in-linked-identities-on-the-user-aggregate.md).
         **Before deploy:** Google Console client + `GOOGLE_CLIENT_ID`/`_SECRET` in the box `.env` —
         the deploy smoke check fails without them.
-  - [ ] `identity-login-overlay` — login/register overlay Live Component + intended-action redirect
-        preserved across both the form and the OAuth round-trip.
-        **TODO carried from `identity-google-oauth`:** AC-4 has no test — assert the "Continue with
-        Google" link to `/connect/google` on `/login` and `/register` (this slice rewrites both, so
-        the test belongs here).
+  - [x] `identity-login-overlay` (2026-11-14) — login overlay (native `<dialog>` + plain JS, **not** a
+        Live Component — login must go through the firewall) + intended-action redirect preserved
+        across the form, the Google round trip and registration (same session, first sign-in).
+        One writer, one validator, `HttpUtils` readers.
+        [ADR-0015](./adr/0015-intended-action-redirect-and-login-overlay.md). The google-oauth AC-4
+        TODO is closed (`LoginOverlayMarkupTest`). `/profile` is a **placeholder** proving target
+        awaiting real profile content.
 - [ ] `Catalog` context: `Category` + `Attribute` + `AttributeOption` aggregates with invariants;
       admin CRUD for categories and attribute schemas (FR-1). This is the core DDD exercise.
 - [ ] `Listing` context (skeleton): `Listing` aggregate + `listing_attribute_value` model and the
