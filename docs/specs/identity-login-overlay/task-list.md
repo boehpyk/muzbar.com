@@ -10,7 +10,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 **Rule:** the diff under `src/src/Domain/` and `src/src/Application/` stays empty (AC-26).
 
 ## Decisions & prerequisites
-- [ ] **T0:** `/adr` → **ADR-0015** *"Intended-action redirect: one carrier, one writer, one
+- [x] **T0:** `/adr` → **ADR-0015** *"Intended-action redirect: one carrier, one writer, one
       validator; the login overlay is /login in a native dialog"* (D1 incl. the Live Component
       rationale, D3, D4, D5, D6) + dated **ADR-0005 amendment** ("preserved across registration" =
       within the session until the first successful sign-in; cross-device → `/account`; no

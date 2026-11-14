@@ -160,3 +160,15 @@ use it.
    never decide. `User::isUsable()` stays `isEmailVerified()`.
 3. **knpu is used as planned**, and PKCE (S256) is added by us, because knpu does not persist a code
    verifier.
+
+### Amendment, 2026-11-14 — "preserved across registration" means within the session, until the first sign-in
+
+`identity-login-overlay` implements the overlay and the intended-action redirect, recorded in
+[ADR-0015](./0015-intended-action-redirect-and-login-overlay.md). One phrase of the Decision above is
+refined: *"the intended action is preserved across login/registration"* means **within the same
+browser session, until the first successful sign-in**. A password registrant is not signed in after
+registering (I-5) nor by clicking the verification link (it is replay-absorbing, ADR-0009); the target
+waits in the session and is honoured when they sign in. No intended action travels in any mail, so a
+registrant who verifies on another device lands on `/account`. Google provisioning — the 1-click
+registration path — honours the target directly. The overlay is a native `<dialog>`, not a Live
+Component; ADR-0015 says why.
