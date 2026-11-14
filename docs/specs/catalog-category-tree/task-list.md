@@ -90,7 +90,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       failure-contract row (exact message, field, 422, other fields keep their values), edit and
       move, delete leaf/non-leaf, no GET delete, CSRF, and the 404s. Also the C-3 race re-render
       reading only through DBAL (plan Risk 2). Uses `ClearsRateLimiters`. (AC-22…AC-30, AC-33)
-- [ ] **T20:** `GrantRoleCommandTest` (`CommandTester`) and `AdminRevocationTest` (signed-in admin,
+- [x] **T20:** `GrantRoleCommandTest` (`CommandTester`) and `AdminRevocationTest` (signed-in admin,
       revoked, next request not 200). (AC-31, AC-32)
 - [ ] **T21:** Prove the tests bite with AC-34's mutations (a)–(f): watch each one fail, revert,
       and record the results in the commit message. Then run `make test` twice. (AC-34, AC-35)
