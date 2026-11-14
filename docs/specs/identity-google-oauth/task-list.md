@@ -21,7 +21,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
 - [x] **T3:** `Exception/OAuthProviderAlreadyLinked`, `Exception/OAuthEmailNotVerified`.
 - [x] **T4:** `User`: nullable `passwordHash`, `hasPassword()`, `oauthIdentities` property + readers.
       Docblock fixes on `passwordChangedAt` / `isUsable()` (body unchanged). (AC-16)
-- [ ] **T5:** `User::registerWithOAuth()` and `User::linkOAuthIdentity()` with I-27/28/29. The I-29
+- [x] **T5:** `User::registerWithOAuth()` and `User::linkOAuthIdentity()` with I-27/28/29. The I-29
       line carries the *why-not-`changePassword()`* comment. (AC-6, AC-8, AC-11, AC-12)
 - [ ] **T6:** `UserRepository::findByOAuthIdentity()` on the port.
 

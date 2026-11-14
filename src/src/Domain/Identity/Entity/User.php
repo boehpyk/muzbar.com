@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Domain\Identity\Entity;
 
 use App\Domain\Identity\Event\UserEmailVerified;
+use App\Domain\Identity\Event\UserOAuthIdentityLinked;
 use App\Domain\Identity\Event\UserPasswordChanged;
 use App\Domain\Identity\Event\UserRegistered;
 use App\Domain\Identity\Exception\CannotRevokeBaseRole;
+use App\Domain\Identity\Exception\OAuthProviderAlreadyLinked;
 use App\Domain\Identity\ValueObject\Email;
 use App\Domain\Identity\ValueObject\HashedPassword;
 use App\Domain\Identity\ValueObject\OAuthIdentity;
@@ -109,6 +111,80 @@ final class User
         $user->recordThat(new UserRegistered($id, $email, $registeredAt));
 
         return $user;
+    }
+
+    /**
+     * The second way a User comes into existence: through a provider, with no password at all.
+     *
+     * PRECONDITION, ENFORCED BY THE CALLER: the provider verified `$email`. That is why the account is
+     * born email-verified (`emailVerifiedAt = $registeredAt`) — the proof already happened, at the
+     * provider — and why invariant I-5 holds from the first instant. The aggregate cannot check a
+     * boolean it never sees; `SignInWithOAuthHandler` refuses an unverified address before calling
+     * this.
+     *
+     * I-27 (a password, an identity, or both) is held by the signature: there is no way to call this
+     * without an identity.
+     *
+     * Records `UserRegistered` then `UserEmailVerified`, in that order — the same two facts a
+     * password registration followed by a verification click would record. There is deliberately no
+     * `UserRegisteredWithOAuth`: the fact is "a user registered", and each listener decides whether
+     * it applies (the verification-mail listener treats an already-verified account as nothing to
+     * do).
+     */
+    public static function registerWithOAuth(UserId $id, Email $email, OAuthIdentity $identity, \DateTimeImmutable $registeredAt): self
+    {
+        $user = new self($id, $email, null, [Role::User], $registeredAt, $registeredAt);
+        $user->oauthIdentities = [$identity];
+        $user->recordThat(new UserRegistered($id, $email, $registeredAt));
+        $user->recordThat(new UserEmailVerified($id, $registeredAt));
+
+        return $user;
+    }
+
+    /**
+     * Attach a provider identity to this existing account (ADR-0014).
+     *
+     * PRECONDITION, ENFORCED BY THE CALLER: the provider verified an address equal to this account's
+     * email. Both sides then proved the same mailbox, which is what makes linking by email safe.
+     *
+     * - Linking an identity already held is a no-op with no event — idempotent, like `verifyEmail()`.
+     * - A *different* identity from a provider already linked is refused (I-28).
+     * - On an **unverified** account the password is discarded (I-29): see the comment at the line.
+     *
+     * Records `UserEmailVerified` (only if this verified the address) then `UserOAuthIdentityLinked`.
+     */
+    public function linkOAuthIdentity(OAuthIdentity $identity, \DateTimeImmutable $at): void
+    {
+        if ($this->hasOAuthIdentity($identity)) {
+            return;
+        }
+
+        foreach ($this->oauthIdentities as $held) {
+            if ($held->isFrom($identity->provider())) {
+                throw OAuthProviderAlreadyLinked::forUser($this->id, $identity->provider());
+            }
+        }
+
+        $passwordDiscarded = false;
+
+        if (!$this->isEmailVerified()) {
+            // I-29, THE PRE-HIJACK DEFENCE, AND DELIBERATELY NOT `changePassword()`. An unverified
+            // account's password predates any proof of the mailbox: anyone could have registered this
+            // address first and be waiting for its owner to sign in with Google. The owner has just
+            // proved the mailbox, so a password nobody proved does not survive it.
+            //
+            // It is a plain assignment rather than `changePassword()` because nobody chose a new
+            // password: there is no new hash, so `passwordChangedAt` stays as it was and
+            // `UserPasswordChanged` is not recorded — that event would send a "your password was
+            // changed" mail to someone who changed nothing. Any reset link still outstanding for this
+            // address sits in the very mailbox that just proved itself, so I-23 needs nothing extra.
+            $this->passwordHash = null;
+            $passwordDiscarded = true;
+        }
+
+        $this->oauthIdentities[] = $identity;
+        $this->verifyEmail($at);
+        $this->recordThat(new UserOAuthIdentityLinked($this->id, $identity->provider(), $at, $passwordDiscarded));
     }
 
     /**
