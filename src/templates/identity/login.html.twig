@@ -36,6 +36,10 @@
         <button type="submit">Sign in</button>
     </form>
 
+    {# A plain GET link, not a form: starting the flow changes nothing here, and the callback is bound
+       to this session by `state` and PKCE (ADR-0014). #}
+    <p><a href="{{ path('app_oauth_google_start') }}">Continue with Google</a></p>
+
     <p><a href="{{ path('app_register') }}">Need an account? Register</a></p>
 
     {# The only thing that makes the whole reset flow reachable. Unconditional, for the reason the

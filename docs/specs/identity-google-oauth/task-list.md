@@ -45,7 +45,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       `security.yaml` `custom_authenticators`. (AC-5…AC-13, AC-18, AC-19, AC-20)
 - [x] **T14:** `IssueVerificationOnUserRegistered`: `catch (EmailAlreadyVerified) { return; }` above
       the `\Throwable` arm, commented. (AC-7)
-- [ ] **T15:** "Continue with Google" link on `login.html.twig` and `register.html.twig`. (AC-4)
+- [x] **T15:** "Continue with Google" link on `login.html.twig` and `register.html.twig`. (AC-4)
 - [ ] **T16 (devops):** `deploy.yml` smoke check: `location` of `/connect/google` contains the https
       `redirect_uri`. (AC-2)
 

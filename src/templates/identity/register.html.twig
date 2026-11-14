@@ -27,5 +27,9 @@
         <button type="submit">Register</button>
     {{ form_end(registrationForm) }}
 
+    {# A plain GET link, not a form: starting the flow changes nothing here, and the callback is bound
+       to this session by `state` and PKCE (ADR-0014). #}
+    <p><a href="{{ path('app_oauth_google_start') }}">Continue with Google</a></p>
+
     <p><a href="{{ path('app_login') }}">Already have an account? Sign in</a></p>
 {% endblock %}
