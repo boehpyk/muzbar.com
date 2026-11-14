@@ -210,6 +210,9 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         the deploy smoke check fails without them.
   - [ ] `identity-login-overlay` — login/register overlay Live Component + intended-action redirect
         preserved across both the form and the OAuth round-trip.
+        **TODO carried from `identity-google-oauth`:** AC-4 has no test — assert the "Continue with
+        Google" link to `/connect/google` on `/login` and `/register` (this slice rewrites both, so
+        the test belongs here).
 - [ ] `Catalog` context: `Category` + `Attribute` + `AttributeOption` aggregates with invariants;
       admin CRUD for categories and attribute schemas (FR-1). This is the core DDD exercise.
 - [ ] `Listing` context (skeleton): `Listing` aggregate + `listing_attribute_value` model and the
