@@ -97,6 +97,7 @@ final class GoogleSignInPrivacyTest extends WebTestCase
             'access_denied (AC-13)',
             'missing code',
             'token exchange refused',
+            'forged code (invalid_grant)',
             'userinfo down',
             'passwordless form login (AC-14)',
         ] as $name) {
@@ -239,6 +240,7 @@ final class GoogleSignInPrivacyTest extends WebTestCase
             'other session (AC-13)',
             'access_denied (AC-13)',
             'missing code',
+            'forged code (invalid_grant)',
         ] as $name) {
             yield $name => [$name];
         }
@@ -319,6 +321,12 @@ final class GoogleSignInPrivacyTest extends WebTestCase
             case 'token exchange refused':
                 $secrets = $this->startAndSecrets();
                 $this->fakeGoogle()->failTokenExchange();
+                $this->hitCallback($this->client, $secrets['state']);
+                break;
+            case 'forged code (invalid_grant)':
+                // A real flow, then a junk code: Google refuses the grant. Anyone can do this.
+                $secrets = $this->startAndSecrets();
+                $this->fakeGoogle()->failTokenExchange('invalid_grant');
                 $this->hitCallback($this->client, $secrets['state']);
                 break;
             case 'userinfo down':

@@ -17,6 +17,7 @@ use KnpU\OAuth2ClientBundle\Client\OAuth2PKCEClient;
 use KnpU\OAuth2ClientBundle\Exception\InvalidStateException;
 use KnpU\OAuth2ClientBundle\Exception\MissingAuthorizationCodeException;
 use KnpU\OAuth2ClientBundle\Security\Authenticator\OAuth2Authenticator;
+use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -95,8 +96,17 @@ final class GoogleAuthenticator extends OAuth2Authenticator
             $claims = $this->google->fetchUserFromToken($this->google->getAccessToken())->toArray();
         } catch (InvalidStateException|MissingAuthorizationCodeException $e) {
             throw $this->fail('warning', 'Google sign-in callback had no valid state or code.', $e::class);
+        } catch (IdentityProviderException $e) {
+            // `invalid_grant` is Google refusing the *code* — and anyone who has started a flow can
+            // send a junk code with their own valid state. Visitor-caused, so `warning`, or a script
+            // pages the operator once per request. Every other refusal (`invalid_client`: our secret
+            // is wrong) is ours, so `error`. The body is read, never logged: it quotes Google.
+            $body = $e->getResponseBody();
+            $visitorCaused = \is_array($body) && 'invalid_grant' === ($body['error'] ?? null);
+
+            throw $this->fail($visitorCaused ? 'warning' : 'error', 'Google sign-in failed during the token exchange or userinfo call.', $e::class);
         } catch (\Throwable $e) {
-            // Token exchange or userinfo failed: Google down, bad secret, timeout, a malformed
+            // Token exchange or userinfo failed: Google down, timeout, a malformed
             // response. Ours or Google's, never the visitor's — so `error`, and Sentry (AC-20).
             throw $this->fail('error', 'Google sign-in failed during the token exchange or userinfo call.', $e::class);
         }

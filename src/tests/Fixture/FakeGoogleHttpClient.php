@@ -73,11 +73,12 @@ final class FakeGoogleHttpClient
     }
 
     /**
-     * Google refusing the code (bad secret, reused code, wrong verifier): an OAuth error body.
+     * Google refusing the exchange with an OAuth error body: `invalid_client` is a bad secret (ours),
+     * `invalid_grant` a reused, forged or mismatched code (the visitor's).
      */
-    public function failTokenExchange(int $status = 400): void
+    public function failTokenExchange(string $error = 'invalid_client', int $status = 400): void
     {
-        $this->queueJson($status, ['error' => 'invalid_grant', 'error_description' => 'Bad Request SECRET-DETAIL']);
+        $this->queueJson($status, ['error' => $error, 'error_description' => 'Bad Request SECRET-DETAIL']);
     }
 
     /**
