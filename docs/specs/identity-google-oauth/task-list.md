@@ -18,7 +18,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
 - [x] **T1:** `ValueObject/OAuthProvider` enum + `ValueObject/OAuthIdentity` + `Exception/InvalidOAuthIdentity`.
       (AC-21)
 - [x] **T2:** `Event/UserOAuthIdentityLinked` (userId, provider, linkedAt, passwordDiscarded). No sub, no email.
-- [ ] **T3:** `Exception/OAuthProviderAlreadyLinked`, `Exception/OAuthEmailNotVerified`.
+- [x] **T3:** `Exception/OAuthProviderAlreadyLinked`, `Exception/OAuthEmailNotVerified`.
 - [ ] **T4:** `User`: nullable `passwordHash`, `hasPassword()`, `oauthIdentities` property + readers.
       Docblock fixes on `passwordChangedAt` / `isUsable()` (body unchanged). (AC-16)
 - [ ] **T5:** `User::registerWithOAuth()` and `User::linkOAuthIdentity()` with I-27/28/29. The I-29
