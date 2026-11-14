@@ -201,8 +201,13 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         calls it. It met ADR-0010's "revisit the outbox" trigger and declined it (dated amendment).
         **Owed:** it adds a second silent async failure class (a lost notice has no compensating
         action; a template failure in the worker lands in the `failed` transport) — see Sentry.
-  - [ ] `identity-google-oauth` — `knpuniversity/oauth2-client-bundle`, `OAuthIdentity` VO, account
-        linking by email (never a duplicate `User`).
+  - [x] `identity-google-oauth` (2026-11-14) — knpu's `OAuth2PKCEClient` + league's Google provider,
+        `OAuthIdentity` VOs inside `User` (jsonb), sub-first recognition, linking by verified email
+        (never a duplicate `User`). **Linking to an unverified account discards its password** (I-29,
+        the pre-hijack defence); passwords became optional; I-5 deliberately not widened.
+        [ADR-0014](./adr/0014-google-sign-in-linked-identities-on-the-user-aggregate.md).
+        **Before deploy:** Google Console client + `GOOGLE_CLIENT_ID`/`_SECRET` in the box `.env` —
+        the deploy smoke check fails without them.
   - [ ] `identity-login-overlay` — login/register overlay Live Component + intended-action redirect
         preserved across both the form and the OAuth round-trip.
 - [ ] `Catalog` context: `Category` + `Attribute` + `AttributeOption` aggregates with invariants;

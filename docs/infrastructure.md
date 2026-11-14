@@ -317,6 +317,41 @@ never fails it. A 429 (quota) drops events silently on Sentry's side; the log li
   not running. Check `docker compose ps messenger-worker` as in the queue runbook.
 - Anything below `error` — including every `warning` retry line.
 
+## Google sign-in (runbook)
+
+Google sign-in is knpu's `OAuth2PKCEClient` over league's Google provider
+([ADR-0014](./adr/0014-google-sign-in-linked-identities-on-the-user-aggregate.md)). Empty
+`GOOGLE_CLIENT_ID` is a legitimate state (every kernel boots), but `/connect/google` then logs one
+`error` (→ Sentry) and bounces to `/login` — and the **deploy smoke check fails**.
+
+### Google Cloud Console (owner, once)
+
+1. APIs & Services → **OAuth consent screen**: External, app name *muzbar*, scopes **`openid` and
+   `email` only** (no `profile` — GDPR minimisation, AC-21). Publish it (Testing mode limits sign-in
+   to listed test users).
+2. **Credentials → Create OAuth client ID → Web application.** Authorised redirect URIs, exactly:
+   - `https://muzbar.com/connect/google/check` (prod)
+   - `http://localhost:8080/connect/google/check` (dev)
+
+   No JavaScript origins are needed (server-side flow).
+3. Put the client id and secret in the box's root `.env` as `GOOGLE_CLIENT_ID=…` and
+   `GOOGLE_CLIENT_SECRET=…`; for dev, in `src/.env.local` (never committed).
+4. Redeploy / recreate `app`. Then:
+   `curl -sI https://muzbar.com/connect/google | grep -i ^location` must show
+   `redirect_uri=https%3A%2F%2Fmuzbar.com%2Fconnect%2Fgoogle%2Fcheck` and
+   `code_challenge_method=S256`. That is exactly what `deploy.yml`'s smoke check asserts.
+
+### When it breaks
+
+- `redirect_uri=http%3A…` → `trusted_proxies` is not applied (check `APP_ENV=prod` — see the
+  `production` incident) or Traefik is not sending `X-Forwarded-Proto`. Google answers
+  `redirect_uri_mismatch`.
+- Every callback fails with an `IdentityProviderException` in Sentry → wrong/rotated secret, or the
+  redirect URI in the Console differs by a character.
+- Every callback fails at `warning` (`InvalidStateException` / `missing_pkce_verifier`) → sessions are
+  not surviving the round trip: Redis down, or the session cookie is not being sent back
+  (`SameSite`/domain).
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker

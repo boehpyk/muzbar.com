@@ -67,7 +67,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       and the PKCE restore, and confirm a test fails each time. Record it in the commit message. `make test` × 2. (AC-24)
 
 ## Docs
-- [ ] **T24:** CLAUDE.md (status, env vars, five footguns from the plan), docs/infrastructure.md
+- [x] **T24:** CLAUDE.md (status, env vars, five footguns from the plan), docs/infrastructure.md
       Google Console runbook, roadmap tick, FORboehpyk.md chapter.
 
 ## Verify

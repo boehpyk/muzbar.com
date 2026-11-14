@@ -46,9 +46,14 @@ ADR left open or got subtly wrong:
 8. **No Domain port for Google.** The authenticator (Infrastructure) does the protocol and hands plain
    claims to an Application command. Nothing inside calls outward, so a port would have no inside
    caller.
-9. **PKCE S256 is added by us.** knpu's `OAuth2Client` stores `state` in the session but does not
-   persist a PKCE verifier; we stash it at redirect and restore it before the token exchange.
-   `state` is never disabled. No `nonce`: no `id_token` is consumed.
+9. **PKCE S256 is required, and comes from knpu's `OAuth2PKCEClient`.** knpu's default
+   `OAuth2Client` does no PKCE, and league's `Google` provider has no PKCE option
+   (`getPkceMethod()` returns null). knpu's `OAuth2PKCEClient` (selectable only with `type: generic`)
+   generates the S256 challenge, keeps the verifier in the session and sends it at the token
+   exchange — so there is no PKCE code of ours. A small `GoogleProvider` subclass drops the
+   `profile` scope league always adds, so the request is exactly `openid email`. `state` is never
+   disabled. No `nonce`: no `id_token` is consumed. *(Corrected 2026-11-14 during implementation:
+   the plan assumed we would stash and restore the verifier ourselves.)*
 10. **Cross-user uniqueness of `(provider, subject)` is application-guaranteed, not a DB constraint.**
     A subject is only attached after a by-subject lookup missed, and only to the single user owning
     the asserted email (`uniq_identity_user_email` makes that user unique). The one race — two
