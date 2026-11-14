@@ -51,7 +51,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
 - [x] **T9:** Migration (generated, then reviewed by hand). Run `make migrate`, then
       `make migration.make` and confirm **it generates nothing**. If it does generate something,
       apply the normalised-predicate fallback (plan *Data & migrations*). (AC-19, AC-20)
-- [ ] **T10:** `DoctrineCategoryRepository`: `nextIdentity` (v7), `get`, `save` with 23505 →
+- [x] **T10:** `DoctrineCategoryRepository`: `nextIdentity` (v7), `get`, `save` with 23505 →
       `CategorySlugAlreadyTaken`, `remove`, and the bounded recursive-CTE `lineageOf` and
       `subtreeHeightOf` (bound = `Category::MAX_DEPTH + 1`, corruption → `CorruptCategoryTree`).
       Also `hasChildren` and `isSlugTakenAmongSiblings` (`IS NOT DISTINCT FROM`). (AC-12, AC-18)
