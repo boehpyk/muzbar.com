@@ -52,7 +52,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
 ## Tests (qa)
 - [x] **T17:** `tests/Fixture/FakeGoogleProvider` + `when@test` override of `knpu.oauth2.provider.google`;
       `UserFactory` path through `registerWithOAuth()`.
-- [ ] **T18:** Domain unit: `OAuthIdentity`; `registerWithOAuth`; `linkOAuthIdentity` × 4 cases incl.
+- [x] **T18:** Domain unit: `OAuthIdentity`; `registerWithOAuth`; `linkOAuthIdentity` × 4 cases incl.
       no `UserPasswordChanged` on discard; `changePassword` on passwordless. (AC-6, 8, 11, 12, 16)
 - [ ] **T19:** Integration: `OAuthIdentitySetType` round-trip/corrupt row; `findByOAuthIdentity`;
       null hash round-trip; handler's five paths + provision race. (AC-5, 6, 8, 9, 10, 11, 21)
