@@ -92,7 +92,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       reading only through DBAL (plan Risk 2). Uses `ClearsRateLimiters`. (AC-22…AC-30, AC-33)
 - [x] **T20:** `GrantRoleCommandTest` (`CommandTester`) and `AdminRevocationTest` (signed-in admin,
       revoked, next request not 200). (AC-31, AC-32)
-- [ ] **T21:** Prove the tests bite with AC-34's mutations (a)–(f): watch each one fail, revert,
+- [x] **T21:** Prove the tests bite with AC-34's mutations (a)–(f): watch each one fail, revert,
       and record the results in the commit message. Then run `make test` twice. (AC-34, AC-35)
 
 ## Docs

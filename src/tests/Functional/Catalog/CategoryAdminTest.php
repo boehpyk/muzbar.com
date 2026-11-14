@@ -192,15 +192,56 @@ final class CategoryAdminTest extends WebTestCase
     /**
      * @return array<string, mixed>
      */
-    private function hostileBody(string $method, string $path): array
+    private function hostileBody(string $method, string $path, Category $target): array
     {
         if ('GET' === $method) {
             return [];
         }
 
+        // The delete token is a VALID one for this very session. A bad token would be answered 403
+        // (or, for an anonymous caller, a redirect to /login) by the controller's own CSRF check,
+        // which looks exactly like the access rule doing its job: with the rule removed the matrix
+        // would stay green on the delete route.
         return str_ends_with($path, '/delete')
-            ? ['_token' => 'x']
+            ? ['_token' => $this->mintDeleteToken($target)]
             : ['category_form' => ['name' => 'Injected', 'slug' => 'injected', 'parent' => '', '_token' => 'x']];
+    }
+
+    /**
+     * Puts a genuine `delete-category-<id>` token into the browser's session (creating the session
+     * and its cookie if the browser has none yet) and returns it. This is how a caller who is not
+     * allowed to see the admin page, hence cannot scrape one, still holds a valid token.
+     */
+    private function mintDeleteToken(Category $category): string
+    {
+        $container = self::getContainer();
+        $factory = $container->get('session.factory');
+        self::assertInstanceOf(\Symfony\Component\HttpFoundation\Session\SessionFactoryInterface::class, $factory);
+        $stack = $container->get('request_stack');
+        self::assertInstanceOf(\Symfony\Component\HttpFoundation\RequestStack::class, $stack);
+        $tokens = $container->get('security.csrf.token_manager');
+        self::assertInstanceOf(\Symfony\Component\Security\Csrf\CsrfTokenManagerInterface::class, $tokens);
+
+        $session = $factory->createSession();
+        $cookie = $this->client->getCookieJar()->get($session->getName());
+        if (null !== $cookie) {
+            $session->setId($cookie->getValue());
+        }
+        $session->start();
+        $request = new \Symfony\Component\HttpFoundation\Request();
+        $request->setSession($session);
+        $stack->push($request);
+        try {
+            $value = $tokens->getToken('delete-category-'.$category->id()->toString())->getValue();
+        } finally {
+            $stack->pop();
+        }
+        $session->save();
+        if (null === $cookie) {
+            $this->client->getCookieJar()->set(new \Symfony\Component\BrowserKit\Cookie($session->getName(), $session->getId()));
+        }
+
+        return $value;
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('routes')]
@@ -209,7 +250,7 @@ final class CategoryAdminTest extends WebTestCase
         $guitars = $this->category('guitars');
         $before = $this->table();
 
-        $this->client->request($method, str_replace('{id}', $guitars->id()->toString(), $path), $this->hostileBody($method, $path));
+        $this->client->request($method, str_replace('{id}', $guitars->id()->toString(), $path), $this->hostileBody($method, $path, $guitars));
 
         self::assertResponseRedirects('/login');
         self::assertSame($before, $this->table());
@@ -222,7 +263,7 @@ final class CategoryAdminTest extends WebTestCase
         $this->signInAsPlainUser();
         $before = $this->table();
 
-        $this->client->request($method, str_replace('{id}', $guitars->id()->toString(), $path), $this->hostileBody($method, $path));
+        $this->client->request($method, str_replace('{id}', $guitars->id()->toString(), $path), $this->hostileBody($method, $path, $guitars));
 
         self::assertResponseStatusCodeSame(403);
         self::assertSame($before, $this->table());
