@@ -58,7 +58,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       null hash round-trip; handler's five paths + provision race. (AC-5, 6, 8, 9, 10, 11, 21)
 - [x] **T20:** Functional, flow: start params; empty-id guard; recognise/link/provision/pre-hijack
       via real knpu client; no verification mail on provision. (AC-1, 3, 5–12, 16, 18)
-- [ ] **T21:** Functional, security: state mismatch, cross-session, `access_denied`; passwordless vs
+- [x] **T21:** Functional, security: state mismatch, cross-session, `access_denied`; passwordless vs
       wrong password compared live; passwordless → reset → both logins; `/register` over a Google
       account. (AC-13, 14, 15, 17)
 - [ ] **T22:** Functional, privacy: log scan for email/sub/code/state/verifier/token; provider
