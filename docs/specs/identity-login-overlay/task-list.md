@@ -29,7 +29,7 @@ trigger; D8 = ADR-0015 + ADR-0005 amendment, written in T0.
 - [x] **T2:** `ProfileController` (`/profile`, `app_profile`, `#[IsGranted('ROLE_USER')]`, no
       variables) + `templates/identity/profile.html.twig` (h1 "Profile", one placeholder sentence) +
       `security.yaml` `access_control` `^/profile`. (AC-1)
-- [ ] **T3:** `SecurityController::login()` — on `GET`, `query->all()['_target_path']` →
+- [x] **T3:** `SecurityController::login()` — on `GET`, `query->all()['_target_path']` →
       `IntendedActionPath` → `saveTargetPath()` with the firewall name from
       `Security::getFirewallConfig()`. No logging. (AC-2, AC-3, AC-6, AC-8, AC-10, AC-15)
 - [ ] **T4:** `GoogleAuthenticator::onAuthenticationSuccess()` → `HttpUtils::createRedirectResponse()`
