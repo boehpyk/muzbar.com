@@ -44,7 +44,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       `User::grantRole()` / `revokeRole()`.
 
 ## Infrastructure
-- [ ] **T8:** DBAL types `CategoryIdType`, `CategorySlugType` and `CategoryNameType`. Register them
+- [x] **T8:** DBAL types `CategoryIdType`, `CategorySlugType` and `CategoryNameType`. Register them
       in `doctrine.yaml` together with a new `Catalog:` mappings block. Add `Category.orm.xml`
       (plain `parent_id` column, the two named partial unique constraints, and a header comment
       citing ADR-0007/0009 and plan D4). (AC-19, AC-21)

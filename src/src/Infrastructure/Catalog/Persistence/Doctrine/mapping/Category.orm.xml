@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Doctrine mapping for the `Catalog` context's first aggregate root, `Category` (ADR-0016).
+
+    Everything ADR-0007 established for `User.orm.xml` applies unchanged: XML so that no
+    `use Doctrine\...` lands in `Domain/`, explicit table and column names so that renaming a PHP
+    property can never silently rename a production column, `<generator strategy="NONE"/>` because
+    ids are minted by `CategoryRepository::nextIdentity()`. The context has its own `Catalog:` block
+    in `config/packages/doctrine.yaml` (ADR-0007 decision 3).
+
+    WHY `parent_id` IS A PLAIN TYPED COLUMN AND NOT A `<many-to-one>` (ADR-0009, plan D1).
+
+    A category refers to its parent the way every aggregate refers to another: by identity. Each
+    category is its own root, so an association would hand anyone holding a child the power to
+    mutate its parent, and let Doctrine's cascades decide what a move or a delete does to the rest of
+    the tree. The tree's rules (C-4, C-5, C-7) are decided by the aggregate and the handlers under
+    `CategoryTreeLock`; a cascade would be a second, unreviewed author of the same rules.
+
+    WHY THERE IS NO FOREIGN KEY ON `parent_id` (ADR-0009 decision 4). A hand-added FK the mapping
+    does not know about is diffed as unwanted by every `make migration.make`, forever. "The parent
+    exists" (C-6) and "only a leaf may be deleted" (C-7) are checked under the tree lock instead.
+
+    WHY TWO PARTIAL UNIQUE INDEXES (plan D4, *Data & migrations*). Sibling-unique slugs (C-3) are
+    "unique per parent, and the roots are one sibling group". A plain `UNIQUE (parent_id, slug)`
+    treats every NULL as distinct, so roots would never collide. `UNIQUE NULLS NOT DISTINCT` (PG 15)
+    would, but DBAL neither models nor introspects it, so it would be diff noise on every
+    `make migration.make` — the FK argument again. Partial indexes *are* modelled (the `where`
+    option), so the mapping can declare them and the generator stays quiet (AC-20).
+
+    The predicates are written in PostgreSQL's own normalised form, parentheses included, because
+    DBAL compares a mapped predicate to the introspected `pg_get_expr(indpred, …)` as a plain string:
+    `parent_id IS NULL` without them is a different string from `(parent_id IS NULL)` and would be
+    re-diffed forever.
+
+    The names are explicit because AC-19, the migration and the adapter's 23505 translation all refer
+    to them. Between them they also serve the tree reads: `parent_id = :id` rides the leading column
+    of the sibling index, so no extra lookup index is defined.
+-->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Domain\Catalog\Entity\Category" table="catalog_category">
+
+        <unique-constraints>
+            <unique-constraint name="uniq_catalog_category_sibling_slug" columns="parent_id,slug">
+                <options>
+                    <option name="where">(parent_id IS NOT NULL)</option>
+                </options>
+            </unique-constraint>
+            <unique-constraint name="uniq_catalog_category_root_slug" columns="slug">
+                <options>
+                    <option name="where">(parent_id IS NULL)</option>
+                </options>
+            </unique-constraint>
+        </unique-constraints>
+
+        <id name="id" type="catalog_category_id" column="id">
+            <generator strategy="NONE"/>
+        </id>
+
+        <!-- Reference by identity, not by association — see the header. NULL: a root category. -->
+        <field name="parentId" column="parent_id" type="catalog_category_id" nullable="true"/>
+
+        <!-- Lengths mirror `CategorySlug::MAX_LENGTH` and `CategoryName::MAX_LENGTH`; the VOs own
+             the rules (C-1, C-2), the columns are the backstop. -->
+        <field name="slug" column="slug" type="catalog_category_slug" length="64" nullable="false"/>
+        <field name="name" column="name" type="catalog_category_name" length="100" nullable="false"/>
+
+    </entity>
+
+</doctrine-mapping>
