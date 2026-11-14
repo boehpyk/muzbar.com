@@ -23,7 +23,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       Docblock fixes on `passwordChangedAt` / `isUsable()` (body unchanged). (AC-16)
 - [x] **T5:** `User::registerWithOAuth()` and `User::linkOAuthIdentity()` with I-27/28/29. The I-29
       line carries the *why-not-`changePassword()`* comment. (AC-6, AC-8, AC-11, AC-12)
-- [ ] **T6:** `UserRepository::findByOAuthIdentity()` on the port.
+- [x] **T6:** `UserRepository::findByOAuthIdentity()` on the port.
 
 ## Application
 - [ ] **T7:** `Command/SignInWithOAuth` + `Handler/SignInWithOAuthHandler` (recognise → verified gate

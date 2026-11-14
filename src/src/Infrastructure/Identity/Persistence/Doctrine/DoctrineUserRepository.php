@@ -8,6 +8,7 @@ use App\Domain\Identity\Entity\User;
 use App\Domain\Identity\Exception\EmailAlreadyRegistered;
 use App\Domain\Identity\Port\UserRepository;
 use App\Domain\Identity\ValueObject\Email;
+use App\Domain\Identity\ValueObject\OAuthIdentity;
 use App\Domain\Identity\ValueObject\UserId;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -118,6 +119,13 @@ final readonly class DoctrineUserRepository implements UserRepository
     public function existsByEmail(Email $email): bool
     {
         return $this->users()->count(['email' => $email]) > 0;
+    }
+
+    public function findByOAuthIdentity(OAuthIdentity $identity): ?User
+    {
+        // ponytail: stub so the port compiles in the Domain commit; the jsonb `@>` query and the
+        // `oauth_identities` mapping it needs land together in T8.
+        throw new \LogicException('DoctrineUserRepository::findByOAuthIdentity() is implemented in T8.');
     }
 
     /**
