@@ -1,0 +1,13 @@
+# Every Monolog record, on every channel, kept in memory under `APP_ENV=test`, so a test can scan
+# what the application — and the framework's own `security` channel — actually logged (AC-19).
+# It sits beside `main`/`nested` and bubbles, so nothing else changes. `TestHandler` ships with
+# Monolog; fetch it from the container (`disableReboot()` so it is the instance the request used).
+monolog:
+    handlers:
+        recording:
+            type: service
+            id: Monolog\Handler\TestHandler
+
+services:
+    Monolog\Handler\TestHandler:
+        public: true

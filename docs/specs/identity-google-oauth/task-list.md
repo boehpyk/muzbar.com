@@ -56,7 +56,7 @@ unverified password account discards that password (I-29); T5's step 3 stays.
       no `UserPasswordChanged` on discard; `changePassword` on passwordless. (AC-6, 8, 11, 12, 16)
 - [x] **T19:** Integration: `OAuthIdentitySetType` round-trip/corrupt row; `findByOAuthIdentity`;
       null hash round-trip; handler's five paths + provision race. (AC-5, 6, 8, 9, 10, 11, 21)
-- [ ] **T20:** Functional, flow: start params; empty-id guard; recognise/link/provision/pre-hijack
+- [x] **T20:** Functional, flow: start params; empty-id guard; recognise/link/provision/pre-hijack
       via real knpu client; no verification mail on provision. (AC-1, 3, 5–12, 16, 18)
 - [ ] **T21:** Functional, security: state mismatch, cross-session, `access_denied`; passwordless vs
       wrong password compared live; passwordless → reset → both logins; `/register` over a Google
