@@ -82,7 +82,7 @@ localised names), Q3 (alphabetical sibling order) and Q4 (no Tailwind yet).
       `EditCategory`, one-row moves, all-or-nothing edit plus the follow-up `flush()`, C-6/C-7, and
       the planted-cycle C-4b. Read through a fresh repository before every assertion that follows a
       write. (AC-10…AC-16, AC-18, AC-21)
-- [ ] **T18:** Lock tests: the second-connection `pg_try_advisory_xact_lock` probe from inside the
+- [x] **T18:** Lock tests: the second-connection `pg_try_advisory_xact_lock` probe from inside the
       closure, and the "every handler takes the lock" recording double (concrete service id +
       `disableReboot()`). The docblock explains why release is not asserted under DAMA. (AC-17)
 - [ ] **T19:** Functional `CategoryAdminTest`: authz matrix over all routes, index order,
