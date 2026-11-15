@@ -63,7 +63,7 @@
       `AttributeLabelType`, `NumberRulesType extends JsonbType`), registered in `doctrine.yaml`.
       `Attribute.orm.xml` and `AttributeOption.orm.xml`: plain id columns, `enum-type`, the two
       named unique constraints, and header comments covering D3/D14. (AC-28, AC-29, AC-31)
-- [ ] **T12:** Migration, generated and reviewed by hand. Run `make migrate`, then
+- [x] **T12:** Migration, generated and reviewed by hand. Run `make migrate`, then
       `make migration.make`: it must generate **nothing**. (AC-29, AC-30)
 - [ ] **T13:** `DoctrineAttributeRepository` and `DoctrineAttributeOptionRepository`: v7 ids;
       23505 → domain exception; DBAL fact reads on the same connection; variadic `save()` with one
