@@ -75,7 +75,7 @@
 - [x] **T16:** `AttributeAdminController`: list, define per `{type}`, edit. Failure-contract mapping
       with 422, re-render from DBAL only, code derivation, no logging. Templates. Add the
       "Attributes" link to the category index. (AC-32…AC-37, AC-41, AC-42)
-- [ ] **T17:** Delete action plus the three option POST actions (303 + flash, 403 on a bad token).
+- [x] **T17:** Delete action plus the three option POST actions (303 + flash, 403 on a bad token).
       `CategoryAdminController::delete()` catches `CategoryHasAttributes`. (AC-38…AC-40)
 
 ## Tests (qa)

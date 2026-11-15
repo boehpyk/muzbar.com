@@ -4,12 +4,23 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Catalog\Http\Controller;
 
+use App\Application\Catalog\Command\AddAttributeOption;
 use App\Application\Catalog\Command\DefineAttribute;
+use App\Application\Catalog\Command\DeleteAttribute;
 use App\Application\Catalog\Command\EditAttribute;
+use App\Application\Catalog\Command\RelabelAttributeOption;
+use App\Application\Catalog\Command\RemoveAttributeOption;
+use App\Application\Catalog\Handler\AddAttributeOptionHandler;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
+use App\Application\Catalog\Handler\DeleteAttributeHandler;
 use App\Application\Catalog\Handler\EditAttributeHandler;
+use App\Application\Catalog\Handler\RelabelAttributeOptionHandler;
+use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
 use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
+use App\Domain\Catalog\Exception\AttributeNeedsAnOption;
 use App\Domain\Catalog\Exception\AttributeNotFound;
+use App\Domain\Catalog\Exception\AttributeOptionNotFound;
+use App\Domain\Catalog\Exception\AttributeRuleNotApplicable;
 use App\Domain\Catalog\Exception\CategoryNotFound;
 use App\Domain\Catalog\Exception\DuplicateAttributeOption;
 use App\Domain\Catalog\Exception\InvalidAttributeCode;
@@ -158,6 +169,109 @@ final class AttributeAdminController extends AbstractController
             'type' => $attributeType,
             'options' => AttributeType::Choice === $attributeType ? $this->schema->optionsOf($attribute['id']) : [],
         ], $this->statusFor($form));
+    }
+
+    /** POST only: no GET may change state (ADR-0015's accepted risk, AC-38). */
+    #[Route('/attributes/{id}/delete', name: 'admin_attribute_delete', requirements: ['id' => Requirement::UUID], methods: ['POST'])]
+    public function delete(string $id, Request $request, DeleteAttributeHandler $deleteAttribute): Response
+    {
+        if (!$this->isCsrfTokenValid('delete-attribute-'.$id, $request->request->getString('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+
+        $attribute = $this->schema->find($id) ?? throw $this->createNotFoundException();
+
+        try {
+            $deleteAttribute(new DeleteAttribute($attribute['id']));
+        } catch (AttributeNotFound) {
+            throw $this->createNotFoundException();
+        }
+
+        $this->addFlash('success', \sprintf('Deleted “%s” and its options.', $attribute['label']));
+
+        return $this->redirectToRoute('admin_attribute_index', ['id' => $attribute['categoryId']], Response::HTTP_SEE_OTHER);
+    }
+
+    /**
+     * The three option actions answer 303 back to the edit page, with a success or an error flash
+     * (plan D11). A fresh request means a fresh EntityManager, so a duplicate label lost at the
+     * unique index — which closes the EM inside `flush()` — cannot affect the page that follows.
+     */
+    #[Route('/attributes/{id}/options', name: 'admin_attribute_option_add', requirements: ['id' => Requirement::UUID], methods: ['POST'])]
+    public function addOption(string $id, Request $request, AddAttributeOptionHandler $addOption): Response
+    {
+        $attribute = $this->attributeForOptionAction($id, $request);
+        $label = $request->request->getString('label');
+
+        $this->optionAction(
+            static fn () => $addOption(new AddAttributeOption($attribute['id'], $label)),
+            \sprintf('Added “%s”.', trim($label)),
+        );
+
+        return $this->redirectToRoute('admin_attribute_edit', ['id' => $attribute['id']], Response::HTTP_SEE_OTHER);
+    }
+
+    #[Route('/attributes/{id}/options/{optionId}', name: 'admin_attribute_option_relabel', requirements: ['id' => Requirement::UUID, 'optionId' => Requirement::UUID], methods: ['POST'])]
+    public function relabelOption(string $id, string $optionId, Request $request, RelabelAttributeOptionHandler $relabelOption): Response
+    {
+        $attribute = $this->attributeForOptionAction($id, $request);
+        $label = $request->request->getString('label');
+
+        $this->optionAction(
+            static fn () => $relabelOption(new RelabelAttributeOption($attribute['id'], $optionId, $label)),
+            \sprintf('Renamed to “%s”.', trim($label)),
+        );
+
+        return $this->redirectToRoute('admin_attribute_edit', ['id' => $attribute['id']], Response::HTTP_SEE_OTHER);
+    }
+
+    #[Route('/attributes/{id}/options/{optionId}/delete', name: 'admin_attribute_option_remove', requirements: ['id' => Requirement::UUID, 'optionId' => Requirement::UUID], methods: ['POST'])]
+    public function removeOption(string $id, string $optionId, Request $request, RemoveAttributeOptionHandler $removeOption): Response
+    {
+        $attribute = $this->attributeForOptionAction($id, $request);
+
+        $this->optionAction(
+            static fn () => $removeOption(new RemoveAttributeOption($attribute['id'], $optionId)),
+            'Removed the option.',
+        );
+
+        return $this->redirectToRoute('admin_attribute_edit', ['id' => $attribute['id']], Response::HTTP_SEE_OTHER);
+    }
+
+    /**
+     * One token per attribute serves all three option actions (`attribute-options-{id}`, plan D11):
+     * the edit page may list thousands of options.
+     *
+     * @return array{id: string, categoryId: string, code: string, label: string, type: string, required: bool, unit: ?string, minimum: ?int, maximum: ?int, optionCount: int}
+     */
+    private function attributeForOptionAction(string $id, Request $request): array
+    {
+        if (!$this->isCsrfTokenValid('attribute-options-'.$id, $request->request->getString('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+
+        return $this->schema->find($id) ?? throw $this->createNotFoundException();
+    }
+
+    /** Runs one option command and turns the outcome into a flash (failure contract). */
+    private function optionAction(\Closure $command, string $success): void
+    {
+        try {
+            $command();
+            $this->addFlash('success', $success);
+        } catch (AttributeNotFound|AttributeOptionNotFound) {
+            // Unknown, malformed or another attribute's option, or gone since the page loaded.
+            throw $this->createNotFoundException();
+        } catch (InvalidAttributeLabel) {
+            $this->addFlash('error', 'Each option must be 1–100 characters.');
+        } catch (DuplicateAttributeOption $e) {
+            $this->addFlash('error', \sprintf('“%s” is already an option.', $e->label()->toString()));
+        } catch (AttributeNeedsAnOption) {
+            $this->addFlash('error', 'A choice attribute needs at least one option. Delete the attribute instead.');
+        } catch (AttributeRuleNotApplicable) {
+            // Only a tampered request reaches this: the page offers option forms for a choice only.
+            $this->addFlash('error', 'That does not apply to this attribute type.');
+        }
     }
 
     /**
