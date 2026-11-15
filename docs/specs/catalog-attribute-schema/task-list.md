@@ -27,7 +27,7 @@
 
 ## Domain (`src/src/Domain/Catalog/`)
 - [x] **T1:** VOs `AttributeId`, `AttributeOptionId` + exceptions. (AC-3)
-- [ ] **T2:** VOs `AttributeLabel` (with `key()`) and `AttributeCode` + exceptions. (AC-1, AC-2)
+- [x] **T2:** VOs `AttributeLabel` (with `key()`) and `AttributeCode` + exceptions. (AC-1, AC-2)
 - [ ] **T3:** VOs `Unit`, `NumberRules` + exceptions; enum `AttributeType`. (AC-4)
 - [ ] **T4:** Aggregate `Attribute`: the four `define…` constructors (`defineChoice` checks the
       initial labels: non-empty, distinct `key()`), `relabel`, `recode`, `changeRequired`,
