@@ -79,7 +79,14 @@ Docker Compose · Traefik · Nginx.
 > invariants** (no cycles, depth ≤ `MAX_DEPTH = 4`), decided by the aggregate on facts read under one
 > tree-wide advisory lock. Admin CRUD under `/admin` (`ROLE_ADMIN`, granted only from the console).
 > [ADR-0016](./docs/adr/0016-category-tree-per-node-aggregates-under-one-tree-lock.md) + ADR-0005/0009 amendments.
-> Next: `catalog-attribute-schema`.
+> `catalog-attribute-schema` (2026-11-15, **not yet `/verify`ed**) — Catalog slice 2 of 3: the first
+> aggregate with **parts**, and the parts left. `Attribute` (four types: choice/number/boolean/text) and
+> `AttributeOption` are **separate aggregates** referencing by id, because a Brand list is unbounded
+> and options will be referenced from outside (listings, dependent Model options). Options are minted
+> by `Attribute::newOption()`; their set-rules (unique label C-17, never the last C-18) are
+> cross-instance invariants under the **same tree lock**. Definitions live once, on the defining
+> category. [ADR-0017](./docs/adr/0017-attribute-schema-attributes-and-options-as-separate-aggregates.md)
+> + ADR-0004/0016 amendments. Next: `catalog-schema-inheritance`.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -142,7 +149,10 @@ established by the second slice, inherited by every context:
   (a surviving token is another chance to set a password —
   [ADR-0011](./docs/adr/0011-password-reset-challenges-modelled-in-the-domain.md) decision 5). Both
   call sites name the other one, so a reader who spots the contradiction finds the reason instead of
-  "aligning" them.
+  "aligning" them. A third answer, for **many** aggregates in one transaction (ADR-0017 decision 8):
+  **the attribute row is the commit point** — written **last** on define (options first), removed
+  **first** on delete (then the options swept). The only leftover a split transaction could leave is
+  an orphan option, which is inert; the reverse could leave a choice with zero options (C-18).
 
 **Deleting rows** ([ADR-0012](./docs/adr/0012-challenge-retention-and-recurring-background-work.md)) —
 established by the fourth slice, which shipped the repository's **first `DELETE`**:
@@ -186,7 +196,18 @@ established by `catalog-category-tree`, inherited by every context:
   backstop where one exists.** `Category::moveUnder(Lineage, int $subtreeHeight)` owns C-4/C-5 as pure
   logic; the handler reads the facts through the port; `CategoryTreeLock::exclusively()` wraps the
   reads *and* the save so no concurrent write can make them stale (write skew). **Every** Catalog
-  write handler runs inside it — a new one needs it too, and AC-17's recording double to prove it.
+  write — **attributes and options included** — runs under `CategoryTreeLock`; a new handler needs it
+  too, and the recording-double test (`CategoryTreeLockTest`) extended to prove it. C-18 ("never the
+  last option") has **no index at all**: the lock is the whole guarantee.
+- **A part with its own references or an unbounded count is its own aggregate** (ADR-0017). Options
+  were a `jsonb` list inside `Attribute` in the first draft (the `User`/`OAuthIdentity` shape); they
+  left because a Brand list has thousands of entries and listings will point at options by id. Its
+  set-rules then become cross-instance invariants: **aggregate decides on facts, lock, index**. The
+  parent stays the factory (`Attribute::newOption()`); `AttributeOption::create()` is public only
+  because PHP has no package visibility — it is `@internal`, and a reviewer must catch a direct call.
+- **Delete guards accrete in `DeleteCategoryHandler`**, under the lock, in order: C-7 (children),
+  then C-13 (defines attributes → `CategoryHasAttributes`). Every future thing that hangs off a
+  category (listings, saved searches) adds its guard there, never a cascade.
 - **Persist `CategoryId`, never a slug or path.** Slugs and paths change on rename and move; the id
   never does. Depth, path and lineage are derived, never stored.
 
@@ -303,6 +324,9 @@ worker.
   **`CategoryTreeLock` under DAMA: the xact advisory lock is held until the *test* ends**, because
   DAMA's outer transaction never commits. Probe it from a second, non-DAMA connection **inside** the
   work closure — a probe after `exclusively()` returns reads "held" even if the adapter took no lock.
+  **`NoDdlTest` is ADR-0004's invariant as a test** — it drives every attribute handler and compares
+  `public`'s columns and indexes before and after (PostgreSQL DDL is transactional, so a stray
+  `ALTER TABLE` is visible inside DAMA). A new schema-writing handler belongs in it.
   **Changing a signed-in user's roles logs them out on their next request** (Symfony compares the
   refreshed user's roles) — grant `ROLE_ADMIN` *before* logging the test client in.
 - **Swapping an adapter inside a test needs two things, and each fails silently alone.** Target the
@@ -483,13 +507,24 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   `/login` renders (and so consumes) flash messages on a page whose layout is discarded.
 
 - **A unique violation during `flush()` closes the EntityManager.** The category forms therefore
-  re-render from `DbalCategoryOutline` (DBAL), never through the EM. For the same reason
+  re-render from `DbalCategoryOutline` (DBAL), never through the EM — and the attribute admin from
+  `DbalAttributeSchema`, with every option action redirecting (303) so the next page gets a fresh EM. For the same reason
   `PostgresCategoryTreeLock` uses DBAL `transactional()` + `EntityManager::clear()` on failure, **not**
   `wrapInTransaction()` — which closes the EM on *any* throwable, so a plain domain refusal (a cycle)
   would leave the request holding a dead EM.
 - **Partial-index `where` must be written in PostgreSQL's normalised form** — `(parent_id IS NULL)`,
   parenthesised. Written as `parent_id IS NULL`, every `make migration.make` re-diffs the index as a
   DROP/CREATE. Proved by flipping it.
+- **No expression indexes — DBAL re-diffs them forever; store the normalised form instead.**
+  `lower(label)` cannot be declared in a mapping, and DBAL's introspection reads an expression column
+  (`attnum = 0`) back as a different index, so no spelling fixes it (generated columns and `citext`
+  are no better). Case-insensitive uniqueness is a persisted `label_key` = `AttributeLabel::key()`,
+  set by the aggregate together with the label, under a plain unique index. `key()` is the one
+  definition of "same label" for both the pre-check and the column.
+- **Symfony compiles services lazily: a missing adapter fails only when something resolves the
+  service.** `cache:warmup` and a green Domain/Application suite prove nothing about the graph — the
+  C-13 guard injected a port with no adapter yet, and stayed silent until `CategoryAdminController::
+  delete` was hit (26 errors). Land a new port dependency **with** its adapter.
 - **Symfony's default `slugger` maps `&` to `and`** (and follows the request locale), so
   `"Bass & Guitars"` became `bass-and-guitars`. `CategorySlugDeriver` gets its own
   `AsciiSlugger('en', [])` in `services.yaml`; do not "simplify" it to the framework service.

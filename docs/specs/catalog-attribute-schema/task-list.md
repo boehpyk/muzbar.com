@@ -93,7 +93,7 @@
       record the results in the commit message, then run `make test` twice. (AC-43, AC-44)
 
 ## Docs
-- [ ] **T23:** Update the docs:
+- [x] **T23:** Update the docs:
       - **`CLAUDE.md`:**
         - the status line (Catalog slice 2)
         - *"a part with its own references or an unbounded count is its own aggregate; its set-rules
