@@ -68,7 +68,7 @@
       23505 → domain exception; DBAL fact reads on the same connection; variadic `save()` with one
       flush; set-based `removeAllForAttribute()`. Add the `services.yaml` port aliases.
       (AC-16, AC-18)
-- [ ] **T14:** `DbalAttributeSchema`: `forCategory()` (one query including the option counts),
+- [x] **T14:** `DbalAttributeSchema`: `forCategory()` (one query including the option counts),
       `find()` and `optionsOf()` (`ORDER BY id`). (AC-13, AC-33)
 - [ ] **T15:** `AttributeFormType` + `AttributeFormData`, with fields per type. The options textarea
       appears at define only.
