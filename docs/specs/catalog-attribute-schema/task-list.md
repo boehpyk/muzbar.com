@@ -79,7 +79,7 @@
       `CategoryAdminController::delete()` catches `CategoryHasAttributes`. (AC-38…AC-40)
 
 ## Tests (qa)
-- [ ] **T18:** Domain unit tests for every VO plus `AttributeTest` and `AttributeOptionTest`.
+- [x] **T18:** Domain unit tests for every VO plus `AttributeTest` and `AttributeOptionTest`.
       (AC-1…AC-11)
 - [ ] **T19:** Foundry factories that go through `define…` / `newOption()`. Add
       `AttributeHandlersTest`, both repository tests (backstops, `ORDER BY id`, the sweep, corrupt
