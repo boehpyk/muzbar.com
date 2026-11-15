@@ -70,7 +70,7 @@
       (AC-16, AC-18)
 - [x] **T14:** `DbalAttributeSchema`: `forCategory()` (one query including the option counts),
       `find()` and `optionsOf()` (`ORDER BY id`). (AC-13, AC-33)
-- [ ] **T15:** `AttributeFormType` + `AttributeFormData`, with fields per type. The options textarea
+- [x] **T15:** `AttributeFormType` + `AttributeFormData`, with fields per type. The options textarea
       appears at define only.
 - [ ] **T16:** `AttributeAdminController`: list, define per `{type}`, edit. Failure-contract mapping
       with 422, re-render from DBAL only, code derivation, no logging. Templates. Add the
