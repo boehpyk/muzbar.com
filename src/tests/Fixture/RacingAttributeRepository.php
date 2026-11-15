@@ -23,12 +23,17 @@ final class RacingAttributeRepository implements AttributeRepository
     private ?AttributeId $lastMinted = null;
 
     /**
-     * @param \Closure(?AttributeId): void $interloper
+     * @param \Closure(?AttributeId): mixed $interloper
      */
     public function __construct(
         private readonly AttributeRepository $inner,
         private readonly \Closure $interloper,
     ) {
+    }
+
+    public function lastMinted(): AttributeId
+    {
+        return $this->lastMinted ?? throw new \LogicException('nextIdentity() has not been called yet.');
     }
 
     public function nextIdentity(): AttributeId
