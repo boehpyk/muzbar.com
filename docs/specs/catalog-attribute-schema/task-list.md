@@ -45,7 +45,7 @@
 - [x] **T7:** `DefineAttribute` + handler: C-12, C-11 pre-check, options built through
       `newOption()`, **options saved before the attribute**, with a call-site comment naming D13
       and D7's opposite order. (AC-12…AC-14, AC-19)
-- [ ] **T8:** `EditAttribute` + handler. Number rules are applied for a number attribute; for any
+- [x] **T8:** `EditAttribute` + handler. Number rules are applied for a number attribute; for any
       other type the aggregate refuses them. C-11 pre-check with `except`. All-or-nothing.
       (AC-15, AC-22)
 - [ ] **T9:** `AddAttributeOption`, `RelabelAttributeOption`, `RemoveAttributeOption` + handlers:
