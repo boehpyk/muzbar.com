@@ -37,7 +37,7 @@
 - [x] **T5:** Aggregate `AttributeOption` (`@internal create()`, `relabel()` sets label and
       labelKey together) plus `Attribute::newOption()` and `Attribute::allowOptionRemoval()`.
       Exceptions: `AttributeNeedsAnOption`, `AttributeOptionNotFound`. (AC-7…AC-9)
-- [ ] **T6:** Ports `AttributeRepository` and `AttributeOptionRepository`. Exceptions:
+- [x] **T6:** Ports `AttributeRepository` and `AttributeOptionRepository`. Exceptions:
       `AttributeNotFound`, `AttributeCodeAlreadyTaken`, `CategoryHasAttributes`. Add one sentence to
       `CategoryTreeLock`'s docblock (D5).
 
