@@ -13,7 +13,7 @@
 - Admin controllers read through DBAL read models, never the EntityManager (D11).
 
 ## Decisions & prerequisites
-- [ ] **T0:** `/adr` → write the decision records first. No code in this task.
+- [x] **T0:** `/adr` → write the decision records first. No code in this task.
       - **ADR-0017** *"Attribute schema: attributes and options as separate aggregates referencing
         by id; set-rules on options as cross-instance invariants under the tree lock; definitions
         stored once on the defining category"* (D1–D4, D6, D13, D14). It includes the rejected
