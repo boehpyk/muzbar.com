@@ -26,7 +26,7 @@
         option invariants C-17/C-18; C-13 is the first accreted delete guard.
 
 ## Domain (`src/src/Domain/Catalog/`)
-- [ ] **T1:** VOs `AttributeId`, `AttributeOptionId` + exceptions. (AC-3)
+- [x] **T1:** VOs `AttributeId`, `AttributeOptionId` + exceptions. (AC-3)
 - [ ] **T2:** VOs `AttributeLabel` (with `key()`) and `AttributeCode` + exceptions. (AC-1, AC-2)
 - [ ] **T3:** VOs `Unit`, `NumberRules` + exceptions; enum `AttributeType`. (AC-4)
 - [ ] **T4:** Aggregate `Attribute`: the four `define…` constructors (`defineChoice` checks the
