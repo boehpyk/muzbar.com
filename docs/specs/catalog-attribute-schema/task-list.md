@@ -54,6 +54,9 @@
 - [ ] **T10:** `DeleteAttribute` + handler: the attribute is removed first, then
       `removeAllForAttribute()`, with a call-site comment naming D7. Also add the C-13 guard in
       `DeleteCategoryHandler`, after C-7. (AC-23, AC-24)
+      *Partial (2026-11-15): `DeleteAttribute` landed; the C-13 guard waits for T13 — with no
+      `AttributeRepository` adapter, injecting the port breaks `DeleteCategoryHandler` (and every
+      category-delete test) at runtime. Land the guard with or right after T13.*
 
 ## Infrastructure
 - [ ] **T11:** DBAL types (`AttributeIdType`, `AttributeOptionIdType`, `AttributeCodeType`,
