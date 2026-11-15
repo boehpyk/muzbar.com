@@ -11,6 +11,7 @@ use App\Application\Catalog\Handler\CreateCategoryHandler;
 use App\Application\Catalog\Handler\DeleteCategoryHandler;
 use App\Application\Catalog\Handler\EditCategoryHandler;
 use App\Domain\Catalog\Entity\Category;
+use App\Domain\Catalog\Exception\CategoryHasAttributes;
 use App\Domain\Catalog\Exception\CategoryHasChildren;
 use App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle;
 use App\Domain\Catalog\Exception\CategoryNotFound;
@@ -159,6 +160,9 @@ final class CategoryAdminController extends AbstractController
             throw $this->createNotFoundException();
         } catch (CategoryHasChildren) {
             $this->addFlash('error', \sprintf('“%s” has subcategories. Move or delete them first.', $category['name']));
+        } catch (CategoryHasAttributes) {
+            // C-13 (AC-39). Checked after C-7, so a category with both reports its children.
+            $this->addFlash('error', \sprintf('“%s” has attributes. Delete them first.', $category['name']));
         }
 
         return $this->redirectToRoute('admin_category_index', [], Response::HTTP_SEE_OTHER);

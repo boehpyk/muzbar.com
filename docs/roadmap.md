@@ -224,13 +224,30 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         facts read under one tree-wide advisory lock; `ROLE_ADMIN` granted from the console.
         [ADR-0016](./adr/0016-category-tree-per-node-aggregates-under-one-tree-lock.md).
         Passed `/verify` 2026-11-15 in one iteration (reviewer PASS; its 4 MINOR + 1 STYLE fixed the same day).
-  - [ ] `catalog-attribute-schema` — `Attribute` + `AttributeOption`: typed attributes (enum,
-        number, boolean, text), units, validation rules, attached to categories. Open question for
-        `/plan`: is `AttributeOption` its own aggregate or a value collection inside `Attribute` (as
-        `User` holds `list<OAuthIdentity>`)? Lean: value collection — argue it, don't assume it.
+  - [x] `catalog-attribute-schema` (2026-11-15; **`/verify` pending**) — `Attribute` +
+        `AttributeOption`: four types fixed at definition (choice, integer number with unit and
+        bounds, boolean, text), admin CRUD under `/admin/categories/{id}/attributes`.
+        [ADR-0017](./adr/0017-attribute-schema-attributes-and-options-as-separate-aggregates.md) +
+        ADR-0004/0016 amendments. *The open question this line used to ask is answered the other way:*
+        the lean was "value collection", the first draft was a `jsonb` list, and the owner's Q5
+        ("no cap — Brand lists run to thousands") plus Q7 (dependent options are coming) made
+        `AttributeOption` **its own aggregate**. Hard delete for now (ADR-0004 amendment: soft delete
+        and "option in use" guards arrive with the first `listing_attribute_value`). 958 → 1207 tests.
+        **Slice 3 inherits (D4):** definitions are stored **once, on the defining category**, any
+        category may define them, and nothing is copied down — so inheritance must be a **read-time
+        derivation over the lineage**, under the same lock, and a move stays one row (AC-25).
+        **C-11 (code unique per defining category) is the rule to widen:** it deliberately allows the
+        same code lower in a lineage, which is the natural shape of an override; slice 3 decides
+        whether that is an override or a conflict.
+        **Dependent options inherit (D14):** no `parent_option_id` yet. When it lands, an option gains
+        `?AttributeOptionId $parentOptionId`, `isLabelTaken()` gains a `?parent` argument, and the
+        `(attribute_id, label_key)` index is replaced by the slice-1 **two-partial-index pair**
+        (`… WHERE (parent_option_id IS NULL)` / `(attribute_id, parent_option_id, label_key) WHERE
+        (parent_option_id IS NOT NULL)`) — one plain index would not do, because NULLs are distinct.
   - [ ] `catalog-schema-inheritance` — a child category inherits its ancestors' attributes; decide
         what may be overridden and what happens to the tree when a parent's schema changes. This is
-        where the Phase 1 gate's "without corrupting existing rows" gets designed.
+        where the Phase 1 gate's "without corrupting existing rows" gets designed. Starts from D4 and
+        C-11 above.
 - [ ] `Listing` context (skeleton): `Listing` aggregate + `listing_attribute_value` model and the
       hot-column promotion mechanism (ADR-0004). No search/wizard UI yet.
 - [ ] API-key issuance (hashed, revocable) — model only; endpoints in Phase 3.

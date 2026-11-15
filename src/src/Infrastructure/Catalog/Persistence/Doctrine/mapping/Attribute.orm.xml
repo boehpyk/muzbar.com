@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Doctrine mapping for `Attribute`, the Catalog context's second aggregate root (ADR-0017).
+
+    ADR-0007 applies unchanged: XML, explicit table and column names, `<generator strategy="NONE"/>`
+    because ids are minted by `AttributeRepository::nextIdentity()`. The `Catalog:` block in
+    `config/packages/doctrine.yaml` already scans this directory.
+
+    WHY `category_id` IS A PLAIN TYPED COLUMN, NOT A `<many-to-one>`, AND HAS NO FOREIGN KEY
+    (ADR-0009 decision 4, ADR-0017 decision 1). An attribute refers to its defining category by
+    identity: an association would hand anyone holding an attribute the power to mutate the tree, and
+    an FK the mapping does not model is re-diffed by every `make migration.make`. "The category
+    exists" (C-12) and "a category with attributes cannot be deleted" (C-13) are checked under
+    `CategoryTreeLock` instead. The column stores the id, never a slug or path: those change on
+    rename and move, so a move of the defining category touches no attribute row (plan D4, AC-25).
+
+    WHY THERE ARE NO OPTIONS HERE (ADR-0017 decision 2). Options are their own aggregate in
+    `catalog_attribute_option`, referencing this row by `attribute_id`. No `<one-to-many>`: a root
+    is never reached through another root's collection.
+
+    `type` uses Doctrine's native `enum-type`: the backing strings of `AttributeType` are what is
+    stored, so renaming a case is a data migration. `number_rules` is `jsonb` through its own type
+    (`NumberRulesType extends JsonbType`), NULL for every type except number (C-15).
+
+    The unique index is named because the adapter's 23505 translation and the tests refer to it. Its
+    leading column also serves `existsForCategory()` and the per-category list page, so no separate
+    `category_id` index is defined.
+-->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Domain\Catalog\Entity\Attribute" table="catalog_attribute">
+
+        <unique-constraints>
+            <!-- C-11: code unique within the defining category. -->
+            <unique-constraint name="uniq_catalog_attribute_category_code" columns="category_id,code"/>
+        </unique-constraints>
+
+        <id name="id" type="catalog_attribute_id" column="id">
+            <generator strategy="NONE"/>
+        </id>
+
+        <!-- Reference by identity, not by association — see the header. -->
+        <field name="categoryId" column="category_id" type="catalog_category_id" nullable="false"/>
+
+        <!-- Lengths mirror `AttributeCode::MAX_LENGTH` and `AttributeLabel::MAX_LENGTH`; the VOs own
+             the rules (C-9, C-10), the columns are the backstop. -->
+        <field name="code" column="code" type="catalog_attribute_code" length="64" nullable="false"/>
+        <field name="label" column="label" type="catalog_attribute_label" length="100" nullable="false"/>
+        <field name="type" column="type" type="string" length="16" nullable="false"
+               enum-type="App\Domain\Catalog\ValueObject\AttributeType"/>
+        <field name="required" column="is_required" type="boolean" nullable="false"/>
+        <field name="numberRules" column="number_rules" type="catalog_attribute_number_rules" nullable="true"/>
+
+    </entity>
+
+</doctrine-mapping>

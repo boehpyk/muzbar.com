@@ -11,15 +11,18 @@ use App\Application\Catalog\Handler\CreateCategoryHandler;
 use App\Application\Catalog\Handler\DeleteCategoryHandler;
 use App\Application\Catalog\Handler\EditCategoryHandler;
 use App\Domain\Catalog\Entity\Category;
+use App\Domain\Catalog\Exception\CategoryHasAttributes;
 use App\Domain\Catalog\Exception\CategoryHasChildren;
 use App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle;
 use App\Domain\Catalog\Exception\CategoryNotFound;
 use App\Domain\Catalog\Exception\CategorySlugAlreadyTaken;
 use App\Domain\Catalog\Exception\CategoryTreeTooDeep;
+use App\Domain\Catalog\Port\AttributeRepository;
 use App\Domain\Catalog\Port\CategoryRepository;
 use App\Domain\Catalog\Port\CategoryTreeLock;
 use App\Domain\Catalog\ValueObject\CategoryName;
 use App\Domain\Catalog\ValueObject\CategorySlug;
+use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -47,6 +50,8 @@ final class CategoryHandlersTest extends KernelTestCase
         self::assertInstanceOf(CategoryRepository::class, $repository);
         $lock = $container->get(CategoryTreeLock::class);
         self::assertInstanceOf(CategoryTreeLock::class, $lock);
+        $attributes = $container->get(AttributeRepository::class);
+        self::assertInstanceOf(AttributeRepository::class, $attributes);
         $db = $container->get(Connection::class);
         self::assertInstanceOf(Connection::class, $db);
         $em = $container->get(EntityManagerInterface::class);
@@ -54,7 +59,7 @@ final class CategoryHandlersTest extends KernelTestCase
 
         $this->create = new CreateCategoryHandler($repository, $lock);
         $this->edit = new EditCategoryHandler($repository, $lock);
-        $this->delete = new DeleteCategoryHandler($repository, $lock);
+        $this->delete = new DeleteCategoryHandler($repository, $attributes, $lock);
         $this->db = $db;
         $this->em = $em;
     }
@@ -359,6 +364,43 @@ final class CategoryHandlersTest extends KernelTestCase
         } catch (CategoryHasChildren) {
             self::assertSame($before, $this->table());
         }
+    }
+
+    public function testDeletingALeafThatDefinesAnAttributeIsRefusedAndBothRowsRemain(): void
+    {
+        $leaf = CategoryFactory::createOne();
+        AttributeFactory::new()->inCategory($leaf)->create();
+        $categoriesBefore = $this->table();
+        $attributesBefore = $this->db->fetchAllAssociative('SELECT * FROM catalog_attribute');
+
+        try {
+            ($this->delete)(new DeleteCategory($leaf->id()->toString()));
+            self::fail('Expected CategoryHasAttributes.');
+        } catch (CategoryHasAttributes) {
+            self::assertSame($categoriesBefore, $this->table());
+            self::assertSame($attributesBefore, $this->db->fetchAllAssociative('SELECT * FROM catalog_attribute'));
+        }
+    }
+
+    public function testDeletingTheSameLeafSucceedsOnceItsAttributeIsGone(): void
+    {
+        $leaf = CategoryFactory::createOne();
+        AttributeFactory::new()->inCategory($leaf)->create();
+        $this->db->executeStatement('DELETE FROM catalog_attribute WHERE category_id = ?', [$leaf->id()->toString()]);
+
+        ($this->delete)(new DeleteCategory($leaf->id()->toString()));
+
+        self::assertSame(0, $this->countWhere('id = ?', $leaf->id()->toString()));
+    }
+
+    public function testACategoryWithChildrenAndAttributesReportsChildrenFirst(): void
+    {
+        $tree = $this->guitarsTree();
+        AttributeFactory::new()->inCategory($tree['electric'])->create();
+
+        $this->expectException(CategoryHasChildren::class);
+
+        ($this->delete)(new DeleteCategory($tree['electric']->id()->toString()));
     }
 
     public function testAFailedEditThatHadAlreadyRenamedPersistsNothingEvenAfterAFollowUpFlush(): void

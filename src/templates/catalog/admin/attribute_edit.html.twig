@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% set typeNames = {choice: 'Choice', number: 'Number', boolean: 'Yes/no', text: 'Text'} %}
+
+{% block title %}Edit {{ attribute.label }}{% endblock %}
+
+{% block body %}
+    <h1>Edit “{{ attribute.label }}”</h1>
+
+    {# The type never changes (C-14), so it is text, not a field. #}
+    <p>Type: {{ typeNames[type.value] }}</p>
+
+    {{ form_start(form) }}
+        {# Root-level errors (an invalid CSRF token, extra fields) land on the form, not a field. #}
+        {{ form_errors(form) }}
+        {{ form_rest(form) }}
+        <button type="submit">Save</button>
+    {{ form_end(form) }}
+
+    {% if type.value == 'choice' %}
+        <h2>Options</h2>
+        {# In insertion order (`ORDER BY id`, C-19), unpaginated (owner, Q10). One token per attribute
+           serves every option form (plan D11). Each action answers 303 back here with a flash. #}
+        {% set optionsToken = csrf_token('attribute-options-' ~ attribute.id) %}
+        <ul>
+            {% for option in options %}
+                <li>
+                    <form method="post" action="{{ path('admin_attribute_option_relabel', {id: attribute.id, optionId: option.id}) }}">
+                        <input type="hidden" name="_token" value="{{ optionsToken }}">
+                        <input type="text" name="label" value="{{ option.label }}" aria-label="Option label" required>
+                        <button type="submit">Rename</button>
+                    </form>
+                    <form method="post" action="{{ path('admin_attribute_option_remove', {id: attribute.id, optionId: option.id}) }}">
+                        <input type="hidden" name="_token" value="{{ optionsToken }}">
+                        <button type="submit">Remove</button>
+                    </form>
+                </li>
+            {% endfor %}
+        </ul>
+
+        <form method="post" action="{{ path('admin_attribute_option_add', {id: attribute.id}) }}">
+            <input type="hidden" name="_token" value="{{ optionsToken }}">
+            <input type="text" name="label" aria-label="New option label" required>
+            <button type="submit">Add option</button>
+        </form>
+    {% endif %}
+
+    <p><a href="{{ path('admin_attribute_index', {id: attribute.categoryId}) }}">Back to attributes</a></p>
+{% endblock %}

@@ -9,6 +9,7 @@ use App\Domain\Catalog\ValueObject\CategoryId;
 use App\Domain\Catalog\ValueObject\CategoryName;
 use App\Domain\Catalog\ValueObject\CategorySlug;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineCategoryRepository;
+use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
 use App\Tests\Fixture\QueryRecordingStatement;
 use App\Tests\Fixture\RacingCategoryRepository;
@@ -708,6 +709,27 @@ final class CategoryAdminTest extends WebTestCase
         self::assertSame($before, $this->table());
         $this->client->followRedirect();
         self::assertSelectorTextContains('.flash-error', '“Electric” has subcategories. Move or delete them first.');
+        $this->assertNothingReportedToSentry();
+    }
+
+    public function testDeletingACategoryThatDefinesAttributesRedirects303WithTheErrorFlashAndDeletesNothing(): void
+    {
+        $leaf = $this->category('guitars');
+        AttributeFactory::new()->inCategory($leaf)->choice(['Left', 'Right'])->create();
+        $this->signInAsAdmin();
+        $categories = $this->table();
+        $attributes = $this->db->fetchAllAssociative('SELECT * FROM catalog_attribute ORDER BY id');
+        $options = $this->db->fetchAllAssociative('SELECT * FROM catalog_attribute_option ORDER BY id');
+
+        $this->client->request('POST', '/admin/categories/'.$leaf->id()->toString().'/delete', ['_token' => $this->deleteToken($leaf)]);
+
+        self::assertResponseStatusCodeSame(303);
+        self::assertResponseRedirects('/admin/categories');
+        $this->client->followRedirect();
+        self::assertSelectorTextContains('.flash-error', '“Guitars” has attributes. Delete them first.');
+        self::assertSame($categories, $this->table());
+        self::assertSame($attributes, $this->db->fetchAllAssociative('SELECT * FROM catalog_attribute ORDER BY id'));
+        self::assertSame($options, $this->db->fetchAllAssociative('SELECT * FROM catalog_attribute_option ORDER BY id'));
         $this->assertNothingReportedToSentry();
     }
 

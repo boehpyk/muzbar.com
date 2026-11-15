@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+
+{% set typeNames = {choice: 'Choice', number: 'Number', boolean: 'Yes/no', text: 'Text'} %}
+
+{% block title %}New attribute{% endblock %}
+
+{% block body %}
+    <h1>New {{ typeNames[type.value]|lower }} attribute of “{{ category.name }}”</h1>
+
+    {{ form_start(form) }}
+        {# Root-level errors (an invalid CSRF token, extra fields) land on the form, not a field. #}
+        {{ form_errors(form) }}
+        {{ form_rest(form) }}
+        <button type="submit">Define</button>
+    {{ form_end(form) }}
+
+    <p><a href="{{ path('admin_attribute_index', {id: category.id}) }}">Back to attributes</a></p>
+{% endblock %}

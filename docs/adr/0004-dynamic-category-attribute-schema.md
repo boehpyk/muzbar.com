@@ -63,3 +63,20 @@ corruption of existing rows** — which is the proof that the no-runtime-DDL inv
   a single write path (the value layer), which is simpler and the default.
 - The `Catalog` model (Category/Attribute as an aggregate with invariants — e.g. an option can't be
   deleted while listings reference it) is a rich DDD exercise, which suits the learning goal.
+
+## Amendment, 2026-11-15 — hard delete until values exist; facet flags deferred
+
+Recorded by the `catalog-attribute-schema` slice
+([ADR-0017](./0017-attribute-schema-attributes-and-options-as-separate-aggregates.md)), on the
+owner's answers Q4 and Q8. Two points only; **the `attribute` + `attribute_option` table sketch
+stands** (as `catalog_attribute` / `catalog_attribute_option`, ADR-0007 naming).
+
+1. **Attributes and options are hard-deleted for now.** The soft-delete clause above protects
+   historical *values*, and no `listing_attribute_value` exists yet. An `archived_at` column with no
+   reader would be speculative, and an archived code would still block C-11 (code unique within the
+   category). Deleting an attribute deletes its options in the same transaction (C-20).
+   **This clause expires with the first listing value:** the slice that introduces
+   `listing_attribute_value` adds soft delete and the "in use by listings" guards to
+   `DeleteAttributeHandler` and `RemoveAttributeOptionHandler`.
+2. **`is_facet` / `is_searchable` are deferred to Phase 2.** Nothing reads them yet; both are
+   additive columns when search arrives.

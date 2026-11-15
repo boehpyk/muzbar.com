@@ -1,0 +1,57 @@
+{% extends 'base.html.twig' %}
+
+{% set typeNames = {choice: 'Choice', number: 'Number', boolean: 'Yes/no', text: 'Text'} %}
+
+{% block title %}Attributes of {{ category.name }}{% endblock %}
+
+{% block body %}
+    <h1>Attributes of “{{ category.name }}”</h1>
+
+    <p>
+        Define:
+        {% for type in types %}
+            <a href="{{ path('admin_attribute_new', {id: category.id, type: type.value}) }}">{{ typeNames[type.value] }}</a>
+        {% endfor %}
+    </p>
+
+    {# Rows and option counts come from one query (`DbalAttributeSchema::forCategory()`, AC-33),
+       ordered by label case-insensitively. Unstyled on purpose. #}
+    {% if attributes is empty %}
+        <p>No attributes yet.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr><th>Label</th><th>Code</th><th>Type</th><th>Required</th><th>Details</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for attribute in attributes %}
+                    <tr>
+                        <td>{{ attribute.label }}</td>
+                        <td>{{ attribute.code }}</td>
+                        <td>{{ typeNames[attribute.type] }}</td>
+                        <td>{{ attribute.required ? 'required' : '' }}</td>
+                        <td>
+                            {% if attribute.type == 'number' %}
+                                {% if attribute.unit is not null %}unit: {{ attribute.unit }}{% endif %}
+                                {% if attribute.minimum is not null %}min: {{ attribute.minimum }}{% endif %}
+                                {% if attribute.maximum is not null %}max: {{ attribute.maximum }}{% endif %}
+                            {% elseif attribute.type == 'choice' %}
+                                {{ attribute.optionCount }} {{ attribute.optionCount == 1 ? 'option' : 'options' }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ path('admin_attribute_edit', {id: attribute.id}) }}">Edit</a>
+                            {# A form, never a link: no GET may change state (ADR-0015). #}
+                            <form method="post" action="{{ path('admin_attribute_delete', {id: attribute.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('delete-attribute-' ~ attribute.id) }}">
+                                <button type="submit">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <p><a href="{{ path('admin_category_index') }}">Back to categories</a></p>
+{% endblock %}

@@ -150,3 +150,23 @@ aggregate.
 - **Watch:** a handler that reads tree facts outside `exclusively()` reintroduces the write skew with
   every test still green. AC-17 fails if the call is removed from any of the three handlers; a fourth
   handler needs the same test.
+
+## Amendment, 2026-11-15 — the lock guards attribute and option writes; C-13 is the first accreted delete guard
+
+Recorded by the `catalog-attribute-schema` slice
+([ADR-0017](./0017-attribute-schema-attributes-and-options-as-separate-aggregates.md), plan D5, D8).
+
+1. **`CategoryTreeLock` now serialises every Catalog write, attributes and options included** — the
+   six new handlers (define, edit, delete attribute; add, relabel, remove option) run entirely inside
+   `exclusively()`. The name stays; the port's docblock records the widened scope. A second lock was
+   rejected: two locks need an ordering rule, for one admin.
+2. **The lock now makes facts true across aggregate types, not only within the tree.** C-17 (option
+   labels unique within an attribute) is a pre-check under the lock with a unique index as backstop —
+   decision 2's C-3 pattern. **C-18 (a choice attribute keeps at least one option) has no index at
+   all:** `Attribute::allowOptionRemoval()` decides on a `countForAttribute()` read that is only true
+   under the lock. C-12 (define on category X) and C-13 (delete X) are mirror checks under the same
+   lock.
+3. **The predicted delete guard has accreted.** `DeleteCategoryHandler` checks C-7 (children) first,
+   then **C-13: a category that defines attributes cannot be deleted** (`CategoryHasAttributes`).
+   This is the first reference into the tree from another aggregate (`Attribute` → `CategoryId`);
+   Phase 2's listings add the next guard in the same place.
