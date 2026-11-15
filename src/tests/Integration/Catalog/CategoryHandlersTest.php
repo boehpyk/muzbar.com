@@ -16,6 +16,7 @@ use App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle;
 use App\Domain\Catalog\Exception\CategoryNotFound;
 use App\Domain\Catalog\Exception\CategorySlugAlreadyTaken;
 use App\Domain\Catalog\Exception\CategoryTreeTooDeep;
+use App\Domain\Catalog\Port\AttributeRepository;
 use App\Domain\Catalog\Port\CategoryRepository;
 use App\Domain\Catalog\Port\CategoryTreeLock;
 use App\Domain\Catalog\ValueObject\CategoryName;
@@ -47,6 +48,8 @@ final class CategoryHandlersTest extends KernelTestCase
         self::assertInstanceOf(CategoryRepository::class, $repository);
         $lock = $container->get(CategoryTreeLock::class);
         self::assertInstanceOf(CategoryTreeLock::class, $lock);
+        $attributes = $container->get(AttributeRepository::class);
+        self::assertInstanceOf(AttributeRepository::class, $attributes);
         $db = $container->get(Connection::class);
         self::assertInstanceOf(Connection::class, $db);
         $em = $container->get(EntityManagerInterface::class);
@@ -54,7 +57,7 @@ final class CategoryHandlersTest extends KernelTestCase
 
         $this->create = new CreateCategoryHandler($repository, $lock);
         $this->edit = new EditCategoryHandler($repository, $lock);
-        $this->delete = new DeleteCategoryHandler($repository, $lock);
+        $this->delete = new DeleteCategoryHandler($repository, $attributes, $lock);
         $this->db = $db;
         $this->em = $em;
     }

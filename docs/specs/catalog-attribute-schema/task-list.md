@@ -51,12 +51,11 @@
 - [x] **T9:** `AddAttributeOption`, `RelabelAttributeOption`, `RemoveAttributeOption` + handlers:
       the C-17 pre-check, the ownership check, and `allowOptionRemoval(countForAttribute())`.
       (AC-17, AC-20, AC-21)
-- [ ] **T10:** `DeleteAttribute` + handler: the attribute is removed first, then
+- [x] **T10:** `DeleteAttribute` + handler: the attribute is removed first, then
       `removeAllForAttribute()`, with a call-site comment naming D7. Also add the C-13 guard in
       `DeleteCategoryHandler`, after C-7. (AC-23, AC-24)
-      *Partial (2026-11-15): `DeleteAttribute` landed; the C-13 guard waits for T13 — with no
-      `AttributeRepository` adapter, injecting the port breaks `DeleteCategoryHandler` (and every
-      category-delete test) at runtime. Land the guard with or right after T13.*
+      *`DeleteAttribute` landed first; the C-13 guard landed with T13, once an `AttributeRepository`
+      adapter existed to inject.*
 
 ## Infrastructure
 - [x] **T11:** DBAL types (`AttributeIdType`, `AttributeOptionIdType`, `AttributeCodeType`,
@@ -65,7 +64,7 @@
       named unique constraints, and header comments covering D3/D14. (AC-28, AC-29, AC-31)
 - [x] **T12:** Migration, generated and reviewed by hand. Run `make migrate`, then
       `make migration.make`: it must generate **nothing**. (AC-29, AC-30)
-- [ ] **T13:** `DoctrineAttributeRepository` and `DoctrineAttributeOptionRepository`: v7 ids;
+- [x] **T13:** `DoctrineAttributeRepository` and `DoctrineAttributeOptionRepository`: v7 ids;
       23505 → domain exception; DBAL fact reads on the same connection; variadic `save()` with one
       flush; set-based `removeAllForAttribute()`. Add the `services.yaml` port aliases.
       (AC-16, AC-18)
