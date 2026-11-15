@@ -89,7 +89,7 @@
       (AC-26).
 - [x] **T21:** Functional `AttributeAdminTest`, including the C-11/C-17 index-race re-render, plus
       the `CategoryAdminTest` delete-with-attributes case. (AC-32…AC-42)
-- [ ] **T22:** Bite proof: apply AC-43 mutations (a)–(h); each must fail a named test. Revert them,
+- [x] **T22:** Bite proof: apply AC-43 mutations (a)–(h); each must fail a named test. Revert them,
       record the results in the commit message, then run `make test` twice. (AC-43, AC-44)
 
 ## Docs
