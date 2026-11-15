@@ -72,7 +72,7 @@
       `find()` and `optionsOf()` (`ORDER BY id`). (AC-13, AC-33)
 - [x] **T15:** `AttributeFormType` + `AttributeFormData`, with fields per type. The options textarea
       appears at define only.
-- [ ] **T16:** `AttributeAdminController`: list, define per `{type}`, edit. Failure-contract mapping
+- [x] **T16:** `AttributeAdminController`: list, define per `{type}`, edit. Failure-contract mapping
       with 422, re-render from DBAL only, code derivation, no logging. Templates. Add the
       "Attributes" link to the category index. (AC-32…AC-37, AC-41, AC-42)
 - [ ] **T17:** Delete action plus the three option POST actions (303 + flash, 403 on a bad token).
