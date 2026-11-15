@@ -9,6 +9,7 @@ use App\Domain\Identity\ValueObject\Email;
 use App\Domain\Identity\ValueObject\HashedPassword;
 use App\Domain\Identity\ValueObject\OAuthIdentity;
 use App\Domain\Identity\ValueObject\OAuthProvider;
+use App\Domain\Identity\ValueObject\Role;
 use App\Domain\Identity\ValueObject\UserId;
 use Symfony\Component\Uid\Uuid;
 use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
@@ -93,6 +94,18 @@ final class UserFactory extends PersistentObjectFactory
         return $this->afterInstantiate(static function (User $user) use ($at): void {
             $user->verifyEmail($at ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')));
             $user->releaseEvents();
+        });
+    }
+
+    /**
+     * Holds `ROLE_ADMIN`, through `User::grantRole()` as the console command does. Grant it
+     * *before* the user signs in: changing a signed-in user's roles logs them out on their next
+     * request (Symfony's user refresh).
+     */
+    public function admin(): static
+    {
+        return $this->afterInstantiate(static function (User $user): void {
+            $user->grantRole(Role::Admin);
         });
     }
 

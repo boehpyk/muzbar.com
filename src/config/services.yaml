@@ -42,6 +42,16 @@ services:
     App\Domain\Identity\Port\PasswordResetRequestRepository: '@App\Infrastructure\Identity\Persistence\Doctrine\DoctrinePasswordResetRequestRepository'
     App\Domain\Identity\Port\ResetTokenGenerator: '@App\Infrastructure\Identity\Security\RandomResetTokenGenerator'
     App\Domain\Identity\Port\PasswordResetMailer: '@App\Infrastructure\Identity\Mail\TwigPasswordResetMailer'
+    App\Domain\Catalog\Port\CategoryRepository: '@App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineCategoryRepository'
+    App\Domain\Catalog\Port\CategoryTreeLock: '@App\Infrastructure\Catalog\Persistence\Doctrine\PostgresCategoryTreeLock'
+
+    # Its own slugger instance: no `&` -> `and` symbol map and no request-locale dependence, so a
+    # name always derives the same slug (AC-25: "Bass & Guitars" -> bass-guitars).
+    App\Infrastructure\Catalog\Form\CategorySlugDeriver:
+        arguments:
+            $slugger: !service
+                class: Symfony\Component\String\Slugger\AsciiSlugger
+                arguments: ['en', []]
 
     # Redis client (Predis) built from REDIS_URL; aliased for autowiring by interface.
     Predis\Client:

@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}New category{% endblock %}
+
+{% block body %}
+    <h1>New category</h1>
+
+    {{ form_start(form) }}
+        {# Root-level errors (an invalid CSRF token, extra fields) land on the form, not a field. #}
+        {{ form_errors(form) }}
+        {{ form_row(form.name) }}
+        {{ form_row(form.slug) }}
+        {{ form_row(form.parent) }}
+        <button type="submit">Create</button>
+    {{ form_end(form) }}
+
+    <p><a href="{{ path('admin_category_index') }}">Back to categories</a></p>
+{% endblock %}

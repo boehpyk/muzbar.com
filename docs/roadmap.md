@@ -217,6 +217,20 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         awaiting real profile content.
 - [ ] `Catalog` context: `Category` + `Attribute` + `AttributeOption` aggregates with invariants;
       admin CRUD for categories and attribute schemas (FR-1). This is the core DDD exercise.
+      **Too big for one cycle — sliced (2026-11-14):**
+  - [x] `catalog-category-tree` (2026-11-14) — the `Category` aggregate: hierarchy (parent by id, never an
+        association), invariants (no cycles, sibling-unique slug, a depth ceiling), and admin CRUD.
+        One aggregate per node on an adjacency list; cycles and depth decided by the aggregate on
+        facts read under one tree-wide advisory lock; `ROLE_ADMIN` granted from the console.
+        [ADR-0016](./adr/0016-category-tree-per-node-aggregates-under-one-tree-lock.md).
+        Passed `/verify` 2026-11-15 in one iteration (reviewer PASS; its 4 MINOR + 1 STYLE fixed the same day).
+  - [ ] `catalog-attribute-schema` — `Attribute` + `AttributeOption`: typed attributes (enum,
+        number, boolean, text), units, validation rules, attached to categories. Open question for
+        `/plan`: is `AttributeOption` its own aggregate or a value collection inside `Attribute` (as
+        `User` holds `list<OAuthIdentity>`)? Lean: value collection — argue it, don't assume it.
+  - [ ] `catalog-schema-inheritance` — a child category inherits its ancestors' attributes; decide
+        what may be overridden and what happens to the tree when a parent's schema changes. This is
+        where the Phase 1 gate's "without corrupting existing rows" gets designed.
 - [ ] `Listing` context (skeleton): `Listing` aggregate + `listing_attribute_value` model and the
       hot-column promotion mechanism (ADR-0004). No search/wizard UI yet.
 - [ ] API-key issuance (hashed, revocable) — model only; endpoints in Phase 3.

@@ -44,6 +44,10 @@ doctrine:
             identity_reset_token_hash: App\Infrastructure\Identity\Persistence\Doctrine\Type\HashedResetTokenType
             # Added by `identity-google-oauth` (ADR-0014): the User's linked provider identities.
             identity_oauth_identity_set: App\Infrastructure\Identity\Persistence\Doctrine\Type\OAuthIdentitySetType
+            # Added by `catalog-category-tree` (ADR-0016): the Catalog context's first aggregate.
+            catalog_category_id: App\Infrastructure\Catalog\Persistence\Doctrine\Type\CategoryIdType
+            catalog_category_name: App\Infrastructure\Catalog\Persistence\Doctrine\Type\CategoryNameType
+            catalog_category_slug: App\Infrastructure\Catalog\Persistence\Doctrine\Type\CategorySlugType
     orm:
         validate_xml_mapping: true
         naming_strategy: doctrine.orm.naming_strategy.underscore
@@ -67,6 +71,12 @@ doctrine:
                 dir: '%kernel.project_dir%/src/Infrastructure/Identity/Persistence/Doctrine/mapping'
                 prefix: 'App\Domain\Identity\Entity'
                 alias: Identity
+            Catalog:
+                type: xml
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Infrastructure/Catalog/Persistence/Doctrine/mapping'
+                prefix: 'App\Domain\Catalog\Entity'
+                alias: Catalog
 
 when@test:
     doctrine:
