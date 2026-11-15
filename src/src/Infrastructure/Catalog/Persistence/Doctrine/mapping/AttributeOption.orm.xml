@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Doctrine mapping for `AttributeOption`, the Catalog context's third aggregate root (ADR-0017
+    decision 2). This is ADR-0004's original `attribute_option` table sketch, unamended.
+
+    `attribute_id` is a plain typed column: no `<many-to-one>`, no FK (ADR-0009 decision 4). Deleting
+    an attribute sweeps its options with a set-based DELETE in the same transaction (C-20, plan D7),
+    not an `ON DELETE CASCADE`.
+
+    WHY `label_key` AND NOT AN EXPRESSION INDEX ON `lower(label)` (plan D3). C-17 is "option labels
+    are unique within an attribute, case-insensitively". DBAL cannot declare an expression index in a
+    mapping, and its PostgreSQL introspection reads one back as a different index (the expression's
+    `attnum` is 0), so a hand-written `(attribute_id, lower(label))` would be re-diffed by every
+    `make migration.make` forever — the partial-index footgun, but with no spelling that fixes it. A
+    generated column has the same problem. So the aggregate stores the case-folded form itself:
+    `label_key` = `AttributeLabel::key()`, assigned in the same statement as `label`, and the index is
+    a plain two-column one DBAL round-trips. PHP's `mb_strtolower` is then the only case-folder, in
+    the pre-check and the stored key alike: no PHP-vs-Postgres collation drift.
+
+    WHY THERE IS NO `position` (plan D3). Option order is insertion order is `ORDER BY id`: ids are
+    UUIDv7 (timestamp first, compared bytewise by Postgres), minted monotonically, and every insert is
+    serialised by `CategoryTreeLock`. ponytail: the ceiling is a backwards wall-clock step between two
+    separate adds; the upgrade is an additive `position` column backfilled from id order, which
+    manual reordering would need anyway.
+
+    HOW THE INDEX WIDENS FOR DEPENDENT OPTIONS (plan D14). When Model options hang under Brand
+    options, "Standard" must be legal under two brands, so uniqueness becomes per (attribute, parent
+    option). That replaces this index with the slice-1 two-partial-index pair:
+    `(attribute_id, label_key) WHERE (parent_option_id IS NULL)` and
+    `(attribute_id, parent_option_id, label_key) WHERE (parent_option_id IS NOT NULL)`. One plain
+    three-column index would not do, because NULLs are distinct (the C-3 lesson). No
+    `parent_option_id` exists yet, on purpose.
+
+    The index's leading column also serves `countForAttribute()`, `removeAllForAttribute()` and the
+    per-attribute option list.
+-->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Domain\Catalog\Entity\AttributeOption" table="catalog_attribute_option">
+
+        <unique-constraints>
+            <!-- C-17: option labels unique within an attribute, case-insensitively, via `label_key`. -->
+            <unique-constraint name="uniq_catalog_attribute_option_label" columns="attribute_id,label_key"/>
+        </unique-constraints>
+
+        <id name="id" type="catalog_attribute_option_id" column="id">
+            <generator strategy="NONE"/>
+        </id>
+
+        <!-- Reference by identity, not by association — see the header. -->
+        <field name="attributeId" column="attribute_id" type="catalog_attribute_id" nullable="false"/>
+
+        <field name="label" column="label" type="catalog_attribute_label" length="100" nullable="false"/>
+        <!-- `mb_strtolower` never lengthens a string past its `mb_strlen`, so 100 suffices. -->
+        <field name="labelKey" column="label_key" type="string" length="100" nullable="false"/>
+
+    </entity>
+
+</doctrine-mapping>

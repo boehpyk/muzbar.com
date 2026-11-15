@@ -59,7 +59,7 @@
       category-delete test) at runtime. Land the guard with or right after T13.*
 
 ## Infrastructure
-- [ ] **T11:** DBAL types (`AttributeIdType`, `AttributeOptionIdType`, `AttributeCodeType`,
+- [x] **T11:** DBAL types (`AttributeIdType`, `AttributeOptionIdType`, `AttributeCodeType`,
       `AttributeLabelType`, `NumberRulesType extends JsonbType`), registered in `doctrine.yaml`.
       `Attribute.orm.xml` and `AttributeOption.orm.xml`: plain id columns, `enum-type`, the two
       named unique constraints, and header comments covering D3/D14. (AC-28, AC-29, AC-31)

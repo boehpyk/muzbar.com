@@ -48,6 +48,12 @@ doctrine:
             catalog_category_id: App\Infrastructure\Catalog\Persistence\Doctrine\Type\CategoryIdType
             catalog_category_name: App\Infrastructure\Catalog\Persistence\Doctrine\Type\CategoryNameType
             catalog_category_slug: App\Infrastructure\Catalog\Persistence\Doctrine\Type\CategorySlugType
+            # Added by `catalog-attribute-schema` (ADR-0017): `Attribute` and `AttributeOption`.
+            catalog_attribute_id: App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeIdType
+            catalog_attribute_option_id: App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeOptionIdType
+            catalog_attribute_code: App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeCodeType
+            catalog_attribute_label: App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeLabelType
+            catalog_attribute_number_rules: App\Infrastructure\Catalog\Persistence\Doctrine\Type\NumberRulesType
     orm:
         validate_xml_mapping: true
         naming_strategy: doctrine.orm.naming_strategy.underscore
