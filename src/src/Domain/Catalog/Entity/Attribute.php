@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Domain\Catalog\Entity;
 
+use App\Domain\Catalog\Exception\AttributeNeedsAnOption;
 use App\Domain\Catalog\Exception\AttributeRuleNotApplicable;
 use App\Domain\Catalog\Exception\DuplicateAttributeOption;
 use App\Domain\Catalog\Exception\InvalidAttributeOptions;
 use App\Domain\Catalog\ValueObject\AttributeCode;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeLabel;
+use App\Domain\Catalog\ValueObject\AttributeOptionId;
 use App\Domain\Catalog\ValueObject\AttributeType;
 use App\Domain\Catalog\ValueObject\CategoryId;
 use App\Domain\Catalog\ValueObject\NumberRules;
@@ -140,6 +142,49 @@ final class Attribute
         }
 
         $this->numberRules = $numberRules;
+    }
+
+    /**
+     * The only sanctioned way to make an option (C-15): this aggregate is the factory for the other.
+     * Whether the label is free within this attribute (C-17) is the handler's pre-check, under the
+     * lock, plus the unique index — this object holds no list of its options to check against.
+     *
+     * @throws AttributeRuleNotApplicable this is not a choice attribute
+     */
+    public function newOption(AttributeOptionId $id, AttributeLabel $label): AttributeOption
+    {
+        if (AttributeType::Choice !== $this->type) {
+            throw AttributeRuleNotApplicable::options($this->type);
+        }
+
+        return AttributeOption::create($id, $this->id, $label);
+    }
+
+    /**
+     * Decides whether one of this attribute's options may be removed (C-18), on the current option
+     * count the handler read **under `CategoryTreeLock`** — without the lock, two concurrent removes
+     * of the last two options would each count 2 and both pass (write skew).
+     *
+     * A guard with no state change, deliberately: "at least one option" is this attribute's
+     * invariant, so it decides; the option's removal is non-existence, which ADR-0012 keeps off every
+     * aggregate.
+     *
+     * @throws AttributeRuleNotApplicable this is not a choice attribute
+     * @throws AttributeNeedsAnOption     the option is the last one
+     */
+    public function allowOptionRemoval(int $optionCount): void
+    {
+        if (AttributeType::Choice !== $this->type) {
+            throw AttributeRuleNotApplicable::options($this->type);
+        }
+
+        if ($optionCount < 1) {
+            throw new \InvalidArgumentException(\sprintf('An option is being removed, so the attribute has at least 1; got %d.', $optionCount));
+        }
+
+        if (1 === $optionCount) {
+            throw AttributeNeedsAnOption::cannotRemoveLast($this->id);
+        }
     }
 
     public function id(): AttributeId

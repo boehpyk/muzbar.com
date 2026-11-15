@@ -34,7 +34,7 @@
       `changeNumberRules`, readers. Exceptions: `InvalidAttributeOptions`,
       `DuplicateAttributeOption`, `AttributeRuleNotApplicable`. Docblock: D1, D2, D4, the
       facts-under-the-lock contract. (AC-5, AC-6, AC-10)
-- [ ] **T5:** Aggregate `AttributeOption` (`@internal create()`, `relabel()` sets label and
+- [x] **T5:** Aggregate `AttributeOption` (`@internal create()`, `relabel()` sets label and
       labelKey together) plus `Attribute::newOption()` and `Attribute::allowOptionRemoval()`.
       Exceptions: `AttributeNeedsAnOption`, `AttributeOptionNotFound`. (AC-7…AC-9)
 - [ ] **T6:** Ports `AttributeRepository` and `AttributeOptionRepository`. Exceptions:
