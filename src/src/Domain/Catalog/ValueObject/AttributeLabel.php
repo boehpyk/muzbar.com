@@ -49,12 +49,14 @@ final readonly class AttributeLabel
     }
 
     /**
-     * The case-folded form: "LEFT-Handed" and "left-handed" share one key. Lower-casing never makes
-     * a string longer in characters, so a key fits the same `varchar(100)` as its label.
+     * The case-folded form: "LEFT-Handed" and "left-handed" share one key. **Simple** case mapping,
+     * not `mb_strtolower`'s full mapping: full mapping turns "İ" (U+0130) into two code points, so a
+     * 100-character label could produce a 101+-character key and overflow `label_key varchar(100)`.
+     * Simple mapping is one code point per code point, so a key always fits beside its label.
      */
     public function key(): string
     {
-        return mb_strtolower($this->value);
+        return mb_convert_case($this->value, \MB_CASE_LOWER_SIMPLE);
     }
 
     public function equals(self $other): bool

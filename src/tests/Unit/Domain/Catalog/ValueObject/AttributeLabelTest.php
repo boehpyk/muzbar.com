@@ -59,6 +59,17 @@ final class AttributeLabelTest extends TestCase
         self::assertSame($key, AttributeLabel::fromString($label)->key());
     }
 
+    /**
+     * Full case mapping (`mb_strtolower`) turns each "İ" into two code points, which would overflow
+     * `label_key varchar(100)` with a 22001, not a catchable unique violation.
+     */
+    public function testTheKeyOfAMaximalLabelFitsTheSameLengthAsTheLabel(): void
+    {
+        $key = AttributeLabel::fromString(str_repeat('İ', AttributeLabel::MAX_LENGTH))->key();
+
+        self::assertSame(AttributeLabel::MAX_LENGTH, mb_strlen($key));
+    }
+
     public function testEqualityIsCaseSensitiveOnTheLabelItself(): void
     {
         self::assertTrue(AttributeLabel::fromString('Left')->equals(AttributeLabel::fromString(' Left ')));

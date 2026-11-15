@@ -22,8 +22,10 @@ use Doctrine\DBAL\Connection;
  */
 final readonly class DbalAttributeSchema
 {
+    // `bigint`, not `int`: a bound is any PHP int (`NumberRules` sets no range), and an int4 cast
+    // would 500 the list, edit and delete pages of a number whose bound exceeds 2^31 - 1.
     private const string COLUMNS = "a.id, a.category_id, a.code, a.label, a.type, a.is_required,
-        a.number_rules->>'unit' AS unit, (a.number_rules->>'min')::int AS minimum, (a.number_rules->>'max')::int AS maximum";
+        a.number_rules->>'unit' AS unit, (a.number_rules->>'min')::bigint AS minimum, (a.number_rules->>'max')::bigint AS maximum";
 
     public function __construct(
         private Connection $connection,

@@ -268,6 +268,19 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
         self::assertSame([$first->id()->toString(), $second->id()->toString()], array_column($rows, 'id'));
     }
 
+    public function testTheReadModelReadsBoundsBeyondTheInt4Range(): void
+    {
+        $category = CategoryFactory::createOne();
+        $attribute = AttributeFactory::new()->inCategory($category)->number(NumberRules::of(null, -3_000_000_000, 3_000_000_000))->create();
+        $schema = new DbalAttributeSchema($this->db);
+
+        $listed = $schema->forCategory($category->id()->toString());
+        $found = $schema->find($attribute->id()->toString());
+
+        self::assertSame([-3_000_000_000, 3_000_000_000], [$listed[0]['minimum'], $listed[0]['maximum']]);
+        self::assertSame([-3_000_000_000, 3_000_000_000], [$found['minimum'] ?? null, $found['maximum'] ?? null]);
+    }
+
     public function testFindReturnsNullForAnUnknownId(): void
     {
         self::assertNull((new DbalAttributeSchema($this->db))->find(Uuid::v7()->toRfc4122()));

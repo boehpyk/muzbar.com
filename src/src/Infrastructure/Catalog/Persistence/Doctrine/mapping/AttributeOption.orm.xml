@@ -14,7 +14,7 @@
     `make migration.make` forever — the partial-index footgun, but with no spelling that fixes it. A
     generated column has the same problem. So the aggregate stores the case-folded form itself:
     `label_key` = `AttributeLabel::key()`, assigned in the same statement as `label`, and the index is
-    a plain two-column one DBAL round-trips. PHP's `mb_strtolower` is then the only case-folder, in
+    a plain two-column one DBAL round-trips. `AttributeLabel::key()` (simple case mapping) is then the only case-folder, in
     the pre-check and the stored key alike: no PHP-vs-Postgres collation drift.
 
     WHY THERE IS NO `position` (plan D3). Option order is insertion order is `ORDER BY id`: ids are
@@ -54,7 +54,7 @@
         <field name="attributeId" column="attribute_id" type="catalog_attribute_id" nullable="false"/>
 
         <field name="label" column="label" type="catalog_attribute_label" length="100" nullable="false"/>
-        <!-- `mb_strtolower` never lengthens a string past its `mb_strlen`, so 100 suffices. -->
+        <!-- `key()` uses simple case mapping (one code point per code point), so 100 suffices. -->
         <field name="labelKey" column="label_key" type="string" length="100" nullable="false"/>
 
     </entity>

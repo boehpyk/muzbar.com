@@ -40,7 +40,7 @@ final class DoctrineAttributeOptionRepositoryTest extends KernelTestCase
     {
         $this->db->executeStatement(
             'INSERT INTO catalog_attribute_option (id, attribute_id, label, label_key) VALUES (?, ?, ?, ?)',
-            [Uuid::v7()->toRfc4122(), $attributeId, $label, mb_strtolower($label)],
+            [Uuid::v7()->toRfc4122(), $attributeId, $label, AttributeLabel::fromString($label)->key()],
         );
     }
 

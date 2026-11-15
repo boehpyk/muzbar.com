@@ -57,7 +57,7 @@ is familiar. It was the first draft of this plan.
      could express this; the lock is the only thing making the count true. Without it, two concurrent
      removes of the last two options each count 2 and both succeed — write skew.
 4. **Case-insensitive uniqueness through a stored `label_key`, not an expression index** (D3).
-   `label_key` = `AttributeLabel::key()` = `mb_strtolower` of the trimmed label, assigned by the
+   `label_key` = `AttributeLabel::key()` = the simple lower-case mapping (`MB_CASE_LOWER_SIMPLE`, never `mb_strtolower`, whose full mapping lengthens "İ" past `varchar(100)`) of the trimmed label, assigned by the
    aggregate in the same statement as the label. `key()` is the single definition of "same label":
    the pre-check and the stored column both come from it, so there is no PHP-versus-Postgres
    collation drift.
