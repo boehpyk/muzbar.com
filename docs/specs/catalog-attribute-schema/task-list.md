@@ -81,7 +81,7 @@
 ## Tests (qa)
 - [x] **T18:** Domain unit tests for every VO plus `AttributeTest` and `AttributeOptionTest`.
       (AC-1…AC-11)
-- [ ] **T19:** Foundry factories that go through `define…` / `newOption()`. Add
+- [x] **T19:** Foundry factories that go through `define…` / `newOption()`. Add
       `AttributeHandlersTest`, both repository tests (backstops, `ORDER BY id`, the sweep, corrupt
       `number_rules`), and the `CategoryHandlersTest` additions. Use the racing double for AC-19.
       (AC-12…AC-25, AC-28)
