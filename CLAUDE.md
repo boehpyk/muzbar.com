@@ -79,7 +79,8 @@ Docker Compose · Traefik · Nginx.
 > invariants** (no cycles, depth ≤ `MAX_DEPTH = 4`), decided by the aggregate on facts read under one
 > tree-wide advisory lock. Admin CRUD under `/admin` (`ROLE_ADMIN`, granted only from the console).
 > [ADR-0016](./docs/adr/0016-category-tree-per-node-aggregates-under-one-tree-lock.md) + ADR-0005/0009 amendments.
-> `catalog-attribute-schema` (2026-11-15, **not yet `/verify`ed**) — Catalog slice 2 of 3: the first
+> `catalog-attribute-schema` (2026-11-15, **passed `/verify` 2026-11-15 in two iterations** — fixed an
+> int4 cast on 64-bit bounds and `mb_strtolower` lengthening "İ" past `label_key`) — Catalog slice 2 of 3: the first
 > aggregate with **parts**, and the parts left. `Attribute` (four types: choice/number/boolean/text) and
 > `AttributeOption` are **separate aggregates** referencing by id, because a Brand list is unbounded
 > and options will be referenced from outside (listings, dependent Model options). Options are minted
@@ -521,6 +522,11 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   are no better). Case-insensitive uniqueness is a persisted `label_key` = `AttributeLabel::key()`,
   set by the aggregate together with the label, under a plain unique index. `key()` is the one
   definition of "same label" for both the pre-check and the column.
+- **`mb_strtolower` can lengthen a string** — full Unicode case mapping turns "İ" (U+0130) into two
+  code points, so a 100-char label made a 101+-char key and a SQLSTATE 22001 (uncaught: not a unique
+  violation). A stored case-folded key uses `mb_convert_case(…, MB_CASE_LOWER_SIMPLE)` (1:1). Likewise
+  a read model's SQL cast must hold the VO's whole range: `NumberRules` bounds are PHP int64, so
+  `::bigint`, never `::int`. Both found by `/verify`, not by the suite.
 - **Symfony compiles services lazily: a missing adapter fails only when something resolves the
   service.** `cache:warmup` and a green Domain/Application suite prove nothing about the graph — the
   C-13 guard injected a port with no adapter yet, and stayed silent until `CategoryAdminController::
