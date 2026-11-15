@@ -4,16 +4,33 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Catalog;
 
+use App\Application\Catalog\Command\AddAttributeOption;
 use App\Application\Catalog\Command\CreateCategory;
+use App\Application\Catalog\Command\DefineAttribute;
+use App\Application\Catalog\Command\DeleteAttribute;
 use App\Application\Catalog\Command\DeleteCategory;
+use App\Application\Catalog\Command\EditAttribute;
 use App\Application\Catalog\Command\EditCategory;
+use App\Application\Catalog\Command\RelabelAttributeOption;
+use App\Application\Catalog\Command\RemoveAttributeOption;
+use App\Application\Catalog\Handler\AddAttributeOptionHandler;
 use App\Application\Catalog\Handler\CreateCategoryHandler;
+use App\Application\Catalog\Handler\DefineAttributeHandler;
+use App\Application\Catalog\Handler\DeleteAttributeHandler;
 use App\Application\Catalog\Handler\DeleteCategoryHandler;
+use App\Application\Catalog\Handler\EditAttributeHandler;
 use App\Application\Catalog\Handler\EditCategoryHandler;
+use App\Application\Catalog\Handler\RelabelAttributeOptionHandler;
+use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
 use App\Domain\Catalog\Port\CategoryTreeLock;
+use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeOptionRepository;
+use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeRepository;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineCategoryRepository;
 use App\Infrastructure\Catalog\Persistence\Doctrine\PostgresCategoryTreeLock;
+use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
+use App\Tests\Fixture\ObservedAttributeOptionRepository;
+use App\Tests\Fixture\ObservedAttributeRepository;
 use App\Tests\Fixture\ObservedCategoryRepository;
 use App\Tests\Fixture\ObservedCategoryTreeLock;
 use Doctrine\DBAL\Connection;
@@ -23,7 +40,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
- * AC-17: the tree lock is real, and every Catalog handler takes it.
+ * AC-17 (slice 1) and AC-26 (slice 2): the tree lock is real, and every Catalog handler takes it.
  *
  * WHAT IS NOT ASSERTED: that the lock is *released* when `exclusively()` returns. The lock is
  * `pg_advisory_xact_lock`, held to the end of the surrounding transaction, and DAMA wraps the whole
@@ -187,5 +204,139 @@ final class CategoryTreeLockTest extends KernelTestCase
 
         self::assertSame(1, $lock->entries());
         $this->assertEveryCallWasUnderTheLock($repository->calls(), 'remove');
+    }
+
+    /**
+     * The attribute-side twin of `observe()`: the lock and all three repositories, swapped by
+     * concrete service id before any handler is fetched.
+     *
+     * @return array{ObservedCategoryTreeLock, ObservedAttributeRepository, ObservedAttributeOptionRepository}
+     */
+    private function observeAttributes(): array
+    {
+        $container = self::getContainer();
+        $em = $container->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+
+        $lock = new ObservedCategoryTreeLock(new PostgresCategoryTreeLock($em));
+        $categories = new ObservedCategoryRepository(new DoctrineCategoryRepository($em), $lock);
+        $attributes = new ObservedAttributeRepository(new DoctrineAttributeRepository($em), $lock);
+        $options = new ObservedAttributeOptionRepository(new DoctrineAttributeOptionRepository($em), $lock);
+        $container->set(PostgresCategoryTreeLock::class, $lock);
+        $container->set(DoctrineCategoryRepository::class, $categories);
+        $container->set(DoctrineAttributeRepository::class, $attributes);
+        $container->set(DoctrineAttributeOptionRepository::class, $options);
+
+        return [$lock, $attributes, $options];
+    }
+
+    public function testDefineAttributeHandlerReadsAndSavesInsideTheLock(): void
+    {
+        $category = CategoryFactory::createOne();
+        [$lock, $attributes, $options] = $this->observeAttributes();
+        $handler = self::getContainer()->get(DefineAttributeHandler::class);
+        self::assertInstanceOf(DefineAttributeHandler::class, $handler);
+
+        $handler(new DefineAttribute($category->id()->toString(), 'choice', 'Orientation', 'orientation', false, optionLabels: ['Left', 'Right']));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'save');
+        $this->assertEveryCallWasUnderTheLock($options->calls(), 'save');
+    }
+
+    public function testEditAttributeHandlerReadsAndSavesInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::createOne();
+        [$lock, $attributes] = $this->observeAttributes();
+        $handler = self::getContainer()->get(EditAttributeHandler::class);
+        self::assertInstanceOf(EditAttributeHandler::class, $handler);
+
+        $handler(new EditAttribute($attribute->id()->toString(), 'Renamed', 'renamed', true));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'save');
+        self::assertContains('isCodeTaken', array_column($attributes->calls(), 0), 'The code pre-check was not exercised.');
+    }
+
+    public function testAddAttributeOptionHandlerReadsAndSavesInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->choice(['Left'])->create();
+        [$lock, $attributes, $options] = $this->observeAttributes();
+        $handler = self::getContainer()->get(AddAttributeOptionHandler::class);
+        self::assertInstanceOf(AddAttributeOptionHandler::class, $handler);
+
+        $handler(new AddAttributeOption($attribute->id()->toString(), 'Right'));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'get');
+        $this->assertEveryCallWasUnderTheLock($options->calls(), 'save');
+        self::assertContains('isLabelTaken', array_column($options->calls(), 0), 'The label pre-check was not exercised.');
+    }
+
+    public function testRelabelAttributeOptionHandlerReadsAndSavesInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->choice(['Left'])->create();
+        $optionId = $this->optionIdOf($attribute->id()->toString());
+        [$lock, $attributes, $options] = $this->observeAttributes();
+        $handler = self::getContainer()->get(RelabelAttributeOptionHandler::class);
+        self::assertInstanceOf(RelabelAttributeOptionHandler::class, $handler);
+
+        $handler(new RelabelAttributeOption($attribute->id()->toString(), $optionId, 'Sinistral'));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'get');
+        $this->assertEveryCallWasUnderTheLock($options->calls(), 'save');
+        self::assertContains('isLabelTaken', array_column($options->calls(), 0), 'The label pre-check was not exercised.');
+    }
+
+    public function testRemoveAttributeOptionHandlerReadsAndRemovesInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->choice(['Left', 'Right'])->create();
+        $optionId = $this->optionIdOf($attribute->id()->toString());
+        [$lock, $attributes, $options] = $this->observeAttributes();
+        $handler = self::getContainer()->get(RemoveAttributeOptionHandler::class);
+        self::assertInstanceOf(RemoveAttributeOptionHandler::class, $handler);
+
+        $handler(new RemoveAttributeOption($attribute->id()->toString(), $optionId));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'get');
+        $this->assertEveryCallWasUnderTheLock($options->calls(), 'remove');
+        self::assertContains('countForAttribute', array_column($options->calls(), 0), 'The last-option count was not read.');
+    }
+
+    public function testDeleteAttributeHandlerRemovesAndSweepsInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->choice(['Left', 'Right'])->create();
+        [$lock, $attributes, $options] = $this->observeAttributes();
+        $handler = self::getContainer()->get(DeleteAttributeHandler::class);
+        self::assertInstanceOf(DeleteAttributeHandler::class, $handler);
+
+        $handler(new DeleteAttribute($attribute->id()->toString()));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'remove');
+        $this->assertEveryCallWasUnderTheLock($options->calls(), 'removeAllForAttribute');
+    }
+
+    public function testDeleteCategoryHandlerReadsTheAttributeGuardInsideTheLock(): void
+    {
+        $leaf = CategoryFactory::createOne();
+        [$lock, $attributes] = $this->observeAttributes();
+        $handler = self::getContainer()->get(DeleteCategoryHandler::class);
+        self::assertInstanceOf(DeleteCategoryHandler::class, $handler);
+
+        $handler(new DeleteCategory($leaf->id()->toString()));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'existsForCategory');
+    }
+
+    private function optionIdOf(string $attributeId): string
+    {
+        $id = $this->db->fetchOne('SELECT id FROM catalog_attribute_option WHERE attribute_id = ? ORDER BY id LIMIT 1', [$attributeId]);
+        self::assertIsString($id);
+
+        return $id;
     }
 }
