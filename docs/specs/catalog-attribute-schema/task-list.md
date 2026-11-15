@@ -48,7 +48,7 @@
 - [x] **T8:** `EditAttribute` + handler. Number rules are applied for a number attribute; for any
       other type the aggregate refuses them. C-11 pre-check with `except`. All-or-nothing.
       (AC-15, AC-22)
-- [ ] **T9:** `AddAttributeOption`, `RelabelAttributeOption`, `RemoveAttributeOption` + handlers:
+- [x] **T9:** `AddAttributeOption`, `RelabelAttributeOption`, `RemoveAttributeOption` + handlers:
       the C-17 pre-check, the ownership check, and `allowOptionRemoval(countForAttribute())`.
       (AC-17, AC-20, AC-21)
 - [ ] **T10:** `DeleteAttribute` + handler: the attribute is removed first, then
