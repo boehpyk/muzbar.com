@@ -244,12 +244,33 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         `(attribute_id, label_key)` index is replaced by the slice-1 **two-partial-index pair**
         (`… WHERE (parent_option_id IS NULL)` / `(attribute_id, parent_option_id, label_key) WHERE
         (parent_option_id IS NOT NULL)`) — one plain index would not do, because NULLs are distinct.
-  - [ ] `catalog-schema-inheritance` — a child category inherits its ancestors' attributes; decide
-        what may be overridden and what happens to the tree when a parent's schema changes. This is
-        where the Phase 1 gate's "without corrupting existing rows" gets designed. Starts from D4 and
-        C-11 above.
+  - [x] `catalog-schema-inheritance` (2026-11-16; **`/verify` pending**) — a category's **effective
+        schema** is its own attributes plus every ancestor's, **derived at read time over the lineage,
+        never stored** (C-22): relabelling on a parent writes one row, a move is still one row.
+        **No overrides:** an attribute code appears at most once along any branch (C-21); sibling
+        branches may reuse one. C-21 has no index — the aggregates decide it on facts read under the
+        tree lock, through **three doors** (define, recode on `Attribute`; move on `Category`, C-5's
+        shape exactly). C-11 is its same-category case; `isCodeTaken()` is gone. Admin page shows
+        "Defined here" + "Inherited". No migration: **before deploy, run the one-off D10 query**
+        ([infrastructure.md](./infrastructure.md) §*Catalog: one-off pre-deploy check*).
+        [ADR-0018](./adr/0018-schema-inheritance-derived-along-the-lineage-codes-unique-per-branch.md)
+        + ADR-0016/0017 amendments. 1207 → 1283 tests.
 - [ ] `Listing` context (skeleton): `Listing` aggregate + `listing_attribute_value` model and the
       hot-column promotion mechanism (ADR-0004). No search/wizard UI yet.
+      **Inherits from `catalog-schema-inheritance` (ADR-0018 decision 8 / plan D11) — design these
+      here, not later:**
+      1. **A move changes the effective schema of every listing in the subtree** — values for
+         attributes that leave it, required attributes that arrive. The guard (or archive rule) goes
+         in **`EditCategoryHandler`, beside C-21**: the move is the *second* accretion point, as
+         `DeleteCategoryHandler` is for deletion. Under the tree lock, like every Catalog write.
+      2. **A new required attribute on a parent makes existing listings below it incomplete.**
+         `Listing` decides when "required" bites (likely at the listing's next edit, not
+         retroactively).
+      3. **Deleting a parent's attribute** is ADR-0004's soft delete (and its "option in use" guard),
+         already handed over by the ADR-0004 amendment.
+      4. **The effective-schema query for other contexts** (an `EffectiveSchema` type, or a read
+         port) is designed with the listing form. Today only the admin read model
+         `DbalAttributeSchema::effectiveFor()` computes it.
 - [ ] API-key issuance (hashed, revocable) — model only; endpoints in Phase 3.
 - **Gate — Schema-Mutation PoC** (PRD validation #2): add a new attribute (e.g. "Fretboard Wood") via
       the admin UI and confirm it propagates to the dynamic form-render path and to a facet query

@@ -81,7 +81,7 @@ callers would leave a red commit.)*
       Revert, record results in the commit message, run `make test` twice. (AC-30, AC-31)
 
 ## Docs
-- [ ] **T15:** Update the docs:
+- [x] **T15:** Update the docs:
       - **`CLAUDE.md`:** status line (Catalog 3 of 3); under *Invariants that span many instances*:
         *"C-21 has three doors (define, recode, move): a new write that changes a code or a parent
         must read the branch codes under the lock"*; *"the effective schema is derived, never

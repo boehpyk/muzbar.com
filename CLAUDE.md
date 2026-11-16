@@ -16,7 +16,7 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 `Identity` complete (7 of 7)**.
+> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 `Identity` complete (7 of 7)** · **`Catalog` 3 of 3** (slice 3 `/verify` pending).
 > `identity-user-password-auth` (2026-07-26) shipped the repo's first Domain code — the `User`
 > aggregate, value objects, ports, two domain events, the first migration, and
 > register/login/logout/`/account`. `identity-email-verification` (2026-07-28) added the **second
@@ -87,7 +87,18 @@ Docker Compose · Traefik · Nginx.
 > by `Attribute::newOption()`; their set-rules (unique label C-17, never the last C-18) are
 > cross-instance invariants under the **same tree lock**. Definitions live once, on the defining
 > category. [ADR-0017](./docs/adr/0017-attribute-schema-attributes-and-options-as-separate-aggregates.md)
-> + ADR-0004/0016 amendments. Next: `catalog-schema-inheritance`.
+> + ADR-0004/0016 amendments.
+> `catalog-schema-inheritance` (2026-11-16, **`/verify` pending**) — Catalog slice 3 of 3, and the
+> first invariant spanning **two aggregate types and the tree at once**. A category's effective
+> schema is its own attributes plus every ancestor's, **derived over the lineage, never stored**
+> (C-22). **No overrides:** a code appears at most once along any branch (C-21) — an override would
+> be a second `Attribute` with its own id, and every Brand facet on an ancestor would split in two.
+> C-21 has **three doors** (define and recode on `Attribute`, move on `Category` — C-5's shape) and
+> no index; C-11 became its same-category case and `isCodeTaken()` was deleted. No migration, but a
+> **one-off pre-deploy query** (docs/infrastructure.md §*Catalog*). The bite proof's mutation (d)
+> was caught **only** by AC-14's descendant case.
+> [ADR-0018](./docs/adr/0018-schema-inheritance-derived-along-the-lineage-codes-unique-per-branch.md)
+> + ADR-0016/0017 amendments. Next: the `Listing` skeleton, which inherits D11's four points.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -211,6 +222,22 @@ established by `catalog-category-tree`, inherited by every context:
   category (listings, saved searches) adds its guard there, never a cascade.
 - **Persist `CategoryId`, never a slug or path.** Slugs and paths change on rename and move; the id
   never does. Depth, path and lineage are derived, never stored.
+- **C-21 has three doors — define, recode, move — and no index** (ADR-0018). A code is unique along
+  every branch (ancestors + descendants; siblings may share). **Any new write that changes an
+  attribute code or a category's parent** (an import, a "merge categories" tool) must read the branch
+  codes (`lineageOf()->ids()` + `descendantsOf()` → `codesDefinedOn()`) **under the lock** and hand
+  them to the aggregate, and get a `CategoryTreeLockTest` case. Nothing else will catch a fourth door.
+  The move is also the **second accretion point** (after `DeleteCategoryHandler`): the Listing slice's
+  move guard goes in `EditCategoryHandler`, beside C-21.
+- **The effective schema is derived, never stored** (C-22). Its only computation today is
+  `DbalAttributeSchema::effectiveFor()` (one bounded recursive query). No schema cache, no
+  `category_attribute` table, no `jsonb` copy: a define on a parent and a move each stay one row.
+- **`AttributeFactory` bypasses C-21** — it hands every constructor `AttributeCodes::none()`. A test
+  that needs a lawful tree must build it in an order that respects C-21, or the factory hides the
+  refusal it is testing. Its **default category does not exist** (no FK): any recode now reads that
+  category's lineage and throws `CategoryNotFound`, and the edit page's "Changes apply to …" sentence
+  silently disappears (it looks the name up tolerantly). Build with `->inCategory($category)` whenever
+  the category matters.
 
 **Structurally identical aggregates still do not share a base class.** `PasswordResetRequest` is ~80%
 the same file as `EmailVerificationRequest` and shares no supertype with it. They share a *shape*,
@@ -531,6 +558,16 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   service.** `cache:warmup` and a green Domain/Application suite prove nothing about the graph — the
   C-13 guard injected a port with no adapter yet, and stayed silent until `CategoryAdminController::
   delete` was hit (26 errors). Land a new port dependency **with** its adapter.
+- **A domain exception cannot have a `$code` property** — `\Exception` already declares `protected
+  $code` (the int), so a promoted `private readonly AttributeCode $code` is a compile-time fatal (access level and
+  type both clash).
+  Store it as `$attributeCode` and expose `code(): AttributeCode` (`AttributeCodeAlreadyTaken`).
+- **phpstan cannot intersect array shapes**, so a read model that adds columns gets its **own**
+  `@phpstan-type` rather than widening a shared one: `effectiveFor()` returns `EffectiveRow`, and
+  `AttributeRow` stays as `find()` returns it (which has no lineage to report).
+- **`make test filter=` breaks on a regex containing `|`** — the Makefile passes `--filter=$(filter)`
+  unquoted, so the shell reads the pipe. For an alternation run phpunit directly:
+  `docker compose -f docker-compose.yml -f docker-compose.dev.yml exec -T -e APP_ENV=test app php vendor/bin/phpunit --filter='A|B'`.
 - **Symfony's default `slugger` maps `&` to `and`** (and follows the request locale), so
   `"Bass & Guitars"` became `bass-and-guitars`. `CategorySlugDeriver` gets its own
   `AsciiSlugger('en', [])` in `services.yaml`; do not "simplify" it to the framework service.
