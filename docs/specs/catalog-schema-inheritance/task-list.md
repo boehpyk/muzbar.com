@@ -18,7 +18,7 @@
   (factories, unit tests) in the same commit, appending `AttributeCodes::none()` and nothing more.
 
 ## Decisions & prerequisites
-- [ ] **T0:** `/adr` → **ADR-0018** (plan D1–D6, D10, D11, with the rejected alternatives: override,
+- [x] **T0:** `/adr` → **ADR-0018** (plan D1–D6, D10, D11, with the rejected alternatives: override,
       exclusion, global codes, materialised schema, handler pre-check, domain service, trigger) and
       the dated **ADR-0017** and **ADR-0016** amendments (plan Risk 5). No code.
 

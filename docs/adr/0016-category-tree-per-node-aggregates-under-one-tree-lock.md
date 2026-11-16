@@ -170,3 +170,20 @@ Recorded by the `catalog-attribute-schema` slice
    then **C-13: a category that defines attributes cannot be deleted** (`CategoryHasAttributes`).
    This is the first reference into the tree from another aggregate (`Attribute` → `CategoryId`);
    Phase 2's listings add the next guard in the same place.
+
+## Amendment, 2026-11-16 — `moveUnder()` takes a third fact pair (C-21); the move is the second accretion point
+
+Recorded by the `catalog-schema-inheritance` slice
+([ADR-0018](./0018-schema-inheritance-derived-along-the-lineage-codes-unique-per-branch.md), plan D4, D11).
+
+1. **`moveUnder()` takes the schema facts:** `moveUnder(Lineage $newParentLineage, int
+   $subtreeHeight, AttributeCodes $codesAlongNewParent, AttributeCodes $codesInSubtree)`. **C-21**
+   (no attribute code twice along a branch) is checked **after C-4 and C-5**, before any assignment,
+   so decision 2's ordering and no-mutation-on-refusal guarantees extend unchanged. It is C-5's
+   shape: one fact about the new parent's lineage, one about the moving subtree. `EditCategoryHandler`
+   reads both code sets under the lock, only when the parent changes. `create()` is unchanged.
+2. **`EditCategoryHandler`'s move is the second accretion point**, as `DeleteCategoryHandler` is for
+   deletion. A move changes the effective schema of every category — and later every listing — in
+   the subtree, so the `Listing` slice adds its move guard (or archive rule) there, beside C-21.
+3. **Decision 4 now carries the effective schema too:** derived along the lineage, never stored
+   (C-22), so a move still writes one row.
