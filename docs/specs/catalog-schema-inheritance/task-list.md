@@ -30,7 +30,7 @@
       `DoctrineCategoryRepository` / `DoctrineAttributeRepository`, plus the
       `ObservedCategoryRepository`, `ObservedAttributeRepository`, `RacingCategoryRepository` and
       `RacingAttributeRepository` fixtures. (AC-19)
-- [ ] **T3:** Exception `AttributeCodeAlreadyTaken::inBranch()`. `Attribute::define…()` and
+- [x] **T3:** Exception `AttributeCodeAlreadyTaken::inBranch()`. `Attribute::define…()` and
       `recode()` take `AttributeCodes $codesInBranch` and decide C-21 first (recode to own code is a
       no-op). In the same commit: `DefineAttributeHandler` and `EditAttributeHandler` read the branch
       codes under the lock and pass them in, dropping their C-11 pre-checks; `AttributeFactory` and

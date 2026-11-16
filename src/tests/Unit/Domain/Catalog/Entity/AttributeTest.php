@@ -10,6 +10,7 @@ use App\Domain\Catalog\Exception\AttributeRuleNotApplicable;
 use App\Domain\Catalog\Exception\DuplicateAttributeOption;
 use App\Domain\Catalog\Exception\InvalidAttributeOptions;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeLabel;
 use App\Domain\Catalog\ValueObject\AttributeOptionId;
@@ -55,6 +56,7 @@ final class AttributeTest extends TestCase
             self::label(),
             false,
             array_map(self::label(...), $options),
+            AttributeCodes::none(),
         );
     }
 
@@ -67,17 +69,18 @@ final class AttributeTest extends TestCase
             self::label('Scale'),
             true,
             NumberRules::of(Unit::fromString('mm'), 600, 700),
+            AttributeCodes::none(),
         );
     }
 
     private static function boolean(): Attribute
     {
-        return Attribute::defineBoolean(self::id(), self::categoryId(), self::code('case'), self::label('Has case'), false);
+        return Attribute::defineBoolean(self::id(), self::categoryId(), self::code('case'), self::label('Has case'), false, AttributeCodes::none());
     }
 
     private static function text(): Attribute
     {
-        return Attribute::defineText(self::id(), self::categoryId(), self::code('serial'), self::label('Serial'), false);
+        return Attribute::defineText(self::id(), self::categoryId(), self::code('serial'), self::label('Serial'), false, AttributeCodes::none());
     }
 
     public function testDefineNumberCarriesItsRules(): void
@@ -86,7 +89,7 @@ final class AttributeTest extends TestCase
         $categoryId = self::categoryId();
         $rules = NumberRules::of(null, 1, 2);
 
-        $attribute = Attribute::defineNumber($id, $categoryId, self::code('x'), self::label('X'), true, $rules);
+        $attribute = Attribute::defineNumber($id, $categoryId, self::code('x'), self::label('X'), true, $rules, AttributeCodes::none());
 
         self::assertTrue($attribute->id()->equals($id));
         self::assertTrue($attribute->categoryId()->equals($categoryId));
@@ -124,7 +127,7 @@ final class AttributeTest extends TestCase
         $id = self::id();
         $categoryId = self::categoryId();
 
-        $attribute = Attribute::defineChoice($id, $categoryId, self::code('o'), self::label('O'), true, [self::label('A')]);
+        $attribute = Attribute::defineChoice($id, $categoryId, self::code('o'), self::label('O'), true, [self::label('A')], AttributeCodes::none());
 
         self::assertTrue($attribute->id()->equals($id));
         self::assertTrue($attribute->categoryId()->equals($categoryId));
@@ -237,7 +240,7 @@ final class AttributeTest extends TestCase
         $categoryId = $attribute->categoryId();
 
         $attribute->relabel(self::label('Handedness'));
-        $attribute->recode(self::code('handedness'));
+        $attribute->recode(self::code('handedness'), AttributeCodes::none());
         $attribute->changeRequired(true);
 
         self::assertSame('Handedness', $attribute->label()->toString());

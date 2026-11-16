@@ -7,6 +7,7 @@ namespace App\Tests\Factory;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Entity\Category;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeLabel;
 use App\Domain\Catalog\ValueObject\AttributeType;
@@ -22,6 +23,10 @@ use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
  * label, in the given order, through `AttributeOptionFactory` (so through `newOption()`); the
  * attribute is the commit point and is written first here, which is fine for a fixture because
  * nothing reads between the two writes.
+ *
+ * **It bypasses C-21** (ADR-0018): every constructor is handed `AttributeCodes::none()`, so the
+ * factory will happily put one code on an ancestor and its descendant. A test that needs a lawful
+ * tree must build it in an order that respects C-21, or the factory hides the refusal it is testing.
  *
  * @extends PersistentObjectFactory<Attribute>
  */
@@ -73,10 +78,10 @@ final class AttributeFactory extends PersistentObjectFactory
                 $optionLabels = $attributes['optionLabels'];
 
                 return match ($type) {
-                    AttributeType::Choice => Attribute::defineChoice($id, $categoryId, $code, $label, $required, array_map(AttributeLabel::fromString(...), $optionLabels)),
-                    AttributeType::Number => Attribute::defineNumber($id, $categoryId, $code, $label, $required, $rules),
-                    AttributeType::Boolean => Attribute::defineBoolean($id, $categoryId, $code, $label, $required),
-                    AttributeType::Text => Attribute::defineText($id, $categoryId, $code, $label, $required),
+                    AttributeType::Choice => Attribute::defineChoice($id, $categoryId, $code, $label, $required, array_map(AttributeLabel::fromString(...), $optionLabels), AttributeCodes::none()),
+                    AttributeType::Number => Attribute::defineNumber($id, $categoryId, $code, $label, $required, $rules, AttributeCodes::none()),
+                    AttributeType::Boolean => Attribute::defineBoolean($id, $categoryId, $code, $label, $required, AttributeCodes::none()),
+                    AttributeType::Text => Attribute::defineText($id, $categoryId, $code, $label, $required, AttributeCodes::none()),
                 };
             })
             ->afterPersist(static function (Attribute $attribute, array $attributes): void {

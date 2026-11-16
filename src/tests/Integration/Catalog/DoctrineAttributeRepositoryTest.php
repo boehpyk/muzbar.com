@@ -9,6 +9,7 @@ use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
 use App\Domain\Catalog\Exception\AttributeNotFound;
 use App\Domain\Catalog\Port\AttributeRepository;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeLabel;
 use App\Domain\Catalog\ValueObject\AttributeType;
@@ -86,6 +87,7 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
             AttributeCode::fromString('string-count'),
             AttributeLabel::fromString('String count again'),
             false,
+            AttributeCodes::none(),
         );
 
         $this->expectException(AttributeCodeAlreadyTaken::class);
@@ -106,6 +108,7 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
             AttributeCode::fromString('string-count'),
             AttributeLabel::fromString('String count'),
             false,
+            AttributeCodes::none(),
         ));
 
         self::assertSame(2, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute'));

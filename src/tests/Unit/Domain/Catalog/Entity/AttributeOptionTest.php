@@ -7,6 +7,7 @@ namespace App\Tests\Unit\Domain\Catalog\Entity;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Entity\AttributeOption;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeLabel;
 use App\Domain\Catalog\ValueObject\AttributeOptionId;
@@ -25,6 +26,7 @@ final class AttributeOptionTest extends TestCase
             AttributeLabel::fromString('Orientation'),
             false,
             [AttributeLabel::fromString($label)],
+            AttributeCodes::none(),
         );
 
         return $attribute->newOption(AttributeOptionId::fromString(Uuid::v7()->toRfc4122()), AttributeLabel::fromString($label));

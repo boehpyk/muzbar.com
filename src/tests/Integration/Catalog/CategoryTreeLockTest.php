@@ -246,7 +246,7 @@ final class CategoryTreeLockTest extends KernelTestCase
 
     public function testEditAttributeHandlerReadsAndSavesInsideTheLock(): void
     {
-        $attribute = AttributeFactory::createOne();
+        $attribute = AttributeFactory::new()->inCategory(CategoryFactory::createOne())->create();
         [$lock, $attributes] = $this->observeAttributes();
         $handler = self::getContainer()->get(EditAttributeHandler::class);
         self::assertInstanceOf(EditAttributeHandler::class, $handler);
@@ -255,7 +255,7 @@ final class CategoryTreeLockTest extends KernelTestCase
 
         self::assertSame(1, $lock->entries());
         $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'save');
-        self::assertContains('isCodeTaken', array_column($attributes->calls(), 0), 'The code pre-check was not exercised.');
+        self::assertContains('codesDefinedOn', array_column($attributes->calls(), 0), 'The C-21 branch read was not exercised.');
     }
 
     public function testAddAttributeOptionHandlerReadsAndSavesInsideTheLock(): void
