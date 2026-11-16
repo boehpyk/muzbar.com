@@ -54,7 +54,7 @@ callers would leave a red commit.)*
 - [x] **T6:** `DbalAttributeSchema::effectiveFor()` replaces `forCategory()` (one bounded recursive
       query; `definedOnId`, `definedOnName`, `inherited`; root-first order). Existing `forCategory()`
       tests move over. (AC-8, AC-24)
-- [ ] **T7:** `attributes.html.twig`: "Defined here" + "Inherited" (read-only, *"from <link>"*, no
+- [x] **T7:** `attributes.html.twig`: "Defined here" + "Inherited" (read-only, *"from <link>"*, no
       tokens) + the empty state; `AttributeAdminController::index()` uses `effectiveFor()`.
       `attribute_edit.html.twig`: the AC-28 sentence. (AC-23, AC-28)
 - [ ] **T8:** Refusal mapping: `AttributeAdminController` shows the AC-25 message for both

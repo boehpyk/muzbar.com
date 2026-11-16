@@ -166,6 +166,9 @@ final class AttributeAdminController extends AbstractController
         return $this->render('catalog/admin/attribute_edit.html.twig', [
             'form' => $form,
             'attribute' => $attribute,
+            // Tolerant, not `category()`: a missing category is no reason to 404 the edit page
+            // (C-13 prevents it, but no FK does, and factory-made attributes have none).
+            'categoryName' => array_find($this->outline->rows(), static fn (array $row): bool => $row['id'] === $attribute['categoryId'])['name'] ?? null,
             'type' => $attributeType,
             'options' => AttributeType::Choice === $attributeType ? $this->schema->optionsOf($attribute['id']) : [],
         ], $this->statusFor($form));
