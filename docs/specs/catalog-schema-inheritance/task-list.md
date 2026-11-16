@@ -65,7 +65,7 @@ callers would leave a red commit.)*
 - [x] **T9:** Domain unit: `AttributeCodesTest`, `LineageTest::ids`, `AttributeTest` (C-21 on each
       constructor and recode, check order, own-code no-op), `CategoryTest` (C-21 on move, order vs
       C-4/C-5, current-parent no-op). (AC-1…AC-7)
-- [ ] **T10:** Integration: the five-category fixture tree; `AttributeHandlersTest` and
+- [x] **T10:** Integration: the five-category fixture tree; `AttributeHandlersTest` and
       `CategoryHandlersTest` additions with table snapshots and fresh-repository read-backs;
       repository tests for `descendantsOf` (incl. planted cycle), `codesDefinedOn`, `effectiveFor`;
       the planted legacy duplicate. (AC-8…AC-20)
