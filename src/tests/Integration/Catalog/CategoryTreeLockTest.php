@@ -210,7 +210,7 @@ final class CategoryTreeLockTest extends KernelTestCase
      * The attribute-side twin of `observe()`: the lock and all three repositories, swapped by
      * concrete service id before any handler is fetched.
      *
-     * @return array{ObservedCategoryTreeLock, ObservedAttributeRepository, ObservedAttributeOptionRepository}
+     * @return array{ObservedCategoryTreeLock, ObservedAttributeRepository, ObservedAttributeOptionRepository, ObservedCategoryRepository}
      */
     private function observeAttributes(): array
     {
@@ -227,7 +227,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         $container->set(DoctrineAttributeRepository::class, $attributes);
         $container->set(DoctrineAttributeOptionRepository::class, $options);
 
-        return [$lock, $attributes, $options];
+        return [$lock, $attributes, $options, $categories];
     }
 
     public function testDefineAttributeHandlerReadsAndSavesInsideTheLock(): void
@@ -330,6 +330,72 @@ final class CategoryTreeLockTest extends KernelTestCase
 
         self::assertSame(1, $lock->entries());
         $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'existsForCategory');
+    }
+
+    /**
+     * AC-21. C-21 is decided on facts, and a fact read outside `exclusively()` is a guess: each of
+     * the three doors (define, recode, move) must read the branch's categories and codes *inside*
+     * the lock, and the test names the reads so that dropping one cannot pass for "all calls held".
+     *
+     * @param list<array{string, bool}> $calls
+     * @param list<string>              $reads
+     */
+    private function assertReadsWereUnderTheLock(array $calls, array $reads): void
+    {
+        foreach ($reads as $read) {
+            $held = array_column(array_filter($calls, static fn (array $call): bool => $call[0] === $read), 1);
+            self::assertNotSame([], $held, $read.'() was never called, so C-21 was decided without it.');
+            self::assertNotContains(false, $held, $read.'() ran outside CategoryTreeLock::exclusively().');
+        }
+    }
+
+    public function testDefineAttributeHandlerReadsTheBranchFactsInsideTheLock(): void
+    {
+        $parent = CategoryFactory::createOne();
+        $category = CategoryFactory::new()->childOf($parent)->create();
+        CategoryFactory::new()->childOf($category)->create();
+        [$lock, $attributes, , $categories] = $this->observeAttributes();
+        $handler = self::getContainer()->get(DefineAttributeHandler::class);
+        self::assertInstanceOf(DefineAttributeHandler::class, $handler);
+
+        $handler(new DefineAttribute($category->id()->toString(), 'text', 'Serial', 'serial', false));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertReadsWereUnderTheLock($categories->calls(), ['lineageOf', 'descendantsOf']);
+        $this->assertReadsWereUnderTheLock($attributes->calls(), ['codesDefinedOn']);
+    }
+
+    public function testEditAttributeHandlerReadsTheBranchFactsInsideTheLockWhenTheCodeChanges(): void
+    {
+        $category = CategoryFactory::createOne();
+        $attribute = AttributeFactory::new()->inCategory($category)->coded('old-code')->create();
+        [$lock, $attributes, , $categories] = $this->observeAttributes();
+        $handler = self::getContainer()->get(EditAttributeHandler::class);
+        self::assertInstanceOf(EditAttributeHandler::class, $handler);
+
+        $handler(new EditAttribute($attribute->id()->toString(), 'New', 'new-code', false));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertReadsWereUnderTheLock($categories->calls(), ['lineageOf', 'descendantsOf']);
+        $this->assertReadsWereUnderTheLock($attributes->calls(), ['codesDefinedOn']);
+    }
+
+    public function testEditCategoryHandlerReadsTheMoveFactsInsideTheLockWhenTheParentChanges(): void
+    {
+        $oldParent = CategoryFactory::createOne();
+        $moving = CategoryFactory::new()->childOf($oldParent)->create();
+        CategoryFactory::new()->childOf($moving)->create();
+        $newParent = CategoryFactory::createOne();
+        [$lock, $attributes, , $categories] = $this->observeAttributes();
+        $handler = self::getContainer()->get(EditCategoryHandler::class);
+        self::assertInstanceOf(EditCategoryHandler::class, $handler);
+
+        $handler(new EditCategory($moving->id()->toString(), $moving->name()->toString(), $moving->slug()->toString(), $newParent->id()->toString()));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertReadsWereUnderTheLock($categories->calls(), ['lineageOf', 'subtreeHeightOf', 'descendantsOf']);
+        $this->assertReadsWereUnderTheLock($attributes->calls(), ['codesDefinedOn']);
+        $this->assertEveryCallWasUnderTheLock($categories->calls(), 'save');
     }
 
     private function optionIdOf(string $attributeId): string

@@ -69,7 +69,7 @@ callers would leave a red commit.)*
       `CategoryHandlersTest` additions with table snapshots and fresh-repository read-backs;
       repository tests for `descendantsOf` (incl. planted cycle), `codesDefinedOn`, `effectiveFor`;
       the planted legacy duplicate. (AC-8…AC-20)
-- [ ] **T11:** `CategoryTreeLockTest` asserts the new fact reads happen inside the lock in the three
+- [x] **T11:** `CategoryTreeLockTest` asserts the new fact reads happen inside the lock in the three
       handlers; `NoDdlTest` gains a refused define and a refused move. (AC-21, AC-22)
 - [ ] **T12:** Functional: `AttributeAdminTest` (both sections, inherited rows have no controls, one
       query, define/recode refusal on the code field; the slice-2 duplicate-code message assertion
