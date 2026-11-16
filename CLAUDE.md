@@ -16,7 +16,7 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 `Identity` complete (7 of 7)** · **`Catalog` 3 of 3** (slice 3 `/verify` pending).
+> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 `Identity` complete (7 of 7)** · **`Catalog` complete (3 of 3)**.
 > `identity-user-password-auth` (2026-07-26) shipped the repo's first Domain code — the `User`
 > aggregate, value objects, ports, two domain events, the first migration, and
 > register/login/logout/`/account`. `identity-email-verification` (2026-07-28) added the **second
@@ -88,7 +88,8 @@ Docker Compose · Traefik · Nginx.
 > cross-instance invariants under the **same tree lock**. Definitions live once, on the defining
 > category. [ADR-0017](./docs/adr/0017-attribute-schema-attributes-and-options-as-separate-aggregates.md)
 > + ADR-0004/0016 amendments.
-> `catalog-schema-inheritance` (2026-11-16, **`/verify` pending**) — Catalog slice 3 of 3, and the
+> `catalog-schema-inheritance` (2026-11-16, **passed `/verify` 2026-11-16 in two iterations** — the
+> MAJOR was AC-7's context-isolation scan, claimed in a commit message but committed as an empty file) — Catalog slice 3 of 3, and the
 > first invariant spanning **two aggregate types and the tree at once**. A category's effective
 > schema is its own attributes plus every ancestor's, **derived over the lineage, never stored**
 > (C-22). **No overrides:** a code appears at most once along any branch (C-21) — an override would
@@ -373,6 +374,10 @@ worker.
 - **A comment or docblock claiming coverage the assertion cannot deliver is the same defect one level
   up.** If a test's docblock names a regression class, verify it actually fails on that regression —
   twice this slice a docblock named a failure mode that was structurally invisible to its assertion.
+  The same goes for a commit message or a ticked task: `catalog-schema-inheritance` claimed a
+  context-isolation scan that was a 0-byte file. **Deptrac enforces layers, not contexts** —
+  cross-context isolation is `CatalogIsolationTest` (copy it for a new context), which also asserts it
+  scanned more than zero files so a wrong path cannot pass vacuously.
 
 ## Infrastructure footguns (baked-in guards)
 

@@ -77,8 +77,8 @@ The forces:
    owner runs the read-only detection query from the plan's *Data & migrations* on prod (it is also an
    integration test, so it is known to find what it claims, and goes into `docs/infrastructure.md`);
    any row is fixed by recoding one attribute of the pair in the admin. If one slips through, reads
-   list both and every write decides on de-duplicated facts, so the only effect is that further writes
-   on that branch are refused until it is fixed.
+   list both and every write decides on de-duplicated facts, so the only effect is that a write on
+   that branch involving the duplicated code is refused until it is fixed; other codes are unaffected.
 8. **Value-layer consequences are handed to `Listing`, with their accretion points named** (D11). No
    listing values exist, so this slice changes none. For the `Listing` slice:
    1. **A move** changes the effective schema of every listing in the subtree (values for attributes
@@ -159,6 +159,6 @@ The forces:
   tree must build it in an order that respects C-21, or the factory hides a refusal.
 - **Moves get more expensive by two cheap queries** on a few-hundred-row tree, under an admin's
   click. Not a cost worth a design.
-- **Watch:** a legacy duplicate (decision 7) blocks writes on its branch until recoded — by design,
+- **Watch:** a legacy duplicate (decision 7) blocks writes on its branch that involve its code until recoded — by design,
   but it looks like a bug to an admin who does not know the history. The AC-25/AC-27 messages name
   the code.

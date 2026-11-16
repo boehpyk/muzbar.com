@@ -375,8 +375,8 @@ listed.
 - **Any row → recode one attribute of each pair in `/admin` first**, then re-run until empty.
 
 If a pair slips through anyway, nothing breaks: the attribute pages list both, and the only effect is
-that further define/recode/move writes on that branch are refused (naming the code) until it is
-recoded. The query is not trusted on faith: `PreDeployDuplicateCodeQueryTest` runs it verbatim
+that a define, recode or move on that branch **involving the duplicated code** is refused (naming
+it) until one is recoded; writes with any other code go through. The query is not trusted on faith: `PreDeployDuplicateCodeQueryTest` runs it verbatim
 against a planted ancestor/descendant pair and a lawful sibling reuse. If you edit the query here,
 edit it there.
 
