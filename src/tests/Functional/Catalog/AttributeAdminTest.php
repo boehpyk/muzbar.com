@@ -654,7 +654,7 @@ final class AttributeAdminTest extends WebTestCase
             $this->newPath($category, 'text'),
             ['label' => 'Strings', 'code' => 'string-count'],
             'code',
-            '“string-count” is already used by another attribute of this category.',
+            '“string-count” is already used by an attribute of this category or of a category above or below it.',
         );
     }
 
@@ -759,7 +759,7 @@ final class AttributeAdminTest extends WebTestCase
         $attribute = AttributeFactory::new()->inCategory($category)->coded('frets')->create();
         $this->signInAsAdmin();
 
-        $this->assertRefusedOnField($this->editPath($attribute), ['label' => 'Frets', 'code' => 'string-count'], 'code', '“string-count” is already used by another attribute of this category.');
+        $this->assertRefusedOnField($this->editPath($attribute), ['label' => 'Frets', 'code' => 'string-count'], 'code', '“string-count” is already used by an attribute of this category or of a category above or below it.');
     }
 
     // ---------------------------------------------------------------- index races (C-11, C-17)
@@ -801,7 +801,7 @@ final class AttributeAdminTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
         self::assertStringNotContainsString('EntityManager is closed', (string) $this->client->getResponse()->getContent());
-        self::assertSame(['“serial” is already used by another attribute of this category.'], $this->errorsOn($page, 'code'));
+        self::assertSame(['“serial” is already used by an attribute of this category or of a category above or below it.'], $this->errorsOn($page, 'code'));
         self::assertSame('Serial', $this->valueOf($page, 'label'));
         self::assertSame('serial', $this->valueOf($page, 'code'));
         // The interloper's insert shared the handler's savepoint, so the refusal rolled it back too.
@@ -825,7 +825,7 @@ final class AttributeAdminTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
         self::assertStringNotContainsString('EntityManager is closed', (string) $this->client->getResponse()->getContent());
-        self::assertSame(['“fret-count” is already used by another attribute of this category.'], $this->errorsOn($page, 'code'));
+        self::assertSame(['“fret-count” is already used by an attribute of this category or of a category above or below it.'], $this->errorsOn($page, 'code'));
         self::assertSame('Fret count', $this->valueOf($page, 'label'));
         self::assertSame($before, $this->tables());
         self::assertSame('frets', $this->db->fetchOne('SELECT code FROM catalog_attribute WHERE id = ?', [$attribute->id()->toString()]));

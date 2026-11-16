@@ -113,7 +113,7 @@ final class AttributeAdminController extends AbstractController
                 // Deleted between page load and submit (failure contract).
                 throw $this->createNotFoundException();
             } catch (InvalidAttributeLabel|InvalidAttributeCode|AttributeCodeAlreadyTaken|InvalidUnit|InvalidNumberRules|InvalidAttributeOptions|DuplicateAttributeOption $e) {
-                $this->addRefusal($form, $e, $code, (string) $data->label);
+                $this->addRefusal($form, $e, (string) $data->label);
             }
         }
 
@@ -159,7 +159,7 @@ final class AttributeAdminController extends AbstractController
             } catch (AttributeNotFound) {
                 throw $this->createNotFoundException();
             } catch (InvalidAttributeLabel|InvalidAttributeCode|AttributeCodeAlreadyTaken|InvalidUnit|InvalidNumberRules $e) {
-                $this->addRefusal($form, $e, $code, (string) $data->label);
+                $this->addRefusal($form, $e, (string) $data->label);
             }
         }
 
@@ -351,14 +351,16 @@ final class AttributeAdminController extends AbstractController
      *
      * @param FormInterface<AttributeFormData> $form
      */
-    private function addRefusal(FormInterface $form, \DomainException $refusal, string $code, string $label): void
+    private function addRefusal(FormInterface $form, \DomainException $refusal, string $label): void
     {
         [$field, $message] = match (true) {
             $refusal instanceof InvalidAttributeLabel => $this->isValidLabel($label)
                 ? ['options', 'Each option must be 1–100 characters.']
                 : ['label', self::INVALID_LABEL],
             $refusal instanceof InvalidAttributeCode => ['code', 'Use lower-case letters, digits and single hyphens (max 64).'],
-            $refusal instanceof AttributeCodeAlreadyTaken => ['code', \sprintf('“%s” is already used by another attribute of this category.', mb_strtolower($code))],
+            // One message for both named constructors: `inBranch()` (the aggregate, C-21) and
+            // `inCategory()` (the adapter, a lost race at the `(category_id, code)` index).
+            $refusal instanceof AttributeCodeAlreadyTaken => ['code', \sprintf('“%s” is already used by an attribute of this category or of a category above or below it.', $refusal->code()->toString())],
             $refusal instanceof InvalidUnit => ['unit', 'Unit must be 1–16 characters, without line breaks.'],
             $refusal instanceof InvalidNumberRules => ['maximum', 'Maximum must not be lower than minimum.'],
             $refusal instanceof InvalidAttributeOptions => ['options', 'A choice attribute needs at least one option.'],

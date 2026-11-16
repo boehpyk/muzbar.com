@@ -14,6 +14,7 @@ use App\Domain\Catalog\Entity\Category;
 use App\Domain\Catalog\Exception\CategoryHasAttributes;
 use App\Domain\Catalog\Exception\CategoryHasChildren;
 use App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle;
+use App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode;
 use App\Domain\Catalog\Exception\CategoryNotFound;
 use App\Domain\Catalog\Exception\CategorySlugAlreadyTaken;
 use App\Domain\Catalog\Exception\CategoryTreeTooDeep;
@@ -132,7 +133,7 @@ final class CategoryAdminController extends AbstractController
                 }
 
                 $this->addRefusal($form, $e, $slug);
-            } catch (InvalidCategoryName|InvalidCategorySlug|CategorySlugAlreadyTaken|CategoryTreeTooDeep|CategoryMoveWouldCreateCycle $e) {
+            } catch (InvalidCategoryName|InvalidCategorySlug|CategorySlugAlreadyTaken|CategoryTreeTooDeep|CategoryMoveWouldCreateCycle|CategoryMoveWouldDuplicateAttributeCode $e) {
                 $this->addRefusal($form, $e, $slug);
             }
         }
@@ -213,6 +214,7 @@ final class CategoryAdminController extends AbstractController
             $refusal instanceof CategorySlugAlreadyTaken => ['slug', \sprintf('“%s” is already used by another category at this level.', mb_strtolower($slug))],
             $refusal instanceof CategoryTreeTooDeep => ['parent', \sprintf('Categories can be at most %d levels deep.', Category::MAX_DEPTH)],
             $refusal instanceof CategoryMoveWouldCreateCycle => ['parent', 'A category cannot be moved inside itself.'],
+            $refusal instanceof CategoryMoveWouldDuplicateAttributeCode => ['parent', \sprintf('Cannot move here: attribute code “%s” would appear twice in one branch. Recode or delete one of them first.', $refusal->code()->toString())],
             $refusal instanceof CategoryNotFound => ['parent', 'That parent no longer exists.'],
             default => throw $refusal,
         };
