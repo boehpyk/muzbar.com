@@ -77,7 +77,7 @@ callers would leave a red commit.)*
       field). (AC-23…AC-29)
 - [x] **T13:** The D10 detection query as an integration test: it returns exactly the planted
       ancestor/descendant pair and nothing for a sibling-branch reuse.
-- [ ] **T14:** Bite proof: apply AC-30 mutations (a)…(g) one at a time; each must fail a named test.
+- [x] **T14:** Bite proof: apply AC-30 mutations (a)…(g) one at a time; each must fail a named test.
       Revert, record results in the commit message, run `make test` twice. (AC-30, AC-31)
 
 ## Docs
