@@ -36,7 +36,7 @@
       codes under the lock and pass them in, dropping their C-11 pre-checks; `AttributeFactory` and
       existing `AttributeTest` call sites pass `AttributeCodes::none()`; docblocks per the plan.
       (AC-3, AC-4, AC-9…AC-13)
-- [ ] **T4:** Delete `AttributeRepository::isCodeTaken()`: port, adapter, both fixtures, and its
+- [x] **T4:** Delete `AttributeRepository::isCodeTaken()`: port, adapter, both fixtures, and its
       repository tests. The commit message says the tests went with the method on purpose and that
       AC-12 keeps the index backstop covered.
 - [ ] **T5:** Exception `CategoryMoveWouldDuplicateAttributeCode`. `Category::moveUnder()` takes

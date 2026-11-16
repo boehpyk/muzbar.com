@@ -12,8 +12,6 @@ use App\Domain\Catalog\ValueObject\AttributeCode;
 use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\CategoryId;
-use App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeCodeType;
-use App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeIdType;
 use App\Infrastructure\Catalog\Persistence\Doctrine\Type\CategoryIdType;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -40,22 +38,6 @@ final readonly class DoctrineAttributeRepository implements AttributeRepository
     public function get(AttributeId $id): Attribute
     {
         return $this->entityManager->find(Attribute::class, $id) ?? throw AttributeNotFound::withId($id);
-    }
-
-    public function isCodeTaken(CategoryId $categoryId, AttributeCode $code, ?AttributeId $except): bool
-    {
-        // The cast is needed because PostgreSQL cannot infer a type for a parameter it only ever
-        // sees compared with NULL.
-        return (bool) $this->entityManager->getConnection()->fetchOne(
-            'SELECT EXISTS (
-                SELECT 1 FROM catalog_attribute
-                WHERE category_id = :category
-                  AND code = :code
-                  AND (CAST(:except AS uuid) IS NULL OR id <> CAST(:except AS uuid))
-            )',
-            ['category' => $categoryId, 'code' => $code, 'except' => $except],
-            ['category' => CategoryIdType::NAME, 'code' => AttributeCodeType::NAME, 'except' => AttributeIdType::NAME],
-        );
     }
 
     public function codesDefinedOn(array $categories): AttributeCodes

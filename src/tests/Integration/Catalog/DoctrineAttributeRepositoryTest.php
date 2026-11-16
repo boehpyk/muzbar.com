@@ -140,17 +140,6 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
         $this->attributes->get(AttributeId::fromString(Uuid::v7()->toRfc4122()));
     }
 
-    public function testIsCodeTakenIgnoresTheAttributeBeingEdited(): void
-    {
-        $category = CategoryFactory::createOne();
-        $attribute = AttributeFactory::new()->inCategory($category)->coded('frets')->create();
-        $code = AttributeCode::fromString('frets');
-
-        self::assertTrue($this->attributes->isCodeTaken($category->id(), $code, null));
-        self::assertFalse($this->attributes->isCodeTaken($category->id(), $code, $attribute->id()));
-        self::assertFalse($this->attributes->isCodeTaken(CategoryFactory::createOne()->id(), $code, null));
-    }
-
     public function testExistsForCategory(): void
     {
         $with = CategoryFactory::createOne();
