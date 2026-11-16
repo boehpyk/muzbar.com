@@ -23,7 +23,7 @@
       the dated **ADR-0017** and **ADR-0016** amendments (plan Risk 5). No code.
 
 ## Domain (`src/src/Domain/Catalog/`)
-- [ ] **T1:** VO `AttributeCodes` (sorted, de-duplicated; `of`, `none`, `contains`,
+- [x] **T1:** VO `AttributeCodes` (sorted, de-duplicated; `of`, `none`, `contains`,
       `firstSharedWith`, `toList`) and `Lineage::ids()`. (AC-1, AC-2)
 - [ ] **T2:** Ports + adapters, additive: `CategoryRepository::descendantsOf()` (bounded walk,
       `CorruptCategoryTree`) and `AttributeRepository::codesDefinedOn()` (`[]` → no query), in
