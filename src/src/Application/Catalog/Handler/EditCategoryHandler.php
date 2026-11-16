@@ -8,6 +8,7 @@ use App\Application\Catalog\Command\EditCategory;
 use App\Domain\Catalog\Exception\CategoryNotFound;
 use App\Domain\Catalog\Exception\CategorySlugAlreadyTaken;
 use App\Domain\Catalog\Exception\InvalidCategoryId;
+use App\Domain\Catalog\Port\AttributeRepository;
 use App\Domain\Catalog\Port\CategoryRepository;
 use App\Domain\Catalog\Port\CategoryTreeLock;
 use App\Domain\Catalog\ValueObject\CategoryId;
@@ -26,18 +27,20 @@ final readonly class EditCategoryHandler
 {
     public function __construct(
         private CategoryRepository $categories,
+        private AttributeRepository $attributes,
         private CategoryTreeLock $lock,
     ) {
     }
 
     /**
      * @throws InvalidCategoryId
-     * @throws CategoryNotFound                                           the category or the new parent (C-6)
-     * @throws \App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle (C-4)
-     * @throws \App\Domain\Catalog\Exception\CategoryTreeTooDeep          (C-5)
+     * @throws CategoryNotFound                                                      the category or the new parent (C-6)
+     * @throws \App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle            (C-4)
+     * @throws \App\Domain\Catalog\Exception\CategoryTreeTooDeep                     (C-5)
+     * @throws \App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode (C-21)
      * @throws \App\Domain\Catalog\Exception\InvalidCategoryName
      * @throws \App\Domain\Catalog\Exception\InvalidCategorySlug
-     * @throws CategorySlugAlreadyTaken                                   (C-3)
+     * @throws CategorySlugAlreadyTaken                                              (C-3)
      */
     public function __invoke(EditCategory $command): void
     {
@@ -47,18 +50,31 @@ final readonly class EditCategoryHandler
             $oldSlug = $category->slug();
 
             // THE ORDER IS DELIBERATE: move, then rename, then re-slug, then the sibling check,
-            // then save. The checks that consult the tree (C-4, C-5, C-6) run first, before the
+            // then save. The checks that consult the tree (C-4, C-5, C-6, C-21) run first, before the
             // cheap value checks, and the sibling pre-check runs last because it must look at the
             // *new* siblings under the *new* slug — both only known once the move and the re-slug
             // have been applied. A refusal at any step still costs nothing: the whole closure is
             // one transaction and the lock adapter forgets the half-mutated aggregate.
+            //
+            // THE MOVE IS THE SECOND ACCRETION POINT (ADR-0018 decision 8), as `DeleteCategoryHandler`
+            // is for deletion: a move changes the effective schema of every listing in the subtree,
+            // so the Listing slice adds its move guard (or archive rule) here, beside C-21, under
+            // the same lock.
             $newParentLineage = null === $command->parentId
                 ? Lineage::ofRoot()
                 : $this->categories->lineageOf($this->parentId($command->parentId));
             $parentChanged = $newParentLineage->last()?->toString() !== $oldParentId?->toString();
 
+            // The schema facts are read only when the parent changes; a move to the current parent
+            // checks nothing. Both reads are under the lock (C-21 has no index: the lock is the
+            // whole guarantee).
             if ($parentChanged) {
-                $category->moveUnder($newParentLineage, $this->categories->subtreeHeightOf($category->id()));
+                $category->moveUnder(
+                    $newParentLineage,
+                    $this->categories->subtreeHeightOf($category->id()),
+                    $this->attributes->codesDefinedOn($newParentLineage->ids()),
+                    $this->attributes->codesDefinedOn([$category->id(), ...$this->categories->descendantsOf($category->id())]),
+                );
             }
 
             $name = CategoryName::fromString($command->name);

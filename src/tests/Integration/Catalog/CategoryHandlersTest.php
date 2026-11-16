@@ -58,7 +58,7 @@ final class CategoryHandlersTest extends KernelTestCase
         self::assertInstanceOf(EntityManagerInterface::class, $em);
 
         $this->create = new CreateCategoryHandler($repository, $lock);
-        $this->edit = new EditCategoryHandler($repository, $lock);
+        $this->edit = new EditCategoryHandler($repository, $attributes, $lock);
         $this->delete = new DeleteCategoryHandler($repository, $attributes, $lock);
         $this->db = $db;
         $this->em = $em;

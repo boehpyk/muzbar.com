@@ -39,7 +39,7 @@
 - [x] **T4:** Delete `AttributeRepository::isCodeTaken()`: port, adapter, both fixtures, and its
       repository tests. The commit message says the tests went with the method on purpose and that
       AC-12 keeps the index backstop covered.
-- [ ] **T5:** Exception `CategoryMoveWouldDuplicateAttributeCode`. `Category::moveUnder()` takes
+- [x] **T5:** Exception `CategoryMoveWouldDuplicateAttributeCode`. `Category::moveUnder()` takes
       `$codesAlongNewParent` and `$codesInSubtree` and checks C-21 after C-4 and C-5. In the same
       commit: `EditCategoryHandler` (gains `AttributeRepository`) reads both code sets under the
       lock only when the parent changes, and its order comment gains C-21 and the D11

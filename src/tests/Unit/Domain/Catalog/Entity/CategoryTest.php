@@ -7,6 +7,7 @@ namespace App\Tests\Unit\Domain\Catalog\Entity;
 use App\Domain\Catalog\Entity\Category;
 use App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle;
 use App\Domain\Catalog\Exception\CategoryTreeTooDeep;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\CategoryId;
 use App\Domain\Catalog\ValueObject\CategoryName;
 use App\Domain\Catalog\ValueObject\CategorySlug;
@@ -87,7 +88,7 @@ final class CategoryTest extends TestCase
         $category = self::category([], $self);
 
         try {
-            $category->moveUnder(self::lineage(array_map(static fn (string $s): CategoryId => $ids[$s], $symbols)), 1);
+            $category->moveUnder(self::lineage(array_map(static fn (string $s): CategoryId => $ids[$s], $symbols)), 1, AttributeCodes::none(), AttributeCodes::none());
             self::fail('Expected CategoryMoveWouldCreateCycle.');
         } catch (CategoryMoveWouldCreateCycle) {
             self::assertNull($category->parentId());
@@ -101,7 +102,7 @@ final class CategoryTest extends TestCase
 
         $this->expectException(CategoryMoveWouldCreateCycle::class);
 
-        $category->moveUnder(self::lineage([$self, self::id(), self::id(), self::id()]), 1);
+        $category->moveUnder(self::lineage([$self, self::id(), self::id(), self::id()]), 1, AttributeCodes::none(), AttributeCodes::none());
     }
 
     public function testMoveSucceedsWhenDepthPlusHeightEqualsFour(): void
@@ -109,7 +110,7 @@ final class CategoryTest extends TestCase
         $parent = self::id();
         $category = self::category();
 
-        $category->moveUnder(self::lineage([self::id(), self::id(), $parent]), 1);
+        $category->moveUnder(self::lineage([self::id(), self::id(), $parent]), 1, AttributeCodes::none(), AttributeCodes::none());
 
         self::assertNotNull($category->parentId());
         self::assertTrue($category->parentId()->equals($parent));
@@ -120,7 +121,7 @@ final class CategoryTest extends TestCase
         $category = self::category();
 
         try {
-            $category->moveUnder(self::lineage([self::id(), self::id(), self::id()]), 2);
+            $category->moveUnder(self::lineage([self::id(), self::id(), self::id()]), 2, AttributeCodes::none(), AttributeCodes::none());
             self::fail('Expected CategoryTreeTooDeep.');
         } catch (CategoryTreeTooDeep) {
             self::assertNull($category->parentId());
@@ -132,7 +133,7 @@ final class CategoryTest extends TestCase
         foreach ([1, 2, 3, 4] as $height) {
             $category = self::category([self::id()]);
 
-            $category->moveUnder(Lineage::ofRoot(), $height);
+            $category->moveUnder(Lineage::ofRoot(), $height, AttributeCodes::none(), AttributeCodes::none());
 
             self::assertNull($category->parentId(), "height $height");
         }
@@ -142,7 +143,7 @@ final class CategoryTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
 
-        self::category()->moveUnder(Lineage::ofRoot(), 0);
+        self::category()->moveUnder(Lineage::ofRoot(), 0, AttributeCodes::none(), AttributeCodes::none());
     }
 
     public function testRenameAndChangeSlugKeepIdentityAndParent(): void
@@ -167,7 +168,7 @@ final class CategoryTest extends TestCase
         $category = self::category([$parent]);
 
         // Height 4 would be too deep for any other placement; the no-op must not even look.
-        $category->moveUnder(self::lineage([self::id(), self::id(), self::id(), $parent]), 4);
+        $category->moveUnder(self::lineage([self::id(), self::id(), self::id(), $parent]), 4, AttributeCodes::none(), AttributeCodes::none());
 
         self::assertNotNull($category->parentId());
         self::assertTrue($category->parentId()->equals($parent));
@@ -177,7 +178,7 @@ final class CategoryTest extends TestCase
     {
         $category = self::category();
 
-        $category->moveUnder(Lineage::ofRoot(), 4);
+        $category->moveUnder(Lineage::ofRoot(), 4, AttributeCodes::none(), AttributeCodes::none());
 
         self::assertNull($category->parentId());
     }
