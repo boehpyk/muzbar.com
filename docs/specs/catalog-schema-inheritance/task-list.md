@@ -51,7 +51,7 @@
 callers would leave a red commit.)*
 
 ## Infrastructure
-- [ ] **T6:** `DbalAttributeSchema::effectiveFor()` replaces `forCategory()` (one bounded recursive
+- [x] **T6:** `DbalAttributeSchema::effectiveFor()` replaces `forCategory()` (one bounded recursive
       query; `definedOnId`, `definedOnName`, `inherited`; root-first order). Existing `forCategory()`
       tests move over. (AC-8, AC-24)
 - [ ] **T7:** `attributes.html.twig`: "Defined here" + "Inherited" (read-only, *"from <link>"*, no

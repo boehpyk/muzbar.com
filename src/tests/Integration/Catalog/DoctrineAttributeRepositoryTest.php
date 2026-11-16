@@ -229,7 +229,7 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
         }
     }
 
-    // ---------------------------------------------------------------- read model (AC-33 ordering)
+    // ---------------------------------------------------------------- read model (effectiveFor of a root: AC-8 ordering)
 
     public function testTheReadModelListsAttributesByLabelCaseInsensitivelyWithTheOptionCountsInOneRow(): void
     {
@@ -239,7 +239,7 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
         AttributeFactory::new()->inCategory($category)->labelled('Apple')->number(NumberRules::of(Unit::fromString('kg'), 1, 5))->create();
         AttributeFactory::new()->labelled('Elsewhere')->create();
 
-        $rows = (new DbalAttributeSchema($this->db))->forCategory($category->id()->toString());
+        $rows = (new DbalAttributeSchema($this->db))->effectiveFor($category->id()->toString());
 
         self::assertSame(['Apple', 'banana', 'Cherry'], array_column($rows, 'label'));
         self::assertSame(['number', 'choice', 'text'], array_column($rows, 'type'));
@@ -255,7 +255,7 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
         $first = AttributeFactory::new()->inCategory($category)->labelled('Same')->create();
         $second = AttributeFactory::new()->inCategory($category)->labelled('same')->create();
 
-        $rows = (new DbalAttributeSchema($this->db))->forCategory($category->id()->toString());
+        $rows = (new DbalAttributeSchema($this->db))->effectiveFor($category->id()->toString());
 
         self::assertSame([$first->id()->toString(), $second->id()->toString()], array_column($rows, 'id'));
     }
@@ -266,7 +266,7 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
         $attribute = AttributeFactory::new()->inCategory($category)->number(NumberRules::of(null, -3_000_000_000, 3_000_000_000))->create();
         $schema = new DbalAttributeSchema($this->db);
 
-        $listed = $schema->forCategory($category->id()->toString());
+        $listed = $schema->effectiveFor($category->id()->toString());
         $found = $schema->find($attribute->id()->toString());
 
         self::assertSame([-3_000_000_000, 3_000_000_000], [$listed[0]['minimum'], $listed[0]['maximum']]);
