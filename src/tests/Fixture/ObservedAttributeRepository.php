@@ -7,6 +7,7 @@ namespace App\Tests\Fixture;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Port\AttributeRepository;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\CategoryId;
 
@@ -56,6 +57,13 @@ final class ObservedAttributeRepository implements AttributeRepository
         $this->seen(__FUNCTION__);
 
         return $this->inner->isCodeTaken($categoryId, $code, $except);
+    }
+
+    public function codesDefinedOn(array $categories): AttributeCodes
+    {
+        $this->seen(__FUNCTION__);
+
+        return $this->inner->codesDefinedOn($categories);
     }
 
     public function existsForCategory(CategoryId $categoryId): bool

@@ -25,7 +25,7 @@
 ## Domain (`src/src/Domain/Catalog/`)
 - [x] **T1:** VO `AttributeCodes` (sorted, de-duplicated; `of`, `none`, `contains`,
       `firstSharedWith`, `toList`) and `Lineage::ids()`. (AC-1, AC-2)
-- [ ] **T2:** Ports + adapters, additive: `CategoryRepository::descendantsOf()` (bounded walk,
+- [x] **T2:** Ports + adapters, additive: `CategoryRepository::descendantsOf()` (bounded walk,
       `CorruptCategoryTree`) and `AttributeRepository::codesDefinedOn()` (`[]` → no query), in
       `DoctrineCategoryRepository` / `DoctrineAttributeRepository`, plus the
       `ObservedCategoryRepository`, `ObservedAttributeRepository`, `RacingCategoryRepository` and

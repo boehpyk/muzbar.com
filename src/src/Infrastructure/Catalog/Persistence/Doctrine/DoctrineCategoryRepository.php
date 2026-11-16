@@ -104,6 +104,35 @@ final readonly class DoctrineCategoryRepository implements CategoryRepository
         return $height;
     }
 
+    public function descendantsOf(CategoryId $id): array
+    {
+        /** @var list<array{id: string, n: int}> $rows */
+        $rows = $this->connection()->fetchAllAssociative(
+            'WITH RECURSIVE down (id, n) AS (
+                SELECT id, 1 FROM catalog_category WHERE id = :id
+                UNION ALL
+                SELECT c.id, down.n + 1 FROM catalog_category c JOIN down ON c.parent_id = down.id
+                WHERE down.n <= :bound
+            )
+            SELECT id, n FROM down WHERE n > 1',
+            ['id' => $id, 'bound' => self::WALK_BOUND],
+            ['id' => CategoryIdType::NAME, 'bound' => ParameterType::INTEGER],
+        );
+
+        $descendants = [];
+
+        foreach ($rows as $row) {
+            // The same detection as `subtreeHeightOf()`: a level past the bound can only be a cycle.
+            if ($row['n'] > self::WALK_BOUND) {
+                throw CorruptCategoryTree::at($id, self::WALK_BOUND);
+            }
+
+            $descendants[] = CategoryId::fromString($row['id']);
+        }
+
+        return $descendants;
+    }
+
     public function hasChildren(CategoryId $id): bool
     {
         return (bool) $this->connection()->fetchOne(

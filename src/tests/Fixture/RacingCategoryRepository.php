@@ -59,6 +59,11 @@ final class RacingCategoryRepository implements CategoryRepository
         return $this->inner->subtreeHeightOf($id);
     }
 
+    public function descendantsOf(CategoryId $id): array
+    {
+        return $this->inner->descendantsOf($id);
+    }
+
     public function hasChildren(CategoryId $id): bool
     {
         return $this->inner->hasChildren($id);

@@ -65,6 +65,13 @@ final class ObservedCategoryRepository implements CategoryRepository
         return $this->inner->subtreeHeightOf($id);
     }
 
+    public function descendantsOf(CategoryId $id): array
+    {
+        $this->seen(__FUNCTION__);
+
+        return $this->inner->descendantsOf($id);
+    }
+
     public function hasChildren(CategoryId $id): bool
     {
         $this->seen(__FUNCTION__);

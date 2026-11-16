@@ -7,6 +7,7 @@ namespace App\Tests\Fixture;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Port\AttributeRepository;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\CategoryId;
 
@@ -49,6 +50,11 @@ final class RacingAttributeRepository implements AttributeRepository
     public function isCodeTaken(CategoryId $categoryId, AttributeCode $code, ?AttributeId $except): bool
     {
         return $this->inner->isCodeTaken($categoryId, $code, $except);
+    }
+
+    public function codesDefinedOn(array $categories): AttributeCodes
+    {
+        return $this->inner->codesDefinedOn($categories);
     }
 
     public function existsForCategory(CategoryId $categoryId): bool
