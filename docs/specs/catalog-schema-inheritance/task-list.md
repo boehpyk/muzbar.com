@@ -75,7 +75,7 @@ callers would leave a red commit.)*
       query, define/recode refusal on the code field; the slice-2 duplicate-code message assertion
       updated to the AC-25 text, not deleted) and `CategoryAdminTest` (move refusal on the parent
       field). (AC-23…AC-29)
-- [ ] **T13:** The D10 detection query as an integration test: it returns exactly the planted
+- [x] **T13:** The D10 detection query as an integration test: it returns exactly the planted
       ancestor/descendant pair and nothing for a sibling-branch reuse.
 - [ ] **T14:** Bite proof: apply AC-30 mutations (a)…(g) one at a time; each must fail a named test.
       Revert, record results in the commit message, run `make test` twice. (AC-30, AC-31)
