@@ -267,7 +267,9 @@ final class SchemaInheritanceTest extends KernelTestCase
         try {
             $this->define($t['instruments'], 'condition');
             self::fail('Expected AttributeCodeAlreadyTaken.');
-        } catch (AttributeCodeAlreadyTaken) {
+        } catch (AttributeCodeAlreadyTaken $e) {
+            // The aggregate refuses (inBranch), not the index backstop (inCategory): the messages differ.
+            self::assertSame(AttributeCodeAlreadyTaken::inBranch(AttributeCode::fromString('condition'))->getMessage(), $e->getMessage());
             self::assertSame($before, $this->attributeTables());
         }
     }

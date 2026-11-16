@@ -46,6 +46,8 @@ final readonly class EditAttributeHandler
      * @throws \App\Domain\Catalog\Exception\InvalidUnit                (C-16)
      * @throws \App\Domain\Catalog\Exception\InvalidNumberRules         (C-16)
      * @throws \App\Domain\Catalog\Exception\AttributeRuleNotApplicable number rules on another type (C-15)
+     * @throws \App\Domain\Catalog\Exception\CategoryNotFound           recode only: defining category missing (no FK)
+     * @throws \App\Domain\Catalog\Exception\CorruptCategoryTree        recode only: stored cycle on the branch
      */
     public function __invoke(EditAttribute $command): void
     {

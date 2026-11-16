@@ -16,9 +16,8 @@ use App\Domain\Catalog\ValueObject\Lineage;
  * The collection of Categories, plus the facts about the tree the aggregate needs handed to it.
  *
  * The tree reads (`lineageOf`, `subtreeHeightOf`, `descendantsOf`, `hasChildren`,
- * `isSlugTakenAmongSiblings`) are
- * only as true as the moment they were read: call them inside `CategoryTreeLock::exclusively()`,
- * together with the `save()` or `remove()` they justify.
+ * `isSlugTakenAmongSiblings`) are only as true as the moment they were read: call them inside
+ * `CategoryTreeLock::exclusively()`, together with the `save()` or `remove()` they justify.
  */
 interface CategoryRepository
 {

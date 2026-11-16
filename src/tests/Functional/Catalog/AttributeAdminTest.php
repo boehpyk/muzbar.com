@@ -6,6 +6,7 @@ namespace App\Tests\Functional\Catalog;
 
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Entity\Category;
+use App\Domain\Catalog\ValueObject\CategoryName;
 use App\Domain\Catalog\ValueObject\NumberRules;
 use App\Domain\Catalog\ValueObject\Unit;
 use App\Infrastructure\Catalog\Http\Controller\AttributeAdminController;
@@ -1316,9 +1317,9 @@ final class AttributeAdminTest extends WebTestCase
      */
     private function inheritanceTree(): array
     {
-        $instruments = CategoryFactory::new(['name' => \App\Domain\Catalog\ValueObject\CategoryName::fromString('Instruments')])->create();
-        $guitars = CategoryFactory::new(['name' => \App\Domain\Catalog\ValueObject\CategoryName::fromString('Guitars')])->childOf($instruments)->create();
-        $electric = CategoryFactory::new(['name' => \App\Domain\Catalog\ValueObject\CategoryName::fromString('Electric')])->childOf($guitars)->create();
+        $instruments = CategoryFactory::new(['name' => CategoryName::fromString('Instruments')])->create();
+        $guitars = CategoryFactory::new(['name' => CategoryName::fromString('Guitars')])->childOf($instruments)->create();
+        $electric = CategoryFactory::new(['name' => CategoryName::fromString('Electric')])->childOf($guitars)->create();
 
         return [
             $instruments,
