@@ -6,7 +6,9 @@ namespace App\Tests\Unit\Domain\Catalog\Entity;
 
 use App\Domain\Catalog\Entity\Category;
 use App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle;
+use App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode;
 use App\Domain\Catalog\Exception\CategoryTreeTooDeep;
+use App\Domain\Catalog\ValueObject\AttributeCode;
 use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\CategoryId;
 use App\Domain\Catalog\ValueObject\CategoryName;
@@ -181,6 +183,79 @@ final class CategoryTest extends TestCase
         $category->moveUnder(Lineage::ofRoot(), 4, AttributeCodes::none(), AttributeCodes::none());
 
         self::assertNull($category->parentId());
+    }
+
+    private static function codes(string ...$values): AttributeCodes
+    {
+        return AttributeCodes::of(...array_map(AttributeCode::fromString(...), $values));
+    }
+
+    public function testMoveSucceedsWhenTheCodeSetsAreDisjoint(): void
+    {
+        $parent = self::id();
+        $category = self::category();
+
+        $category->moveUnder(self::lineage([$parent]), 1, self::codes('condition', 'strings'), self::codes('pickups', 'scale'));
+
+        self::assertNotNull($category->parentId());
+        self::assertTrue($category->parentId()->equals($parent));
+    }
+
+    public function testMoveWithASharedCodeIsRefusedNamingItAndKeepsTheParent(): void
+    {
+        $oldParent = self::id();
+        $category = self::category([$oldParent]);
+
+        try {
+            $category->moveUnder(self::lineage([self::id()]), 1, self::codes('condition', 'scale'), self::codes('pickups', 'scale'));
+            self::fail('Expected CategoryMoveWouldDuplicateAttributeCode.');
+        } catch (CategoryMoveWouldDuplicateAttributeCode $e) {
+            self::assertStringContainsString('scale', $e->getMessage());
+            self::assertSame('scale', $e->code()->toString());
+            self::assertNotNull($category->parentId());
+            self::assertTrue($category->parentId()->equals($oldParent));
+        }
+    }
+
+    public function testACycleThatAlsoCollidesIsReportedAsTheCycle(): void
+    {
+        $self = self::id();
+        $category = self::category([], $self);
+
+        $this->expectException(CategoryMoveWouldCreateCycle::class);
+
+        $category->moveUnder(self::lineage([$self, self::id()]), 1, self::codes('scale'), self::codes('scale'));
+    }
+
+    public function testATooDeepMoveThatAlsoCollidesIsReportedAsTooDeep(): void
+    {
+        $category = self::category();
+
+        $this->expectException(CategoryTreeTooDeep::class);
+
+        $category->moveUnder(self::lineage([self::id(), self::id(), self::id()]), 2, self::codes('scale'), self::codes('scale'));
+    }
+
+    public function testMovingUnderTheCurrentParentIgnoresCollidingCodeSets(): void
+    {
+        $parent = self::id();
+        $category = self::category([$parent]);
+
+        $category->moveUnder(self::lineage([$parent]), 1, self::codes('scale'), self::codes('scale'));
+
+        self::assertNotNull($category->parentId());
+        self::assertTrue($category->parentId()->equals($parent));
+    }
+
+    public function testPublicSurfaceIsTheSliceOneAllowList(): void
+    {
+        $methods = array_map(
+            static fn (\ReflectionMethod $m): string => $m->getName(),
+            (new \ReflectionClass(Category::class))->getMethods(\ReflectionMethod::IS_PUBLIC),
+        );
+        sort($methods);
+
+        self::assertSame(['changeSlug', 'create', 'id', 'moveUnder', 'name', 'parentId', 'rename', 'slug'], $methods);
     }
 
     public function testCategoryRecordsNoDomainEvents(): void

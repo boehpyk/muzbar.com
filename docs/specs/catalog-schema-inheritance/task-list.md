@@ -62,7 +62,7 @@ callers would leave a red commit.)*
       `CategoryMoveWouldDuplicateAttributeCode` to the parent field. No logging. (AC-25…AC-27, AC-29)
 
 ## Tests (qa)
-- [ ] **T9:** Domain unit: `AttributeCodesTest`, `LineageTest::ids`, `AttributeTest` (C-21 on each
+- [x] **T9:** Domain unit: `AttributeCodesTest`, `LineageTest::ids`, `AttributeTest` (C-21 on each
       constructor and recode, check order, own-code no-op), `CategoryTest` (C-21 on move, order vs
       C-4/C-5, current-parent no-op). (AC-1…AC-7)
 - [ ] **T10:** Integration: the five-category fixture tree; `AttributeHandlersTest` and

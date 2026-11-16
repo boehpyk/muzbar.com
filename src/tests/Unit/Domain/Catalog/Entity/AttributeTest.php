@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Domain\Catalog\Entity;
 
 use App\Domain\Catalog\Entity\Attribute;
+use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
 use App\Domain\Catalog\Exception\AttributeNeedsAnOption;
 use App\Domain\Catalog\Exception\AttributeRuleNotApplicable;
 use App\Domain\Catalog\Exception\DuplicateAttributeOption;
@@ -291,6 +292,86 @@ final class AttributeTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
 
         self::choice()->allowOptionRemoval($count);
+    }
+
+    /**
+     * @return iterable<string, array{\Closure(AttributeCodes): Attribute}>
+     */
+    public static function everyDefineConstructor(): iterable
+    {
+        $id = static fn (): AttributeId => self::id();
+        $cat = static fn (): CategoryId => self::categoryId();
+        $code = static fn (): AttributeCode => self::code('pickups');
+        $label = static fn (): AttributeLabel => self::label('Pickups');
+
+        yield 'choice' => [static fn (AttributeCodes $codes): Attribute => Attribute::defineChoice($id(), $cat(), $code(), $label(), false, [self::label('A')], $codes)];
+        yield 'number' => [static fn (AttributeCodes $codes): Attribute => Attribute::defineNumber($id(), $cat(), $code(), $label(), false, NumberRules::of(null, 1, 2), $codes)];
+        yield 'boolean' => [static fn (AttributeCodes $codes): Attribute => Attribute::defineBoolean($id(), $cat(), $code(), $label(), false, $codes)];
+        yield 'text' => [static fn (AttributeCodes $codes): Attribute => Attribute::defineText($id(), $cat(), $code(), $label(), false, $codes)];
+    }
+
+    /**
+     * @param \Closure(AttributeCodes): Attribute $define
+     */
+    #[DataProvider('everyDefineConstructor')]
+    public function testDefiningWithACodeInForceOnTheBranchIsRefused(\Closure $define): void
+    {
+        try {
+            $define(AttributeCodes::of(self::code('strings'), self::code('pickups')));
+            self::fail('Expected AttributeCodeAlreadyTaken.');
+        } catch (AttributeCodeAlreadyTaken $e) {
+            self::assertSame('pickups', $e->code()->toString());
+        }
+    }
+
+    /**
+     * @param \Closure(AttributeCodes): Attribute $define
+     */
+    #[DataProvider('everyDefineConstructor')]
+    public function testDefiningWithACodeNotInForceSucceeds(\Closure $define): void
+    {
+        $attribute = $define(AttributeCodes::of(self::code('strings'), self::code('scale')));
+
+        self::assertSame('pickups', $attribute->code()->toString());
+    }
+
+    public function testTheBranchCheckComesBeforeTheOptionRules(): void
+    {
+        $this->expectException(AttributeCodeAlreadyTaken::class);
+
+        Attribute::defineChoice(self::id(), self::categoryId(), self::code('pickups'), self::label('Pickups'), false, [], AttributeCodes::of(self::code('pickups')));
+    }
+
+    public function testRecodeToACodeInForceIsRefusedAndKeepsTheCode(): void
+    {
+        $attribute = self::choice();
+
+        try {
+            $attribute->recode(self::code('strings'), AttributeCodes::of(self::code('strings')));
+            self::fail('Expected AttributeCodeAlreadyTaken.');
+        } catch (AttributeCodeAlreadyTaken $e) {
+            self::assertSame('strings', $e->code()->toString());
+            self::assertSame('orientation', $attribute->code()->toString());
+        }
+    }
+
+    public function testRecodeToACodeNotInForceChangesTheCode(): void
+    {
+        $attribute = self::choice();
+
+        $attribute->recode(self::code('handedness'), AttributeCodes::of(self::code('strings')));
+
+        self::assertSame('handedness', $attribute->code()->toString());
+    }
+
+    public function testRecodeToItsOwnCurrentCodeChecksNothing(): void
+    {
+        $attribute = self::choice();
+
+        // Its own code is always in force on its own branch; the no-op must not trip over that.
+        $attribute->recode(self::code('orientation'), AttributeCodes::of(self::code('orientation')));
+
+        self::assertSame('orientation', $attribute->code()->toString());
     }
 
     public function testPublicSurfaceHasNoWayToChangeIdentityOwnerOrType(): void

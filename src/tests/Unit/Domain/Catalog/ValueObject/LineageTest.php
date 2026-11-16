@@ -60,4 +60,21 @@ final class LineageTest extends TestCase
 
         Lineage::fromRootDown([]);
     }
+
+    public function testIdsAreRootFirstAndEndWithTheCategoryItself(): void
+    {
+        [$a, $b, $c] = [self::id(), self::id(), self::id()];
+
+        $ids = Lineage::fromRootDown([$a, $b, $c])->ids();
+
+        self::assertCount(3, $ids);
+        self::assertTrue($ids[0]->equals($a));
+        self::assertTrue($ids[1]->equals($b));
+        self::assertTrue($ids[2]->equals($c));
+    }
+
+    public function testIdsOfTheRootLineageAreEmpty(): void
+    {
+        self::assertSame([], Lineage::ofRoot()->ids());
+    }
 }
