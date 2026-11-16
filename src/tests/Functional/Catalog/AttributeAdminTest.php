@@ -1304,4 +1304,159 @@ final class AttributeAdminTest extends WebTestCase
         // Sentry has no `critical` level: Monolog's CRITICAL maps to `fatal`.
         self::assertSame('fatal', (string) $events[0]->getLevel());
     }
+
+    // ---------------------------------------------------------------- schema inheritance (AC-23 … AC-29)
+
+    private const string IN_BRANCH = ' is already used by an attribute of this category or of a category above or below it.';
+
+    /**
+     * Instruments (condition) > Guitars (strings) > Electric (pickups).
+     *
+     * @return array{Category, Category, Category, Attribute, Attribute, Attribute}
+     */
+    private function inheritanceTree(): array
+    {
+        $instruments = CategoryFactory::new(['name' => \App\Domain\Catalog\ValueObject\CategoryName::fromString('Instruments')])->create();
+        $guitars = CategoryFactory::new(['name' => \App\Domain\Catalog\ValueObject\CategoryName::fromString('Guitars')])->childOf($instruments)->create();
+        $electric = CategoryFactory::new(['name' => \App\Domain\Catalog\ValueObject\CategoryName::fromString('Electric')])->childOf($guitars)->create();
+
+        return [
+            $instruments,
+            $guitars,
+            $electric,
+            AttributeFactory::new()->inCategory($instruments)->coded('condition')->labelled('Condition')->choice(['New', 'Used'])->create(),
+            AttributeFactory::new()->inCategory($guitars)->coded('strings')->labelled('String count')->number(NumberRules::of(Unit::fromString('pcs'), 4, 12))->create(),
+            AttributeFactory::new()->inCategory($electric)->coded('pickups')->labelled('Pickups')->choice(['Single', 'Humbucker'])->create(),
+        ];
+    }
+
+    /**
+     * @return list<string> the whitespace-normalised text of each cell of each body row
+     */
+    private function rowsOf(Crawler $table): array
+    {
+        return $table->filter('tbody tr')->each(static fn (Crawler $tr): string => preg_replace('/\s+/', ' ', trim($tr->text())) ?? '');
+    }
+
+    public function testTheListShowsDefinedHereAndInheritedSectionsWithTheInheritedRowsReadOnly(): void
+    {
+        [$instruments, $guitars, $electric, , , $pickups] = $this->inheritanceTree();
+        $this->signInAsAdmin();
+
+        $page = $this->client->request('GET', $this->listPath($electric));
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame(['Defined here', 'Inherited'], $page->filter('h2')->each(static fn (Crawler $h): string => trim($h->text())));
+        $tables = $page->filter('table');
+        self::assertCount(2, $tables);
+
+        $own = $tables->eq(0);
+        self::assertCount(1, $own->filter('tbody tr'));
+        self::assertStringStartsWith('Pickups pickups Choice', $this->rowsOf($own)[0]);
+        self::assertCount(1, $own->filter(\sprintf('a[href="%s"]', $this->editPath($pickups))));
+        self::assertCount(1, $own->filter(\sprintf('form[action="/admin/attributes/%s/delete"] input[name="_token"]', $pickups->id()->toString())));
+
+        $inherited = $tables->eq(1);
+        $rows = $this->rowsOf($inherited);
+        self::assertCount(2, $rows);
+        self::assertStringStartsWith('Condition condition Choice', $rows[0]);
+        self::assertStringContainsString('2 options', $rows[0]);
+        self::assertStringEndsWith('from Instruments', $rows[0]);
+        self::assertStringStartsWith('String count strings Number', $rows[1]);
+        self::assertStringContainsString('unit: pcs', $rows[1]);
+        self::assertStringContainsString('min: 4', $rows[1]);
+        self::assertStringContainsString('max: 12', $rows[1]);
+        self::assertStringEndsWith('from Guitars', $rows[1]);
+        self::assertCount(1, $inherited->filter(\sprintf('a[href="%s"]', $this->listPath($instruments))));
+        self::assertCount(1, $inherited->filter(\sprintf('a[href="%s"]', $this->listPath($guitars))));
+        self::assertCount(0, $inherited->filter('form, button, input, a[href*="/edit"]'), 'An inherited row has no Edit, Delete or token.');
+    }
+
+    public function testARootCategoryHasNoInheritedSection(): void
+    {
+        [$instruments] = $this->inheritanceTree();
+        $this->signInAsAdmin();
+
+        $page = $this->client->request('GET', $this->listPath($instruments));
+
+        self::assertSame(['Defined here'], $page->filter('h2')->each(static fn (Crawler $h): string => trim($h->text())));
+        self::assertCount(1, $page->filter('table'));
+    }
+
+    public function testACategoryWithNoAttributesOfItsOwnSaysSoAndStillListsWhatItInherits(): void
+    {
+        [$instruments] = $this->inheritanceTree();
+        $bass = CategoryFactory::new()->childOf($instruments)->create();
+        $this->signInAsAdmin();
+
+        $page = $this->client->request('GET', $this->listPath($bass));
+
+        self::assertStringContainsString('No attributes of its own.', $page->filter('body')->text());
+        $tables = $page->filter('table');
+        self::assertCount(1, $tables);
+        self::assertCount(1, $tables->eq(0)->filter('tbody tr'));
+    }
+
+    public function testTheOwnAndInheritedAttributesOfADeepCategoryComeFromOneQuery(): void
+    {
+        [, , $electric] = $this->inheritanceTree();
+        $this->signInAsAdmin();
+        $pdo = $this->db->getNativeConnection();
+        self::assertInstanceOf(\PDO::class, $pdo);
+
+        QueryRecordingStatement::install($pdo);
+        try {
+            $this->client->request('GET', $this->listPath($electric));
+        } finally {
+            $sql = QueryRecordingStatement::uninstall($pdo);
+        }
+
+        self::assertResponseStatusCodeSame(200);
+        $touching = array_filter($sql, static fn (string $q): bool => str_contains($q, 'catalog_attribute'));
+        self::assertCount(1, $touching, "Queries on the attribute tables:\n".implode("\n", $touching));
+        self::assertNotSame([], $sql, 'The recorder saw nothing, so the count above proves nothing.');
+    }
+
+    public function testDefiningACodeAnAncestorHasIsRefusedOnTheCodeField(): void
+    {
+        [, , $electric] = $this->inheritanceTree();
+        $this->signInAsAdmin();
+
+        $this->assertRefusedOnField($this->newPath($electric, 'text'), ['label' => 'Strings', 'code' => 'strings'], 'code', '“strings”'.self::IN_BRANCH);
+    }
+
+    public function testDefiningACodeADescendantHasIsRefusedOnTheCodeField(): void
+    {
+        [, $guitars] = $this->inheritanceTree();
+        $this->signInAsAdmin();
+
+        $this->assertRefusedOnField($this->newPath($guitars, 'text'), ['label' => 'Pickups', 'code' => 'pickups'], 'code', '“pickups”'.self::IN_BRANCH);
+    }
+
+    public function testABlankCodeDerivedToACollidingValueIsRefusedOnTheCodeField(): void
+    {
+        [, , $electric] = $this->inheritanceTree();
+        $this->signInAsAdmin();
+
+        $this->assertRefusedOnField($this->newPath($electric, 'text'), ['label' => 'Strings', 'code' => ''], 'code', '“strings”'.self::IN_BRANCH);
+    }
+
+    public function testRecodingToACodeInForceOnTheBranchIsRefusedOnTheCodeField(): void
+    {
+        [, , , , , $pickups] = $this->inheritanceTree();
+        $this->signInAsAdmin();
+
+        $this->assertRefusedOnField($this->editPath($pickups), ['label' => 'Pickups', 'code' => 'strings'], 'code', '“strings”'.self::IN_BRANCH);
+    }
+
+    public function testTheEditPageSaysWhereTheChangesApply(): void
+    {
+        [, , , $condition] = $this->inheritanceTree();
+        $this->signInAsAdmin();
+
+        $page = $this->client->request('GET', $this->editPath($condition));
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertStringContainsString('Changes apply to “Instruments” and every category below it.', $page->filter('body')->text());
+    }
 }
