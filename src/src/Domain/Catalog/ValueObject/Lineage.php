@@ -72,6 +72,16 @@ final readonly class Lineage
         return [] === $this->ids ? null : $this->ids[array_key_last($this->ids)];
     }
 
+    /**
+     * Root first, ending with the category itself; `[]` for "no parent".
+     *
+     * @return list<CategoryId>
+     */
+    public function ids(): array
+    {
+        return $this->ids;
+    }
+
     public function contains(CategoryId $id): bool
     {
         foreach ($this->ids as $candidate) {

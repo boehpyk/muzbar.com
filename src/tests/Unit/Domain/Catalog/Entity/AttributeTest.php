@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Domain\Catalog\Entity;
 
 use App\Domain\Catalog\Entity\Attribute;
+use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
 use App\Domain\Catalog\Exception\AttributeNeedsAnOption;
 use App\Domain\Catalog\Exception\AttributeRuleNotApplicable;
 use App\Domain\Catalog\Exception\DuplicateAttributeOption;
 use App\Domain\Catalog\Exception\InvalidAttributeOptions;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeLabel;
 use App\Domain\Catalog\ValueObject\AttributeOptionId;
@@ -55,6 +57,7 @@ final class AttributeTest extends TestCase
             self::label(),
             false,
             array_map(self::label(...), $options),
+            AttributeCodes::none(),
         );
     }
 
@@ -67,17 +70,18 @@ final class AttributeTest extends TestCase
             self::label('Scale'),
             true,
             NumberRules::of(Unit::fromString('mm'), 600, 700),
+            AttributeCodes::none(),
         );
     }
 
     private static function boolean(): Attribute
     {
-        return Attribute::defineBoolean(self::id(), self::categoryId(), self::code('case'), self::label('Has case'), false);
+        return Attribute::defineBoolean(self::id(), self::categoryId(), self::code('case'), self::label('Has case'), false, AttributeCodes::none());
     }
 
     private static function text(): Attribute
     {
-        return Attribute::defineText(self::id(), self::categoryId(), self::code('serial'), self::label('Serial'), false);
+        return Attribute::defineText(self::id(), self::categoryId(), self::code('serial'), self::label('Serial'), false, AttributeCodes::none());
     }
 
     public function testDefineNumberCarriesItsRules(): void
@@ -86,7 +90,7 @@ final class AttributeTest extends TestCase
         $categoryId = self::categoryId();
         $rules = NumberRules::of(null, 1, 2);
 
-        $attribute = Attribute::defineNumber($id, $categoryId, self::code('x'), self::label('X'), true, $rules);
+        $attribute = Attribute::defineNumber($id, $categoryId, self::code('x'), self::label('X'), true, $rules, AttributeCodes::none());
 
         self::assertTrue($attribute->id()->equals($id));
         self::assertTrue($attribute->categoryId()->equals($categoryId));
@@ -124,7 +128,7 @@ final class AttributeTest extends TestCase
         $id = self::id();
         $categoryId = self::categoryId();
 
-        $attribute = Attribute::defineChoice($id, $categoryId, self::code('o'), self::label('O'), true, [self::label('A')]);
+        $attribute = Attribute::defineChoice($id, $categoryId, self::code('o'), self::label('O'), true, [self::label('A')], AttributeCodes::none());
 
         self::assertTrue($attribute->id()->equals($id));
         self::assertTrue($attribute->categoryId()->equals($categoryId));
@@ -237,7 +241,7 @@ final class AttributeTest extends TestCase
         $categoryId = $attribute->categoryId();
 
         $attribute->relabel(self::label('Handedness'));
-        $attribute->recode(self::code('handedness'));
+        $attribute->recode(self::code('handedness'), AttributeCodes::none());
         $attribute->changeRequired(true);
 
         self::assertSame('Handedness', $attribute->label()->toString());
@@ -288,6 +292,86 @@ final class AttributeTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
 
         self::choice()->allowOptionRemoval($count);
+    }
+
+    /**
+     * @return iterable<string, array{\Closure(AttributeCodes): Attribute}>
+     */
+    public static function everyDefineConstructor(): iterable
+    {
+        $id = static fn (): AttributeId => self::id();
+        $cat = static fn (): CategoryId => self::categoryId();
+        $code = static fn (): AttributeCode => self::code('pickups');
+        $label = static fn (): AttributeLabel => self::label('Pickups');
+
+        yield 'choice' => [static fn (AttributeCodes $codes): Attribute => Attribute::defineChoice($id(), $cat(), $code(), $label(), false, [self::label('A')], $codes)];
+        yield 'number' => [static fn (AttributeCodes $codes): Attribute => Attribute::defineNumber($id(), $cat(), $code(), $label(), false, NumberRules::of(null, 1, 2), $codes)];
+        yield 'boolean' => [static fn (AttributeCodes $codes): Attribute => Attribute::defineBoolean($id(), $cat(), $code(), $label(), false, $codes)];
+        yield 'text' => [static fn (AttributeCodes $codes): Attribute => Attribute::defineText($id(), $cat(), $code(), $label(), false, $codes)];
+    }
+
+    /**
+     * @param \Closure(AttributeCodes): Attribute $define
+     */
+    #[DataProvider('everyDefineConstructor')]
+    public function testDefiningWithACodeInForceOnTheBranchIsRefused(\Closure $define): void
+    {
+        try {
+            $define(AttributeCodes::of(self::code('strings'), self::code('pickups')));
+            self::fail('Expected AttributeCodeAlreadyTaken.');
+        } catch (AttributeCodeAlreadyTaken $e) {
+            self::assertSame('pickups', $e->code()->toString());
+        }
+    }
+
+    /**
+     * @param \Closure(AttributeCodes): Attribute $define
+     */
+    #[DataProvider('everyDefineConstructor')]
+    public function testDefiningWithACodeNotInForceSucceeds(\Closure $define): void
+    {
+        $attribute = $define(AttributeCodes::of(self::code('strings'), self::code('scale')));
+
+        self::assertSame('pickups', $attribute->code()->toString());
+    }
+
+    public function testTheBranchCheckComesBeforeTheOptionRules(): void
+    {
+        $this->expectException(AttributeCodeAlreadyTaken::class);
+
+        Attribute::defineChoice(self::id(), self::categoryId(), self::code('pickups'), self::label('Pickups'), false, [], AttributeCodes::of(self::code('pickups')));
+    }
+
+    public function testRecodeToACodeInForceIsRefusedAndKeepsTheCode(): void
+    {
+        $attribute = self::choice();
+
+        try {
+            $attribute->recode(self::code('strings'), AttributeCodes::of(self::code('strings')));
+            self::fail('Expected AttributeCodeAlreadyTaken.');
+        } catch (AttributeCodeAlreadyTaken $e) {
+            self::assertSame('strings', $e->code()->toString());
+            self::assertSame('orientation', $attribute->code()->toString());
+        }
+    }
+
+    public function testRecodeToACodeNotInForceChangesTheCode(): void
+    {
+        $attribute = self::choice();
+
+        $attribute->recode(self::code('handedness'), AttributeCodes::of(self::code('strings')));
+
+        self::assertSame('handedness', $attribute->code()->toString());
+    }
+
+    public function testRecodeToItsOwnCurrentCodeChecksNothing(): void
+    {
+        $attribute = self::choice();
+
+        // Its own code is always in force on its own branch; the no-op must not trip over that.
+        $attribute->recode(self::code('orientation'), AttributeCodes::of(self::code('orientation')));
+
+        self::assertSame('orientation', $attribute->code()->toString());
     }
 
     public function testPublicSurfaceHasNoWayToChangeIdentityOwnerOrType(): void

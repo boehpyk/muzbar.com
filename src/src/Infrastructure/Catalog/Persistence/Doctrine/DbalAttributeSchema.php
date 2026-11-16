@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Catalog\Persistence\Doctrine;
 
+use App\Domain\Catalog\Entity\Category;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 
 /**
- * A category's attribute schema, for the admin screens.
+ * A category's effective attribute schema, and single attributes, for the admin screens.
  *
  * A read model with no port (the `DbalCategoryOutline` precedent): only Infrastructure controllers
  * consume it. It goes through DBAL, never the EntityManager, so a define/edit form can still be
@@ -17,7 +19,9 @@ use Doctrine\DBAL\Connection;
  * `Requirement::UUID`.
  *
  * @phpstan-type AttributeRow array{id: string, categoryId: string, code: string, label: string, type: string, required: bool, unit: ?string, minimum: ?int, maximum: ?int, optionCount: int}
+ * @phpstan-type EffectiveRow array{id: string, categoryId: string, code: string, label: string, type: string, required: bool, unit: ?string, minimum: ?int, maximum: ?int, optionCount: int, definedOnId: string, definedOnName: string, inherited: bool}
  * @phpstan-type RawRow array{id: string, category_id: string, code: string, label: string, type: string, is_required: bool, unit: ?string, minimum: ?int, maximum: ?int, option_count: int}
+ * @phpstan-type EffectiveRawRow array{id: string, category_id: string, code: string, label: string, type: string, is_required: bool, unit: ?string, minimum: ?int, maximum: ?int, option_count: int, defined_on_id: string, defined_on_name: string, inherited: bool}
  * @phpstan-type OptionRow array{id: string, label: string}
  */
 final readonly class DbalAttributeSchema
@@ -33,25 +37,50 @@ final readonly class DbalAttributeSchema
     }
 
     /**
-     * The attributes `$categoryId` defines, with each one's option count, in **one** query (AC-33).
-     * Ordered by label case-insensitively, id as the tie-break (owner, Q3).
+     * The **effective schema** of `$categoryId`: the attributes defined on every category of its
+     * lineage, each with its option count and the category that defines it, in **one** query (AC-8,
+     * AC-24). Ordered root first (Q4: general to specific), then by label case-insensitively, then
+     * by id. `inherited` is false only for the category's own attributes. Unknown id: `[]`.
      *
-     * @return list<AttributeRow>
+     * Derived on every read, never stored (C-22). The walk up is bounded by `Category::MAX_DEPTH`,
+     * so a planted cycle repeats rows up to the bound and terminates rather than hanging the page;
+     * refusing a corrupt tree is the writes' job (`CorruptCategoryTree`). A code stored twice on one
+     * branch (data from before C-21, plan D10) is listed twice, without error, so the page that
+     * fixes it still renders.
+     *
+     * @return list<EffectiveRow>
      */
-    public function forCategory(string $categoryId): array
+    public function effectiveFor(string $categoryId): array
     {
-        /** @var list<RawRow> $rows */
+        /** @var list<EffectiveRawRow> $rows */
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT '.self::COLUMNS.', count(o.id) AS option_count
-            FROM catalog_attribute a
+            'WITH RECURSIVE up (id, parent_id, depth_from_self) AS (
+                SELECT id, parent_id, 0 FROM catalog_category WHERE id = :category
+                UNION ALL
+                SELECT c.id, c.parent_id, up.depth_from_self + 1
+                FROM catalog_category c JOIN up ON c.id = up.parent_id
+                WHERE up.depth_from_self < :bound
+            )
+            SELECT '.self::COLUMNS.', count(o.id) AS option_count,
+                cat.id AS defined_on_id, cat.name AS defined_on_name, (up.depth_from_self > 0) AS inherited
+            FROM up
+            JOIN catalog_category cat ON cat.id = up.id
+            JOIN catalog_attribute a ON a.category_id = up.id
             LEFT JOIN catalog_attribute_option o ON o.attribute_id = a.id
-            WHERE a.category_id = :category
-            GROUP BY a.id
-            ORDER BY lower(a.label), a.id',
-            ['category' => $categoryId],
+            GROUP BY a.id, cat.id, cat.name, up.depth_from_self
+            ORDER BY up.depth_from_self DESC, lower(a.label), a.id',
+            ['category' => $categoryId, 'bound' => Category::MAX_DEPTH],
+            ['bound' => ParameterType::INTEGER],
         );
 
-        return array_map($this->row(...), $rows);
+        return array_map(
+            fn (array $row): array => $this->row($row) + [
+                'definedOnId' => $row['defined_on_id'],
+                'definedOnName' => $row['defined_on_name'],
+                'inherited' => $row['inherited'],
+            ],
+            $rows,
+        );
     }
 
     /**

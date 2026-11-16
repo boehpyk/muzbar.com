@@ -15,9 +15,9 @@ use App\Domain\Catalog\ValueObject\Lineage;
 /**
  * The collection of Categories, plus the facts about the tree the aggregate needs handed to it.
  *
- * The tree reads (`lineageOf`, `subtreeHeightOf`, `hasChildren`, `isSlugTakenAmongSiblings`) are
- * only as true as the moment they were read: call them inside `CategoryTreeLock::exclusively()`,
- * together with the `save()` or `remove()` they justify.
+ * The tree reads (`lineageOf`, `subtreeHeightOf`, `descendantsOf`, `hasChildren`,
+ * `isSlugTakenAmongSiblings`) are only as true as the moment they were read: call them inside
+ * `CategoryTreeLock::exclusively()`, together with the `save()` or `remove()` they justify.
  */
 interface CategoryRepository
 {
@@ -47,6 +47,17 @@ interface CategoryRepository
      * @throws CorruptCategoryTree
      */
     public function subtreeHeightOf(CategoryId $id): int;
+
+    /**
+     * Every category below `$id`, excluding `$id` itself, in no particular order (a leaf: `[]`).
+     * With `lineageOf()` it makes up the branch C-21 is decided on (ADR-0018). Bounded the same way
+     * as `lineageOf()`.
+     *
+     * @return list<CategoryId>
+     *
+     * @throws CorruptCategoryTree
+     */
+    public function descendantsOf(CategoryId $id): array;
 
     public function hasChildren(CategoryId $id): bool;
 

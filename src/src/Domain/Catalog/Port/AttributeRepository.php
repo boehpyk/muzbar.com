@@ -7,16 +7,16 @@ namespace App\Domain\Catalog\Port;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
 use App\Domain\Catalog\Exception\AttributeNotFound;
-use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\CategoryId;
 
 /**
  * The collection of Attributes, plus the facts about other attributes a write needs.
  *
- * The fact reads (`isCodeTaken`, `existsForCategory`) are only as true as the moment they were
+ * The fact reads (`codesDefinedOn`, `existsForCategory`) are only as true as the moment they were
  * read: call them inside `CategoryTreeLock::exclusively()`, together with the `save()` or `remove()`
- * they justify (ADR-0016, ADR-0017).
+ * they justify (ADR-0016, ADR-0017, ADR-0018).
  */
 interface AttributeRepository
 {
@@ -29,10 +29,14 @@ interface AttributeRepository
     public function get(AttributeId $id): Attribute;
 
     /**
-     * Whether an attribute other than `$except` already uses `$code` in `$categoryId`. The C-11
-     * pre-check — it exists for the error message; the unique index is the guarantee.
+     * The codes of every attribute defined on any of `$categories` — the C-21 fact (ADR-0018). The
+     * caller passes a branch (`Lineage::ids()` plus `CategoryRepository::descendantsOf()`) or a
+     * subtree. De-duplicated, because a set may lawfully hold one code twice (sibling branches) and
+     * legacy data may too. An empty list is `AttributeCodes::none()` without asking anything.
+     *
+     * @param list<CategoryId> $categories
      */
-    public function isCodeTaken(CategoryId $categoryId, AttributeCode $code, ?AttributeId $except): bool;
+    public function codesDefinedOn(array $categories): AttributeCodes;
 
     /** Whether `$categoryId` defines any attribute — the C-13 delete guard's fact. */
     public function existsForCategory(CategoryId $categoryId): bool;

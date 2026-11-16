@@ -878,4 +878,41 @@ final class CategoryAdminTest extends WebTestCase
         // Sentry has no `critical` level: Monolog's CRITICAL maps to `fatal`.
         self::assertSame('fatal', (string) $events[0]->getLevel());
     }
+
+    public function testMovingUnderAParentWhoseLineageSharesAnAttributeCodeIsRefusedOnTheParentField(): void
+    {
+        $instruments = $this->category('instruments');
+        $guitars = $this->category('guitars', $instruments);
+        $bass = $this->category('bass', $instruments);
+        AttributeFactory::new()->inCategory($guitars)->coded('strings')->create();
+        AttributeFactory::new()->inCategory($bass)->coded('strings')->create();
+        $this->signInAsAdmin();
+
+        $this->assertRefusedOnField(
+            '/admin/categories/'.$bass->id()->toString().'/edit',
+            ['name' => 'Bass', 'slug' => 'bass', 'parent' => $guitars->id()->toString()],
+            'parent',
+            'Cannot move here: attribute code “strings” would appear twice in one branch. Recode or delete one of them first.',
+        );
+    }
+
+    public function testAMoveWhoseSubtreeCodeCollidesIsRefusedAndTheCategoryStaysPut(): void
+    {
+        $instruments = $this->category('instruments');
+        $bass = $this->category('bass', $instruments);
+        $electric = $this->category('electric', $instruments);
+        $seven = $this->category('seven', $electric);
+        AttributeFactory::new()->inCategory($bass)->coded('scale')->create();
+        AttributeFactory::new()->inCategory($seven)->coded('scale')->create();
+        $this->signInAsAdmin();
+        $before = $this->rowOf($electric);
+
+        $this->assertRefusedOnField(
+            '/admin/categories/'.$electric->id()->toString().'/edit',
+            ['name' => 'Electric', 'slug' => 'electric', 'parent' => $bass->id()->toString()],
+            'parent',
+            'Cannot move here: attribute code “scale” would appear twice in one branch. Recode or delete one of them first.',
+        );
+        self::assertSame($before, $this->rowOf($electric));
+    }
 }

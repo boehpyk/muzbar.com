@@ -354,6 +354,32 @@ Google sign-in is knpu's `OAuth2PKCEClient` over league's Google provider
   not surviving the round trip: Redis down, or the session cookie is not being sent back
   (`SameSite`/domain).
 
+## Catalog: one-off pre-deploy check for `catalog-schema-inheritance`
+
+[ADR-0018](./adr/0018-schema-inheritance-derived-along-the-lineage-codes-unique-per-branch.md)
+decision 7. Slice 2 allowed the same attribute code on a category **and** on one of its
+descendants; from slice 3 on that is a C-21 violation. There is **no migration** — the schema does
+not change, and a migration that `RAISE`d would block the deploy behind data only an admin can fix.
+So, **once, before the first deploy of this slice**, run the read-only detection query on prod:
+
+```bash
+# On the box (hand-run compose needs MUZBAR_IMAGE set, as for any manual op).
+docker compose exec app php bin/console dbal:run-sql "WITH RECURSIVE anc (category_id, ancestor_id, n) AS (SELECT id, parent_id, 1 FROM catalog_category WHERE parent_id IS NOT NULL UNION ALL SELECT anc.category_id, c.parent_id, anc.n + 1 FROM anc JOIN catalog_category c ON c.id = anc.ancestor_id WHERE c.parent_id IS NOT NULL AND anc.n < 5) SELECT lower_a.code, upper_a.category_id AS ancestor, lower_a.category_id AS descendant FROM anc JOIN catalog_attribute upper_a ON upper_a.category_id = anc.ancestor_id JOIN catalog_attribute lower_a ON lower_a.category_id = anc.category_id AND lower_a.code = upper_a.code"
+```
+
+It lists every pair of attributes sharing a code where one's category is a proper ancestor of the
+other's. Sibling-branch reuse ("pickups" under *Guitars* and under *Bass*) is lawful and is not
+listed.
+
+- **Zero rows → deploy.**
+- **Any row → recode one attribute of each pair in `/admin` first**, then re-run until empty.
+
+If a pair slips through anyway, nothing breaks: the attribute pages list both, and the only effect is
+that a define, recode or move on that branch **involving the duplicated code** is refused (naming
+it) until one is recoded; writes with any other code go through. The query is not trusted on faith: `PreDeployDuplicateCodeQueryTest` runs it verbatim
+against a planted ancestor/descendant pair and a lawful sibling reuse. If you edit the query here,
+edit it there.
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker

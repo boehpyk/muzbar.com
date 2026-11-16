@@ -14,31 +14,25 @@
         {% endfor %}
     </p>
 
-    {# Rows and option counts come from one query (`DbalAttributeSchema::forCategory()`, AC-33),
-       ordered by label case-insensitively. Unstyled on purpose. #}
-    {% if attributes is empty %}
-        <p>No attributes yet.</p>
+    {# Own and inherited rows, with option counts, come from one query
+       (`DbalAttributeSchema::effectiveFor()`, AC-24), root first, then by label case-insensitively.
+       Nothing is copied down the tree (C-22): an inherited attribute is edited on the category that
+       defines it, so its row has no controls and no token. Unstyled on purpose. #}
+    {% set own = attributes|filter(a => not a.inherited) %}
+    {% set inherited = attributes|filter(a => a.inherited) %}
+
+    <h2>Defined here</h2>
+    {% if own is empty %}
+        <p>No attributes of its own.</p>
     {% else %}
         <table>
             <thead>
                 <tr><th>Label</th><th>Code</th><th>Type</th><th>Required</th><th>Details</th><th>Actions</th></tr>
             </thead>
             <tbody>
-                {% for attribute in attributes %}
+                {% for attribute in own %}
                     <tr>
-                        <td>{{ attribute.label }}</td>
-                        <td>{{ attribute.code }}</td>
-                        <td>{{ typeNames[attribute.type] }}</td>
-                        <td>{{ attribute.required ? 'required' : '' }}</td>
-                        <td>
-                            {% if attribute.type == 'number' %}
-                                {% if attribute.unit is not null %}unit: {{ attribute.unit }}{% endif %}
-                                {% if attribute.minimum is not null %}min: {{ attribute.minimum }}{% endif %}
-                                {% if attribute.maximum is not null %}max: {{ attribute.maximum }}{% endif %}
-                            {% elseif attribute.type == 'choice' %}
-                                {{ attribute.optionCount }} {{ attribute.optionCount == 1 ? 'option' : 'options' }}
-                            {% endif %}
-                        </td>
+                        {{ _self.cells(attribute, typeNames) }}
                         <td>
                             <a href="{{ path('admin_attribute_edit', {id: attribute.id}) }}">Edit</a>
                             {# A form, never a link: no GET may change state (ADR-0015). #}
@@ -53,5 +47,38 @@
         </table>
     {% endif %}
 
+    {% if inherited is not empty %}
+        <h2>Inherited</h2>
+        <table>
+            <thead>
+                <tr><th>Label</th><th>Code</th><th>Type</th><th>Required</th><th>Details</th><th>Defined on</th></tr>
+            </thead>
+            <tbody>
+                {% for attribute in inherited %}
+                    <tr>
+                        {{ _self.cells(attribute, typeNames) }}
+                        <td>from <a href="{{ path('admin_attribute_index', {id: attribute.definedOnId}) }}">{{ attribute.definedOnName }}</a></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
     <p><a href="{{ path('admin_category_index') }}">Back to categories</a></p>
 {% endblock %}
+
+{% macro cells(attribute, typeNames) %}
+    <td>{{ attribute.label }}</td>
+    <td>{{ attribute.code }}</td>
+    <td>{{ typeNames[attribute.type] }}</td>
+    <td>{{ attribute.required ? 'required' : '' }}</td>
+    <td>
+        {% if attribute.type == 'number' %}
+            {% if attribute.unit is not null %}unit: {{ attribute.unit }}{% endif %}
+            {% if attribute.minimum is not null %}min: {{ attribute.minimum }}{% endif %}
+            {% if attribute.maximum is not null %}max: {{ attribute.maximum }}{% endif %}
+        {% elseif attribute.type == 'choice' %}
+            {{ attribute.optionCount }} {{ attribute.optionCount == 1 ? 'option' : 'options' }}
+        {% endif %}
+    </td>
+{% endmacro %}

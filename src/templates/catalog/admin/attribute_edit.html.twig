@@ -10,6 +10,11 @@
     {# The type never changes (C-14), so it is text, not a field. #}
     <p>Type: {{ typeNames[type.value] }}</p>
 
+    {# Nothing is copied down the tree (C-22): a change here is what every descendant reads. #}
+    {% if categoryName is not null %}
+        <p>Changes apply to “{{ categoryName }}” and every category below it.</p>
+    {% endif %}
+
     {{ form_start(form) }}
         {# Root-level errors (an invalid CSRF token, extra fields) land on the form, not a field. #}
         {{ form_errors(form) }}

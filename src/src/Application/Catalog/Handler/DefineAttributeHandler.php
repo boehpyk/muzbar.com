@@ -14,6 +14,7 @@ use App\Domain\Catalog\Port\AttributeRepository;
 use App\Domain\Catalog\Port\CategoryRepository;
 use App\Domain\Catalog\Port\CategoryTreeLock;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeLabel;
 use App\Domain\Catalog\ValueObject\AttributeType;
@@ -27,7 +28,8 @@ use App\Domain\Catalog\ValueObject\Unit;
  *
  * Everything runs inside one `exclusively()` (plan D5): "the category exists" (C-12) is the mirror
  * of `DeleteCategoryHandler`'s C-13 guard, and only the lock stops a delete slipping in between the
- * check and the save.
+ * check and the save. The same lock makes the branch's codes true for C-21 (ADR-0018): no define,
+ * recode or move can change them between this read and the save.
  */
 final readonly class DefineAttributeHandler
 {
@@ -43,7 +45,7 @@ final readonly class DefineAttributeHandler
      * @throws CategoryNotFound                                       the category, or a malformed id (C-12)
      * @throws \App\Domain\Catalog\Exception\InvalidAttributeLabel    the attribute's or an option's (C-9)
      * @throws \App\Domain\Catalog\Exception\InvalidAttributeCode     (C-10)
-     * @throws AttributeCodeAlreadyTaken                              (C-11)
+     * @throws AttributeCodeAlreadyTaken                              in force on the branch (C-21)
      * @throws \App\Domain\Catalog\Exception\InvalidUnit              (C-16)
      * @throws \App\Domain\Catalog\Exception\InvalidNumberRules       (C-16)
      * @throws \App\Domain\Catalog\Exception\InvalidAttributeOptions  a choice without options (C-18)
@@ -57,19 +59,17 @@ final readonly class DefineAttributeHandler
             $label = AttributeLabel::fromString($command->label);
             $code = AttributeCode::fromString($command->code);
 
-            // C-11 pre-check, for the error message; the `(category_id, code)` unique index is the
-            // guarantee against anything that bypasses the lock.
-            if ($this->attributes->isCodeTaken($categoryId, $code, null)) {
-                throw AttributeCodeAlreadyTaken::inCategory($code);
-            }
-
+            // C-21: the aggregate decides on the codes in force along the branch, read here under
+            // the lock — no index can see a branch, so the lock is the whole guarantee. The
+            // `(category_id, code)` unique index remains the backstop for the same-category case (C-11).
+            $codesInBranch = $this->codesInBranchOf($categoryId);
             $id = $this->attributes->nextIdentity();
             $type = AttributeType::from($command->type);
 
             if (AttributeType::Choice === $type) {
                 $initialLabels = array_map(AttributeLabel::fromString(...), $command->optionLabels);
                 $this->defineChoice(
-                    Attribute::defineChoice($id, $categoryId, $code, $label, $command->required, $initialLabels),
+                    Attribute::defineChoice($id, $categoryId, $code, $label, $command->required, $initialLabels, $codesInBranch),
                     $initialLabels,
                 );
 
@@ -81,9 +81,9 @@ final readonly class DefineAttributeHandler
                     null === $command->unit ? null : Unit::fromString($command->unit),
                     $command->minimum,
                     $command->maximum,
-                )),
-                AttributeType::Boolean => Attribute::defineBoolean($id, $categoryId, $code, $label, $command->required),
-                AttributeType::Text => Attribute::defineText($id, $categoryId, $code, $label, $command->required),
+                ), $codesInBranch),
+                AttributeType::Boolean => Attribute::defineBoolean($id, $categoryId, $code, $label, $command->required, $codesInBranch),
+                AttributeType::Text => Attribute::defineText($id, $categoryId, $code, $label, $command->required, $codesInBranch),
             });
 
             return $id;
@@ -113,6 +113,18 @@ final readonly class DefineAttributeHandler
         // Do not "align" the two.
         $this->options->save(...$options);
         $this->attributes->save($attribute);
+    }
+
+    /**
+     * The codes in force along `$categoryId`'s branch: its lineage (itself and every ancestor) plus
+     * its descendants. Copied in `EditAttributeHandler`; extract when a third caller appears.
+     */
+    private function codesInBranchOf(CategoryId $categoryId): AttributeCodes
+    {
+        return $this->attributes->codesDefinedOn([
+            ...$this->categories->lineageOf($categoryId)->ids(),
+            ...$this->categories->descendantsOf($categoryId),
+        ]);
     }
 
     /** As in `CreateCategoryHandler`: a malformed category id is a category that does not exist (AC-14). */

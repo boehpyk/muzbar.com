@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Catalog\Entity;
 
 use App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle;
+use App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode;
 use App\Domain\Catalog\Exception\CategoryTreeTooDeep;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\CategoryId;
 use App\Domain\Catalog\ValueObject\CategoryName;
 use App\Domain\Catalog\ValueObject\CategorySlug;
@@ -26,6 +28,13 @@ use App\Domain\Catalog\ValueObject\Lineage;
  * `CategoryTreeLock` is what makes them current — every write reads its facts and saves while
  * holding the one tree lock. That split is a design choice, not an oversight: the aggregate owns
  * the rule, the lock owns the truth of its inputs.
+ *
+ * C-21 (ADR-0018) is the third fact pair, in C-5's exact shape: one fact about the new parent's
+ * lineage (the attribute codes in force along it), one about my subtree (the codes defined in it).
+ * A category knows attribute codes only as facts handed in, like its depth: its effective schema is
+ * a property of the category, and a move is what changes it. Nothing here writes another category's
+ * schema, or any attribute (C-22) — the effective schema is derived, so a move is still one row.
+ * `create()` needs no C-21 check: a new category has no attributes and no subtree.
  *
  * Sibling-unique slugs (C-3), "the parent exists" (C-6) and "only a leaf may be deleted" (C-7) are
  * handler checks under the same lock; C-3 also has a unique index as its real guarantee. There is
@@ -73,13 +82,22 @@ final class Category
      *
      * Every check happens before any assignment, so a refused move mutates nothing.
      *
-     * @param int $subtreeHeight levels in this category's subtree, counting itself (a leaf is 1)
+     * Order: current parent (no-op, checks nothing) → C-4 → C-5 → C-21.
+     *
+     * @param int            $subtreeHeight       levels in this category's subtree, counting itself (a leaf is 1)
+     * @param AttributeCodes $codesAlongNewParent codes defined on the new parent's lineage
+     * @param AttributeCodes $codesInSubtree      codes defined on this category and every descendant
      *
      * @throws CategoryMoveWouldCreateCycle
      * @throws CategoryTreeTooDeep
+     * @throws CategoryMoveWouldDuplicateAttributeCode
      */
-    public function moveUnder(Lineage $newParentLineage, int $subtreeHeight): void
-    {
+    public function moveUnder(
+        Lineage $newParentLineage,
+        int $subtreeHeight,
+        AttributeCodes $codesAlongNewParent,
+        AttributeCodes $codesInSubtree,
+    ): void {
         if ($subtreeHeight < 1) {
             throw new \InvalidArgumentException(\sprintf('A subtree height counts the category itself, so it is at least 1; got %d.', $subtreeHeight));
         }
@@ -98,6 +116,13 @@ final class Category
 
         if ($newParentLineage->depth() + $subtreeHeight > self::MAX_DEPTH) {
             throw CategoryTreeTooDeep::move(self::MAX_DEPTH);
+        }
+
+        // C-21 after C-4 and C-5: a move that is also a cycle or too deep is reported as that.
+        $shared = $codesAlongNewParent->firstSharedWith($codesInSubtree);
+
+        if (null !== $shared) {
+            throw CategoryMoveWouldDuplicateAttributeCode::for($shared);
         }
 
         $this->parentId = $newParentId;

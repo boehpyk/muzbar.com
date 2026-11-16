@@ -156,3 +156,19 @@ by design, mapping machinery for four small branches, and no PRD need, respectiv
 - **The edit page lists all options unpaginated** (owner, Q10). Pagination or a filter is additive.
 - **Watch:** the UUIDv7-order ceiling (decision 5), and the hard-delete clause in ADR-0004's
   amendment, which expires with the first listing value.
+
+## Amendment, 2026-11-16 — decision 6's open sentence answered: conflict, not override; C-11 subsumed by C-21
+
+Recorded by the `catalog-schema-inheritance` slice
+([ADR-0018](./0018-schema-inheritance-derived-along-the-lineage-codes-unique-per-branch.md), plan D2, D3, D5).
+
+1. **Decision 6's last sentence is answered: a same code lower in a lineage is a conflict, not an
+   override.** C-21: an attribute code appears at most once along any branch; sibling branches may
+   reuse it. Override, partial override and exclusion were all rejected (ADR-0018, *Alternatives*).
+2. **C-11 is now the same-category case of C-21, decided by `Attribute`.** `define…()` and
+   `recode()` take `AttributeCodes $codesInBranch`, read under `CategoryTreeLock`, and refuse with
+   `AttributeCodeAlreadyTaken::inBranch()`. The **`(category_id, code)` unique index stays** as the
+   backstop for that subset, with its 23505 → `AttributeCodeAlreadyTaken::inCategory()` translation
+   unchanged.
+3. **`AttributeRepository::isCodeTaken()` is removed**, with its tests: once the aggregate decides,
+   the handler pre-check has no caller. Its replacement fact is `codesDefinedOn(list<CategoryId>)`.

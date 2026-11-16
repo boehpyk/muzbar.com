@@ -8,14 +8,19 @@ use App\Application\Catalog\Command\AddAttributeOption;
 use App\Application\Catalog\Command\DefineAttribute;
 use App\Application\Catalog\Command\DeleteAttribute;
 use App\Application\Catalog\Command\EditAttribute;
+use App\Application\Catalog\Command\EditCategory;
 use App\Application\Catalog\Command\RelabelAttributeOption;
 use App\Application\Catalog\Command\RemoveAttributeOption;
 use App\Application\Catalog\Handler\AddAttributeOptionHandler;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
 use App\Application\Catalog\Handler\DeleteAttributeHandler;
 use App\Application\Catalog\Handler\EditAttributeHandler;
+use App\Application\Catalog\Handler\EditCategoryHandler;
 use App\Application\Catalog\Handler\RelabelAttributeOptionHandler;
 use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
+use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
+use App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode;
+use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -87,6 +92,34 @@ final class NoDdlTest extends KernelTestCase
         ($this->service(DeleteAttributeHandler::class))(new DeleteAttribute($number->toString()));
 
         self::assertSame(2, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute'), 'Control: the handlers really ran.');
+        self::assertSame($before, $this->catalogs());
+    }
+
+    public function testRefusedC21WritesAreDdlFreeToo(): void
+    {
+        $parent = CategoryFactory::createOne();
+        $child = CategoryFactory::new()->childOf($parent)->create();
+        $other = CategoryFactory::createOne();
+        AttributeFactory::new()->inCategory($parent)->coded('condition')->create();
+        AttributeFactory::new()->inCategory($other)->coded('condition')->create();
+        $before = $this->catalogs();
+
+        $refusedDefine = false;
+        try {
+            ($this->service(DefineAttributeHandler::class))(new DefineAttribute($child->id()->toString(), 'text', 'Condition', 'condition', false));
+        } catch (AttributeCodeAlreadyTaken) {
+            $refusedDefine = true;
+        }
+
+        $refusedMove = false;
+        try {
+            ($this->service(EditCategoryHandler::class))(new EditCategory($other->id()->toString(), $other->name()->toString(), $other->slug()->toString(), $parent->id()->toString()));
+        } catch (CategoryMoveWouldDuplicateAttributeCode) {
+            $refusedMove = true;
+        }
+
+        self::assertTrue($refusedDefine, 'Control: the define was meant to be refused.');
+        self::assertTrue($refusedMove, 'Control: the move was meant to be refused.');
         self::assertSame($before, $this->catalogs());
     }
 

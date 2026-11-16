@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Catalog\Entity;
 
+use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
 use App\Domain\Catalog\Exception\AttributeNeedsAnOption;
 use App\Domain\Catalog\Exception\AttributeRuleNotApplicable;
 use App\Domain\Catalog\Exception\DuplicateAttributeOption;
 use App\Domain\Catalog\Exception\InvalidAttributeOptions;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeLabel;
 use App\Domain\Catalog\ValueObject\AttributeOptionId;
@@ -22,8 +24,9 @@ use App\Domain\Catalog\ValueObject\NumberRules;
  *
  * It knows its **defining category by id** (`CategoryId`, never the `Category`), and that category
  * never changes (C-14). An attribute is stored once, on the category that defines it (plan D4): the
- * attributes a descendant will inherit are a read-time derivation over the lineage (slice 3), so a
- * rename, re-slug or move of the category touches no attribute.
+ * attributes a descendant inherits are a read-time derivation over the lineage (C-22, ADR-0018), so
+ * a rename, re-slug or move of the category touches no attribute — and nothing here writes another
+ * category's schema.
  *
  * **It holds no options** (plan D2). A choice attribute's options are separate `AttributeOption`
  * aggregates: the set is unbounded (a brand list runs to thousands), dependent options will
@@ -36,6 +39,11 @@ use App\Domain\Catalog\ValueObject\NumberRules;
  *   `allowOptionRemoval()` decides on the option count it is handed.
  * - C-17, unique option labels: decided here only for the batch handed to `defineChoice()`. For
  *   later adds and relabels, the handler pre-checks and a unique index guarantees.
+ * - C-21, a code appears at most once along any branch: every `define…()` and `recode()` decides it
+ *   **first**, on the codes in force along the defining category's branch (its lineage plus its
+ *   descendants), handed in as `AttributeCodes`. C-11 is now the same-category case of C-21; the
+ *   `(category_id, code)` unique index remains its backstop. C-21 itself has no index: the lock is
+ *   the whole guarantee (ADR-0018).
  *
  * THE CONTRACT FOR FACTS (ADR-0016, extended by ADR-0017): the counts and lists this object decides
  * on are read by the handler, and they are only true while `CategoryTreeLock` is held — every
@@ -66,8 +74,9 @@ final class Attribute
      *
      * @param list<AttributeLabel> $initialOptions
      *
-     * @throws InvalidAttributeOptions  the list is empty (C-18)
-     * @throws DuplicateAttributeOption two labels share a `key()` (C-17, within this batch)
+     * @throws AttributeCodeAlreadyTaken the code is in force on the branch (C-21, checked first)
+     * @throws InvalidAttributeOptions   the list is empty (C-18)
+     * @throws DuplicateAttributeOption  two labels share a `key()` (C-17, within this batch)
      */
     public static function defineChoice(
         AttributeId $id,
@@ -76,7 +85,10 @@ final class Attribute
         AttributeLabel $label,
         bool $required,
         array $initialOptions,
+        AttributeCodes $codesInBranch,
     ): self {
+        self::refuseCodeInForce($code, $codesInBranch);
+
         if ([] === $initialOptions) {
             throw InvalidAttributeOptions::none();
         }
@@ -95,6 +107,9 @@ final class Attribute
         return new self($id, $categoryId, $code, $label, AttributeType::Choice, $required, null);
     }
 
+    /**
+     * @throws AttributeCodeAlreadyTaken the code is in force on the branch (C-21)
+     */
     public static function defineNumber(
         AttributeId $id,
         CategoryId $categoryId,
@@ -102,17 +117,42 @@ final class Attribute
         AttributeLabel $label,
         bool $required,
         NumberRules $numberRules,
+        AttributeCodes $codesInBranch,
     ): self {
+        self::refuseCodeInForce($code, $codesInBranch);
+
         return new self($id, $categoryId, $code, $label, AttributeType::Number, $required, $numberRules);
     }
 
-    public static function defineBoolean(AttributeId $id, CategoryId $categoryId, AttributeCode $code, AttributeLabel $label, bool $required): self
-    {
+    /**
+     * @throws AttributeCodeAlreadyTaken the code is in force on the branch (C-21)
+     */
+    public static function defineBoolean(
+        AttributeId $id,
+        CategoryId $categoryId,
+        AttributeCode $code,
+        AttributeLabel $label,
+        bool $required,
+        AttributeCodes $codesInBranch,
+    ): self {
+        self::refuseCodeInForce($code, $codesInBranch);
+
         return new self($id, $categoryId, $code, $label, AttributeType::Boolean, $required, null);
     }
 
-    public static function defineText(AttributeId $id, CategoryId $categoryId, AttributeCode $code, AttributeLabel $label, bool $required): self
-    {
+    /**
+     * @throws AttributeCodeAlreadyTaken the code is in force on the branch (C-21)
+     */
+    public static function defineText(
+        AttributeId $id,
+        CategoryId $categoryId,
+        AttributeCode $code,
+        AttributeLabel $label,
+        bool $required,
+        AttributeCodes $codesInBranch,
+    ): self {
+        self::refuseCodeInForce($code, $codesInBranch);
+
         return new self($id, $categoryId, $code, $label, AttributeType::Text, $required, null);
     }
 
@@ -121,9 +161,21 @@ final class Attribute
         $this->label = $label;
     }
 
-    /** Uniqueness within the category (C-11) is the handler's pre-check plus a unique index. */
-    public function recode(AttributeCode $code): void
+    /**
+     * Recoding to the current code is a no-op that checks nothing — the current code is always in
+     * `$codesInBranch`, being in force on this attribute's own category. The shape of
+     * `Category::moveUnder()` to the current parent; it is also why the fact read needs no `except`.
+     *
+     * @throws AttributeCodeAlreadyTaken the code is in force on the branch (C-21)
+     */
+    public function recode(AttributeCode $code, AttributeCodes $codesInBranch): void
     {
+        if ($code->equals($this->code)) {
+            return;
+        }
+
+        self::refuseCodeInForce($code, $codesInBranch);
+
         $this->code = $code;
     }
 
@@ -184,6 +236,17 @@ final class Attribute
 
         if (1 === $optionCount) {
             throw AttributeNeedsAnOption::cannotRemoveLast($this->id);
+        }
+    }
+
+    /**
+     * C-21 on facts read under `CategoryTreeLock`: the branch is the defining category's lineage plus
+     * its descendants, so "in force" covers this category (C-11), above it and below it.
+     */
+    private static function refuseCodeInForce(AttributeCode $code, AttributeCodes $codesInBranch): void
+    {
+        if ($codesInBranch->contains($code)) {
+            throw AttributeCodeAlreadyTaken::inBranch($code);
         }
     }
 

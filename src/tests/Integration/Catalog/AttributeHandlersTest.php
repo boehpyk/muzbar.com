@@ -459,7 +459,7 @@ final class AttributeHandlersTest extends KernelTestCase
 
     public function testEditingANumberChangesLabelCodeRequiredAndRulesInOneCall(): void
     {
-        $attribute = AttributeFactory::new()->number(NumberRules::of(Unit::fromString('mm'), 1, 2))->create();
+        $attribute = AttributeFactory::new()->inCategory(CategoryFactory::createOne())->number(NumberRules::of(Unit::fromString('mm'), 1, 2))->create();
 
         ($this->service(EditAttributeHandler::class))(new EditAttribute($attribute->id()->toString(), 'Nut width', 'nut-width', true, 'cm', 3, 9));
 

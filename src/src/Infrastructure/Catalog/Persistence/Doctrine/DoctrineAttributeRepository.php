@@ -9,11 +9,11 @@ use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
 use App\Domain\Catalog\Exception\AttributeNotFound;
 use App\Domain\Catalog\Port\AttributeRepository;
 use App\Domain\Catalog\ValueObject\AttributeCode;
+use App\Domain\Catalog\ValueObject\AttributeCodes;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\CategoryId;
-use App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeCodeType;
-use App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeIdType;
 use App\Infrastructure\Catalog\Persistence\Doctrine\Type\CategoryIdType;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Uid\Uuid;
@@ -40,20 +40,21 @@ final readonly class DoctrineAttributeRepository implements AttributeRepository
         return $this->entityManager->find(Attribute::class, $id) ?? throw AttributeNotFound::withId($id);
     }
 
-    public function isCodeTaken(CategoryId $categoryId, AttributeCode $code, ?AttributeId $except): bool
+    public function codesDefinedOn(array $categories): AttributeCodes
     {
-        // The cast is needed because PostgreSQL cannot infer a type for a parameter it only ever
-        // sees compared with NULL.
-        return (bool) $this->entityManager->getConnection()->fetchOne(
-            'SELECT EXISTS (
-                SELECT 1 FROM catalog_attribute
-                WHERE category_id = :category
-                  AND code = :code
-                  AND (CAST(:except AS uuid) IS NULL OR id <> CAST(:except AS uuid))
-            )',
-            ['category' => $categoryId, 'code' => $code, 'except' => $except],
-            ['category' => CategoryIdType::NAME, 'code' => AttributeCodeType::NAME, 'except' => AttributeIdType::NAME],
+        if ([] === $categories) {
+            return AttributeCodes::none();
+        }
+
+        // Served by `uniq_catalog_attribute_category_code` (leading `category_id`).
+        /** @var list<string> $codes */
+        $codes = $this->entityManager->getConnection()->fetchFirstColumn(
+            'SELECT code FROM catalog_attribute WHERE category_id IN (:categories)',
+            ['categories' => array_map(static fn (CategoryId $id): string => $id->toString(), $categories)],
+            ['categories' => ArrayParameterType::STRING],
         );
+
+        return AttributeCodes::of(...array_map(AttributeCode::fromString(...), $codes));
     }
 
     public function existsForCategory(CategoryId $categoryId): bool
