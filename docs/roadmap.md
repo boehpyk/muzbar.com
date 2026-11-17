@@ -275,7 +275,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
       **Too big for one cycle — sliced (2026-11-16).** Rule for every slice: **prod is consistent
       after each deploy on its own.** A slice that creates a new way for Catalog edits to strand
       listing data ships the guard for it too, failing closed (refuse) if the proper rule comes later.
-  - [ ] `listing-draft` — the `Listing` aggregate with no attribute values: `ListingId`, seller
+  - [x] `listing-draft` (2026-11-17; **`/verify` pending**) — the `Listing` aggregate with no attribute values: `ListingId`, seller
         `UserId`, `CategoryId`, title, description, price; one status, `Draft`. Table
         `listing_listing`. "Sell Gear" link (ADR-0015 overlay-trigger shape) → `/sell` create, plus
         list/edit of the seller's own drafts. **First cross-context dependency:** Listing asks
@@ -288,6 +288,16 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         **Listings only on leaf categories** — which opens two more doors that must ship guarded in
         this slice: creating a child under a category with listings, and moving a category under one
         with listings, are both refused (they would turn a listed-on leaf into a non-leaf).
+        **Shipped:** L-2 decided by `Listing` inside `Categories::holdSteady()` (the tree lock's new
+        **shared** mode); C-23 (delete) and C-24 (create-under, move-under) in Catalog's handlers
+        under the exclusive lock; price as integer minor units, `USD`/`EUR`/`SEK`/`UAH`.
+        [ADR-0019](./adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
+        + ADR-0007/0016 amendments. 1436 tests.
+  - [ ] *Candidates before `listing-publish` (the first page anyone else sees):*
+        **public SCSS pipeline** (ADR-0006; `listing-draft` plan Q7) — `sass-bundle`, `public.css`,
+        tokens; the sell pages ship as unstyled semantic markup until then. **UUID id trait refactor**
+        (ADR-0009; plan Risk 4) — nine copies of the id value-object shape now exist, Listing's
+        `SellerId`/`CategoryId` included; one trait, touching Identity and Catalog, its own slice.
   - [ ] `listing-attribute-values` — the value layer (ADR-0004 §2): `listing_attribute_value` with
         typed columns and the generic `(attribute_id, option_id)`-style indexes, values owned by the
         `Listing` aggregate. Catalog exposes **`EffectiveSchema`** (D11.4) to other contexts; Listing

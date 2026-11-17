@@ -96,7 +96,7 @@
       Revert, record in the commit message, run `make test` twice. (AC-33, AC-34)
 
 ## Docs
-- [ ] **T20:** Update the docs:
+- [x] **T20:** Update the docs:
       - **`CLAUDE.md`:** status line (Listing slice 1 of 4); a short *Cross-context dependencies*
         section: each context states its need as its own port, the adapter lives with the data's
         owner, the lock's shared mode, the "every new filing write goes through `holdSteady()`, every
