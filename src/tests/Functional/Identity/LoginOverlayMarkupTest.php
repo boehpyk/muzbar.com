@@ -136,6 +136,48 @@ final class LoginOverlayMarkupTest extends WebTestCase
         self::assertCount(1, $crawler->filter('a[href="/profile"]'));
     }
 
+    // ---- listing-draft AC-22: "Sell Gear" is the second trigger ---------------------------------
+
+    public function testAGuestSeesExactlyOneSellGearTriggerPointingAtLoginWithTheSellTarget(): void
+    {
+        $crawler = $this->client->request('GET', '/forgot-password');
+
+        $trigger = $crawler->filter('a[data-auth-overlay]')->reduce(static fn (Crawler $a): bool => 'Sell Gear' === trim($a->text()));
+        self::assertCount(1, $trigger);
+        self::assertCount(2, $crawler->filter('a[data-auth-overlay]'), 'Sell Gear and Profile, nothing else.');
+
+        $href = $trigger->attr('href');
+        self::assertIsString($href);
+        self::assertSame('/login', parse_url($href, \PHP_URL_PATH));
+        $query = parse_url($href, \PHP_URL_QUERY);
+        self::assertIsString($query);
+        parse_str($query, $params);
+        self::assertSame('/sell', $params['_target_path'] ?? null);
+    }
+
+    public function testASignedInUserSeesAPlainSellGearLinkAndNoTrigger(): void
+    {
+        $this->registerUserWithKnownCredentials(self::EMAIL, self::PASSWORD, verified: true);
+        $this->signInFromTheForm();
+
+        $crawler = $this->client->request('GET', '/account');
+
+        self::assertCount(0, $crawler->filter('a[data-auth-overlay]'));
+        $link = $crawler->filter('a[href="/sell"]');
+        self::assertCount(1, $link);
+        self::assertSame('Sell Gear', trim($link->text()));
+    }
+
+    public function testTheSignInAndRegisterPagesShowNoSellGearLink(): void
+    {
+        foreach (['/login', '/register'] as $page) {
+            $crawler = $this->client->request('GET', $page);
+
+            self::assertResponseIsSuccessful();
+            self::assertCount(0, $crawler->selectLink('Sell Gear'), $page);
+        }
+    }
+
     // ---- AC-24: no JavaScript, end to end -----------------------------------------------------
 
     public function testWithoutJavaScriptTheProfileLinkLeadsThroughSignInToProfile(): void

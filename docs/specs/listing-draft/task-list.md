@@ -87,7 +87,7 @@
       inside `holdSteady()`; the three Catalog handlers read `hasListings()` inside `exclusively()`
       (and create/edit skip it for a root / unchanged parent); the real-mode second-session probes
       from inside each closure, control first. (AC-18, AC-19)
-- [ ] **T18:** Functional: `SellTest` (anonymous redirects + anchored 404s, intended action, form
+- [x] **T18:** Functional: `SellTest` (anonymous redirects + anchored 404s, intended action, form
       fields and leaf-only select, empty catalog, create, extra `seller` field, every refusal's
       field + message + 422, my drafts incl. query count and isolation between Ann and Bob, edit,
       404 parity, no-GET-writes snapshot); `LoginOverlayMarkupTest` updated on purpose (select

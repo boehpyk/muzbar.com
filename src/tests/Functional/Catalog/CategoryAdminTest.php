@@ -11,6 +11,7 @@ use App\Domain\Catalog\ValueObject\CategorySlug;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineCategoryRepository;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
+use App\Tests\Factory\ListingFactory;
 use App\Tests\Fixture\QueryRecordingStatement;
 use App\Tests\Fixture\RacingCategoryRepository;
 use App\Tests\Support\ClearsRateLimiters;
@@ -914,5 +915,53 @@ final class CategoryAdminTest extends WebTestCase
             'Cannot move here: attribute code “scale” would appear twice in one branch. Recode or delete one of them first.',
         );
         self::assertSame($before, $this->rowOf($electric));
+    }
+
+    // ---------------------------------------------------------------- listing-draft AC-30 / AC-32
+
+    public function testDeletingAListedOnCategoryRedirects303WithTheErrorFlashAndDeletesNothing(): void
+    {
+        $tree = $this->guitarsTree();
+        ListingFactory::new()->inCategory($tree['solidBody'])->create();
+        $this->signInAsAdmin();
+        $before = $this->table();
+
+        $this->client->request('POST', '/admin/categories/'.$tree['solidBody']->id()->toString().'/delete', ['_token' => $this->deleteToken($tree['solidBody'])]);
+
+        self::assertResponseStatusCodeSame(303);
+        self::assertResponseRedirects('/admin/categories');
+        $this->client->followRedirect();
+        self::assertSelectorTextContains('.flash-error', '“Solid-body” has listings filed under it, so it cannot be deleted.');
+        self::assertSame($before, $this->table());
+        $this->assertNothingReportedToSentry();
+    }
+
+    public function testCreatingUnderAListedOnCategoryIsRefusedOnTheParentField(): void
+    {
+        $tree = $this->guitarsTree();
+        ListingFactory::new()->inCategory($tree['solidBody'])->create();
+        $this->signInAsAdmin();
+
+        $this->assertRefusedOnField(
+            '/admin/categories/new',
+            ['name' => 'Humbucker', 'slug' => 'humbucker', 'parent' => $tree['solidBody']->id()->toString()],
+            'parent',
+            '“Solid-body” has listings filed under it, so it cannot have subcategories.',
+        );
+    }
+
+    public function testMovingUnderAListedOnCategoryIsRefusedOnTheParentField(): void
+    {
+        $tree = $this->guitarsTree();
+        $basses = $this->category('basses');
+        ListingFactory::new()->inCategory($tree['solidBody'])->create();
+        $this->signInAsAdmin();
+
+        $this->assertRefusedOnField(
+            '/admin/categories/'.$basses->id()->toString().'/edit',
+            ['name' => 'Basses', 'slug' => 'basses', 'parent' => $tree['solidBody']->id()->toString()],
+            'parent',
+            '“Solid-body” has listings filed under it, so it cannot have subcategories.',
+        );
     }
 }
