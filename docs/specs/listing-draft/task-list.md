@@ -41,11 +41,13 @@
       `ListingNotFound::withMalformedId`; status read unconditionally).
 
 ## Infrastructure — persistence and the cross-context seam
-- [ ] **T8:** Listing persistence: five DBAL types + `doctrine.yaml` registrations;
-      `Listing.orm.xml`; `embeddable/Price.orm.xml`; the two mapping blocks (`Listing`,
+- [x] **T8:** Listing persistence: five DBAL types + `doctrine.yaml` registrations;
+      `Listing.orm.xml`; `embeddable/Price.orm.xml` (a **sibling** of `mapping/`, not inside it — a
+      block scans recursively and reads a subdirectory as a namespace segment); the two mapping blocks (`Listing`,
       `ListingValueObjects`); `DoctrineListingRepository`; the migration (generated, then read; no FK;
       two named indexes); `ListingRepository` alias. Prove a save → fresh-EM load round trip of a
-      readonly `Price` before committing (plan Risk 5). (AC-20)
+      readonly `Price` before committing (plan Risk 5). (AC-20) — *Risk 5: held (insert, fresh-EM
+      load, and a re-price UPDATE all round-trip).*
 - [ ] **T9:** `PostgresCategoryTreeLock::sharedly()` (shared private `run()`), the
       `Infrastructure/Catalog/Integration/CategoriesForListing` adapter (`holdSteady` → `sharedly`,
       one-query `statusOf`), the `Categories` alias, and docblock updates on `KEY` and the

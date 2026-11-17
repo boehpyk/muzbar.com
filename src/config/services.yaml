@@ -46,6 +46,7 @@ services:
     App\Domain\Catalog\Port\CategoryTreeLock: '@App\Infrastructure\Catalog\Persistence\Doctrine\PostgresCategoryTreeLock'
     App\Domain\Catalog\Port\AttributeRepository: '@App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeRepository'
     App\Domain\Catalog\Port\AttributeOptionRepository: '@App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeOptionRepository'
+    App\Domain\Listing\Port\ListingRepository: '@App\Infrastructure\Listing\Persistence\Doctrine\DoctrineListingRepository'
 
     # Its own slugger instance: no `&` -> `and` symbol map and no request-locale dependence, so a
     # name always derives the same slug (AC-25: "Bass & Guitars" -> bass-guitars).
