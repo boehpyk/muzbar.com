@@ -1,0 +1,11 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Edit draft{% endblock %}
+
+{% block body %}
+    <h1>Edit draft</h1>
+
+    {{ include('listing/_form.html.twig', {button_label: 'Save draft'}) }}
+
+    <p><a href="{{ path('app_sell_drafts') }}">Back to your drafts</a></p>
+{% endblock %}

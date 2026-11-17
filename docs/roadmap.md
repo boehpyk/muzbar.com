@@ -271,6 +271,60 @@ Stand up the skeleton the SDLC assumes. No product features yet.
       4. **The effective-schema query for other contexts** (an `EffectiveSchema` type, or a read
          port) is designed with the listing form. Today only the admin read model
          `DbalAttributeSchema::effectiveFor()` computes it.
+
+      **Too big for one cycle — sliced (2026-11-16).** Rule for every slice: **prod is consistent
+      after each deploy on its own.** A slice that creates a new way for Catalog edits to strand
+      listing data ships the guard for it too, failing closed (refuse) if the proper rule comes later.
+  - [x] `listing-draft` (2026-11-17; **`/verify` pending**) — the `Listing` aggregate with no attribute values: `ListingId`, seller
+        `UserId`, `CategoryId`, title, description, price; one status, `Draft`. Table
+        `listing_listing`. "Sell Gear" link (ADR-0015 overlay-trigger shape) → `/sell` create, plus
+        list/edit of the seller's own drafts. **First cross-context dependency:** Listing asks
+        "does this category exist?" through its *own* port, adapter reads Catalog; a
+        `ListingIsolationTest` copied from `CatalogIsolationTest`. **Guard it must ship:**
+        `DeleteCategoryHandler`'s third guard (after C-7, C-13) — a category with listings cannot be
+        deleted. Moves stay harmless: no values exist yet.
+        *Owner decisions (2026-11-16):* **currency per listing** (price = amount in minor units +
+        ISO 4217 code; Phase 2 must then decide how price facets/sorting work across currencies).
+        **Listings only on leaf categories** — which opens two more doors that must ship guarded in
+        this slice: creating a child under a category with listings, and moving a category under one
+        with listings, are both refused (they would turn a listed-on leaf into a non-leaf).
+        **Shipped:** L-2 decided by `Listing` inside `Categories::holdSteady()` (the tree lock's new
+        **shared** mode); C-23 (delete) and C-24 (create-under, move-under) in Catalog's handlers
+        under the exclusive lock; price as integer minor units, `USD`/`EUR`/`SEK`/`UAH`.
+        [ADR-0019](./adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
+        + ADR-0007/0016 amendments. 1436 tests.
+  - [ ] *Candidates before `listing-publish` (the first page anyone else sees):*
+        **public SCSS pipeline** (ADR-0006; `listing-draft` plan Q7) — `sass-bundle`, `public.css`,
+        tokens; the sell pages ship as unstyled semantic markup until then. **UUID id trait refactor**
+        (ADR-0009; plan Risk 4) — nine copies of the id value-object shape now exist, Listing's
+        `SellerId`/`CategoryId` included; one trait, touching Identity and Catalog, its own slice.
+  - [ ] `listing-attribute-values` — the value layer (ADR-0004 §2): `listing_attribute_value` with
+        typed columns and the generic `(attribute_id, option_id)`-style indexes, values owned by the
+        `Listing` aggregate. Catalog exposes **`EffectiveSchema`** (D11.4) to other contexts; Listing
+        consumes it through its own port. The draft edit form gains a **server-rendered** attribute
+        section built from the effective schema — not the Live Component wizard (Phase 2), but it *is*
+        the gate's "dynamic form-render path". Values validated per type (option belongs to the
+        attribute, number within rules). `required` is **not** enforced on drafts.
+        **Guards it must ship (fail closed):** delete-attribute and remove-option refused while in use
+        by any listing (expires ADR-0004 amendment 1, by refusal rather than soft delete); a move
+        refused when the subtree holds any listing values (D11.1, in `EditCategoryHandler` beside C-21).
+  - [ ] `listing-publish` — `Draft → Published` (+ `Withdrawn`). **D11.2 answered here: "required"
+        and current number rules bite at publish and at every later edit, never retroactively** — so
+        a new required attribute, or narrowed bounds, makes a listing incomplete only when its owner
+        next touches it. Public page `/listings/{id}` for published listings only, no seller email
+        (PRD §6 privacy). `ListingPublished` event, no listener yet. No expiry — that is Phase 2's
+        30-day lifecycle.
+  - [ ] `listing-schema-drift` *(may follow the gate if the refusals hold up)* — replaces slice 2's
+        refusals with ADR-0004's real rules: soft-delete attributes/options (`archived_at`, hidden
+        from forms, values retained — and decide whether an archived code still blocks C-21), and a
+        move that is allowed, retaining values whose attribute left the schema but hiding them.
+  - [ ] `phase1-gate` — the Schema-Mutation PoC as a test (define "Fretboard Wood" through the admin
+        handlers → it renders on the draft form → a facet count `GROUP BY option_id` over the value
+        layer returns it, with `EXPLAIN` on the generic index, existing rows untouched) **plus** the
+        restore-from-backup rehearsal on the box.
+      **Dropped from this item: the hot-column promotion mechanism.** ADR-0004 says start with zero
+      promoted columns and promote only when the Phase 2 benchmark demands it; a mapping with zero
+      entries is scaffolding. It moves to the Phase 2 latency gate, where the measurement lives.
 - [ ] API-key issuance (hashed, revocable) — model only; endpoints in Phase 3.
 - **Gate — Schema-Mutation PoC** (PRD validation #2): add a new attribute (e.g. "Fretboard Wood") via
       the admin UI and confirm it propagates to the dynamic form-render path and to a facet query

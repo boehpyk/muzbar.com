@@ -1,0 +1,15 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Sell gear{% endblock %}
+
+{% block body %}
+    <h1>Sell gear</h1>
+
+    {% if form is null %}
+        <p>Listings can't be created yet: there are no categories.</p>
+    {% else %}
+        {{ include('listing/_form.html.twig', {button_label: 'Save draft'}) }}
+    {% endif %}
+
+    <p><a href="{{ path('app_sell_drafts') }}">Your drafts</a></p>
+{% endblock %}

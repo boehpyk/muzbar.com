@@ -108,6 +108,10 @@ security:
         # or `/admins…` page. Belt and braces with `#[IsGranted('ROLE_ADMIN')]` on
         # `CategoryAdminController`; ROLE_ADMIN is granted only from the console (ADR-0005 amendment).
         - { path: ^/admin(/|$), roles: ROLE_ADMIN }
+        # The seller's private surface (ADR-0019): /sell, /sell/drafts, /sell/drafts/{id}/edit.
+        # Anchored like /profile: `^/sell` would also lock a future public `/sellers/{slug}` or
+        # `/selling…` page. Belt and braces with `#[IsGranted('ROLE_USER')]` on `SellController`.
+        - { path: ^/sell(/|$), roles: ROLE_USER }
 
 when@test:
     security:

@@ -380,6 +380,17 @@ it) until one is recoded; writes with any other code go through. The query is no
 against a planted ancestor/descendant pair and a lawful sibling reuse. If you edit the query here,
 edit it there.
 
+## Listing: the deploy window for `listing-draft`
+
+[ADR-0019](./adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md).
+The deploy runs `up -d` and **then** `doctrine:migrations:migrate` ([cicd.md](./cicd.md)). For the
+seconds between the two, the new code queries `listing_listing`, which does not exist yet: the
+Catalog guards C-23/C-24 (admin category **create, move, delete**) and every `/sell` page answer
+**500** (and each reaches Sentry). **Accepted** — admin-only plus a page nobody links to yet, for
+seconds — and not engineered around. It ends when `migrate` completes; if it does not end, the
+migration failed: run `migrate` by hand. No pre-deploy query and no backfill: no listing exists
+anywhere before this slice, so every category is trivially consistent with C-23/C-24.
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker

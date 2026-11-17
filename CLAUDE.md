@@ -99,7 +99,18 @@ Docker Compose · Traefik · Nginx.
 > **one-off pre-deploy query** (docs/infrastructure.md §*Catalog*). The bite proof's mutation (d)
 > was caught **only** by AC-14's descendant case.
 > [ADR-0018](./docs/adr/0018-schema-inheritance-derived-along-the-lineage-codes-unique-per-branch.md)
-> + ADR-0016/0017 amendments. Next: the `Listing` skeleton, which inherits D11's four points.
+> + ADR-0016/0017 amendments.
+> `listing-draft` (2026-11-17, **passed `/verify` 2026-11-17 in two iterations** — the MAJOR was title/description
+> accepting NUL and invalid UTF-8) — Listing slice 1 of 4, and the first slice where
+> **two bounded contexts depend on each other**. One `Listing` aggregate (seller, leaf category, title,
+> description, `Price`; status `Draft`) in `listing_listing`; `/sell`, "my drafts" and edit behind the
+> "Sell Gear" overlay trigger. **Leaf-only has two owners and three doors:** Listing decides L-2 on
+> draft/re-file; Catalog refuses delete (C-23) and gaining a child by create or move (C-24) of a
+> listed-on category. One tree lock, **two modes** — sellers shared, admins exclusive. Money is
+> **integer minor units** parsed in the Domain (`(int)(1.15 * 100)` is 114). Someone else's draft is
+> the same 404 as a missing one. All eight AC-33 mutations bit; 1436 tests.
+> [ADR-0019](./docs/adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
+> + ADR-0007/0016 amendments. Next: `listing-attribute-values`.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -240,6 +251,27 @@ established by `catalog-category-tree`, inherited by every context:
   silently disappears (it looks the name up tolerantly). Build with `->inCategory($category)` whenever
   the category matters.
 
+**Cross-context dependencies** ([ADR-0019](./docs/adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)) —
+established by `listing-draft`, inherited by every context:
+
+- **A context states a need of another as its own port, in its own words**: Listing's
+  `Port/Categories` (`statusOf()`, `holdSteady()`), Catalog's `Port/CategoryUsage` (`hasListings()`).
+  Foreign ids are local copies (`SellerId`, Listing's `CategoryId`) — never import another context's
+  VO. Neither Domain nor Application crosses; `ListingIsolationTest`/`CatalogIsolationTest` prove it.
+- **The adapter lives with the data's owner**: `CategoriesForListing` in
+  `Infrastructure/Catalog/Integration/` (reads `catalog_category`), `ListingCategoryUsage` in
+  `Infrastructure/Listing/Integration/` (reads `listing_listing`). A table name appears only in its
+  own context's Infrastructure, so a schema change stays in one directory.
+- **The tree lock has a shared mode**: `PostgresCategoryTreeLock::sharedly()`, reached by Listing as
+  `Categories::holdSteady()`. Shared conflicts with exclusive only, so sellers never queue behind
+  each other. **Watch item:** every new write that files a listing (an import, a bulk re-file, the
+  wizard) goes through `holdSteady()`; every new Catalog write that can turn a leaf into a branch
+  reads `CategoryUsage::hasListings()` under `exclusively()`, and gets a `CategoryTreeLockTest` case.
+- **`ListingFactory` bypasses L-2** — it hands `draft()` `CategoryStatus::Leaf`, and its default
+  category does not exist. Build with `->inCategory($leaf)`, in an order that keeps it on a leaf.
+- **Money is integer minor units, never a float** — `Price::fromDecimal(string, Currency)` parses
+  with string and integer arithmetic; `PriceTest` scans the source for `float`. Never `MoneyType`.
+
 **Structurally identical aggregates still do not share a base class.** `PasswordResetRequest` is ~80%
 the same file as `EmailVerificationRequest` and shares no supertype with it. They share a *shape*,
 not *behaviour*, and they differ on **four** rules — replay refused vs absorbed, reissue invalidating
@@ -317,7 +349,7 @@ worker.
 ## Conventions
 
 - **PHP:** constructor property promotion; explicit return types; typed params everywhere; enums with
-  TitleCase cases; curly braces on all control structures; no dead code; no secrets in source.
+  TitleCase cases (one deliberate exception: `Currency`'s cases are ISO 4217 codes, `EUR` not `Eur`); curly braces on all control structures; no dead code; no secrets in source.
 - **Domain purity:** zero `use Symfony\...` / `use Doctrine\...` in `Domain/`. Doctrine mapping is an
   infrastructure concern. Model the business, not the table.
 - **Config:** never read env vars outside `config/` / DI parameters; inject configured values.
@@ -576,6 +608,21 @@ These are documented failure modes we design against (see [docs/infrastructure.m
 - **Symfony's default `slugger` maps `&` to `and`** (and follows the request locale), so
   `"Bass & Guitars"` became `bass-and-guitars`. `CategorySlugDeriver` gets its own
   `AsciiSlugger('en', [])` in `services.yaml`; do not "simplify" it to the framework service.
+
+- **A Doctrine mapping block scans its `dir` recursively and reads a subdirectory as a namespace
+  segment.** `mapping/embeddable/Price.orm.xml` would map `…\Entity\embeddable\Price`, so the
+  `Price` embeddable has its own block (`ListingValueObjects`) over a **sibling** `embeddable/` dir.
+- **`@phpstan-import-type` fails `deptrac --fail-on-uncovered`** — Deptrac reads the imported alias as
+  a class in the importing namespace. Spell the array shape out instead (`LeafCategoryChoices`).
+- **Test-env 404 debug pages embed the test's own call trace**, so a GET and a POST 404 never match
+  byte-for-byte. "Indistinguishable" assertions compare like with like, after normalising ids and
+  dump ids (`SellTest`).
+- **A free-text VO must refuse control characters and invalid UTF-8, not just count length.**
+  pdo_pgsql **truncates a string at NUL** (`"Gi\0tar"` is stored as `"Gi"`, under L-3, and the row then
+  500s on every hydration), and invalid UTF-8 is SQLSTATE 22021 — an uncaught `DriverException`.
+  `CategoryName`'s `/\p{Cc}/u` is the rule; a paragraph field allows `\t\n\r` only. Found by `/verify`.
+- **The listing form carries no length constraints.** A Symfony `Length` would answer first, with its
+  own wording, and override the failure contract; the value objects are the only bound.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):

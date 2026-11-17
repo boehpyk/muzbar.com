@@ -187,3 +187,25 @@ Recorded by the `catalog-schema-inheritance` slice
    the subtree, so the `Listing` slice adds its move guard (or archive rule) there, beside C-21.
 3. **Decision 4 now carries the effective schema too:** derived along the lineage, never stored
    (C-22), so a move still writes one row.
+
+## Amendment, 2026-11-17 — the lock gains a shared mode taken by Listing writes; C-23 and C-24 join the accretion points
+
+Recorded by the `listing-draft` slice
+([ADR-0019](./0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md), plan D5, D10).
+
+1. **The lock has a shared mode, and its scope is no longer only the Catalog.** Every Listing write
+   runs inside `Categories::holdSteady()`, whose adapter takes
+   `pg_advisory_xact_lock_shared(PostgresCategoryTreeLock::KEY)` — the **same key** Catalog writes
+   take exclusively. Shared does not conflict with shared, so listing writes never queue behind one
+   another; they serialise only against Catalog writes. The shared mode is not on the
+   `CategoryTreeLock` port: Catalog never needs it.
+2. **The third accreted delete guard is C-23** (a listed-on category cannot be deleted,
+   `CategoryHasListings::cannotDelete()`). Order in `DeleteCategoryHandler`: **C-7 → C-13 → C-23**.
+3. **C-24 (a listed-on category cannot gain a child) joins create and the move.** It is the second
+   accretion point's first Listing guard: in `EditCategoryHandler` it runs after C-4, C-5 and C-21,
+   only when the parent changes and the new parent is not null; in `CreateCategoryHandler` it runs
+   after C-6, only when the parent is not null. Both read `CategoryUsage::hasListings()` inside
+   `exclusively()`. It is a handler check, not an aggregate parameter (ADR-0019 decision 9).
+4. **Decision 5's watch item widens.** A Catalog write that can turn a leaf into a branch must read
+   `hasListings()` under the lock, and a Listing write that files a listing must go through
+   `holdSteady()`; `CategoryTreeLockTest` covers the doors that exist.

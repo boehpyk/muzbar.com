@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Doctrine mapping for `Listing`, the Listing context's first aggregate root (ADR-0019).
+
+    ADR-0007 applies unchanged: XML, explicit table and column names, `<generator strategy="NONE"/>`
+    because ids are minted by `ListingRepository::nextIdentity()`.
+
+    WHY `seller_id` AND `category_id` ARE PLAIN TYPED COLUMNS WITH NO FOREIGN KEY (ADR-0009 d.4).
+    Each refers to a root another context owns (an Identity user, a Catalog category) by identity
+    only: an association would hand a listing the power to mutate them, and an FK the mapping does
+    not model is re-diffed by every `make migration.make`. "Filed under an existing leaf" (L-2) is
+    kept under the tree lock in two modes instead — Listing's half via `Categories::holdSteady()`,
+    Catalog's half via C-23/C-24 (ADR-0019).
+
+    `price` is an embeddable: one two-part value object, two columns (ADR-0007 amendment,
+    `embeddable/Price.orm.xml`). `status` uses native `enum-type` (the `AttributeType` precedent).
+
+    The two indexes are named because AC-20 refers to them: `seller_id` serves "my drafts",
+    `category_id` serves `CategoryUsage::hasListings()` (C-23/C-24) and Phase 2's subtree filter.
+-->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                                      https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="App\Domain\Listing\Entity\Listing" table="listing_listing">
+
+        <indexes>
+            <index name="idx_listing_listing_seller" columns="seller_id"/>
+            <index name="idx_listing_listing_category" columns="category_id"/>
+        </indexes>
+
+        <id name="id" type="listing_listing_id" column="id">
+            <generator strategy="NONE"/>
+        </id>
+
+        <!-- References by identity, not by association — see the header. -->
+        <field name="sellerId" column="seller_id" type="listing_seller_id" nullable="false"/>
+        <field name="categoryId" column="category_id" type="listing_category_id" nullable="false"/>
+
+        <!-- Lengths mirror `ListingTitle::MAX_LENGTH` and `ListingDescription::MAX_LENGTH`; the VOs
+             own the rules (L-3, L-4), the columns are the backstop. -->
+        <field name="title" column="title" type="listing_title" length="120" nullable="false"/>
+        <field name="description" column="description" type="listing_description" length="5000" nullable="false"/>
+
+        <embedded name="price" class="App\Domain\Listing\ValueObject\Price" column-prefix="price_"/>
+
+        <field name="status" column="status" type="string" length="16" nullable="false"
+               enum-type="App\Domain\Listing\ValueObject\ListingStatus"/>
+
+    </entity>
+
+</doctrine-mapping>

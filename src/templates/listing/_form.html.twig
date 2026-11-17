@@ -1,0 +1,11 @@
+{# Shared by the sell and edit pages. Root-level errors (bad CSRF token, extra fields such as a
+   posted `seller`) land on the form, not a field. #}
+{{ form_start(form) }}
+    {{ form_errors(form) }}
+    {{ form_row(form.title) }}
+    {{ form_row(form.description) }}
+    {{ form_row(form.price) }}
+    {{ form_row(form.currency) }}
+    {{ form_row(form.category) }}
+    <button type="submit">{{ button_label }}</button>
+{{ form_end(form) }}

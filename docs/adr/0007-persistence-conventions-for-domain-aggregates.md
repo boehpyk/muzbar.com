@@ -131,3 +131,20 @@ otherwise pick for you. Two consequences established by the first slice:
     discards, which makes timestamp equality depend on whether Doctrine happened to have the object
     cached. **Any hand-written `Clock` double must honour both clauses** — the first one written did
     not, and only accidentally passed because every call site fed it clean instants.
+
+## Amendment, 2026-11-17 — a multi-part value object is an embeddable
+
+Recorded by the `listing-draft` slice
+([ADR-0019](./0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md), plan D6).
+
+1. **Decision 4 is refined, not reversed.** Its rejection of embeddables was argued for single-value
+   objects — a mapping document per one-field VO. `Price` (an amount in minor units and a
+   `Currency`) is the first value object of **two** parts, and the reason does not apply: it is mapped
+   as an `<embeddable>` (`price_amount bigint`, `price_currency varchar(3)` via `enum-type`), not as
+   two loose fields on the aggregate and not as `jsonb`. **Single-value VOs stay custom DBAL types.**
+2. **Embeddables need their own mapping block per context**, with prefix
+   `App\Domain\<Context>\ValueObject` and directory `mapping/embeddable/`, because the aggregate
+   block's prefix is `…\Entity`.
+3. **Readonly embeddables are hydrated by reflection.** A `final readonly` VO is proved by a
+   save → fresh-EntityManager load round trip before anything builds on it; if that ever fails, the
+   fallback is two private fields on the aggregate, recorded in ADR-0019.

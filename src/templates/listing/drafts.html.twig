@@ -1,0 +1,25 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Your drafts{% endblock %}
+
+{% block body %}
+    <h1>Your drafts</h1>
+
+    {# Only the signed-in seller's drafts reach this template (`DbalSellerDrafts` filters in SQL),
+       and no seller data at all: a draft is private, and an email is never shown (PRD §6). #}
+    {% if drafts is empty %}
+        <p>You have no drafts yet. <a href="{{ path('app_sell') }}">Sell gear</a></p>
+    {% else %}
+        <ul class="drafts">
+            {% for draft in drafts %}
+                <li class="draft">
+                    <span class="draft-title">{{ draft.title }}</span>
+                    <span class="draft-price">{{ draft.price }} {{ draft.currency }}</span>
+                    <span class="draft-category">{{ paths[draft.categoryId] ?? 'Unknown category' }}</span>
+                    <a href="{{ path('app_sell_draft_edit', {id: draft.id}) }}">Edit</a>
+                </li>
+            {% endfor %}
+        </ul>
+        <p><a href="{{ path('app_sell') }}">Sell gear</a></p>
+    {% endif %}
+{% endblock %}

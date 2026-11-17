@@ -23,7 +23,7 @@ use Doctrine\ORM\EntityManagerInterface;
  * that is Doctrine's behaviour, which is why the admin forms re-render from `DbalCategoryOutline`.
  *
  * `clear()` detaches EVERY managed entity, not only categories. Safe today because no caller holds
- * other managed entities across a Catalog handler. A use case that calls one mid-way through its
+ * other managed entities across a Catalog handler, or Listing's. A use case that calls one mid-way through its
  * own unit of work must re-fetch its entities after a refusal, or narrow this to Catalog entities.
  */
 final readonly class PostgresCategoryTreeLock implements CategoryTreeLock
@@ -32,6 +32,13 @@ final readonly class PostgresCategoryTreeLock implements CategoryTreeLock
      * The one advisory-lock key meaning "the category tree" — the ASCII bytes of `cat_tree` read as
      * a bigint, so it is recognisable in `pg_locks.objid`. Nothing else in the application takes
      * advisory locks (the pruning job's lock is in Redis), so it collides with nothing.
+     *
+     * Held **exclusively** by every Catalog write and **shared** by every Listing write (ADR-0019,
+     * via `sharedly()`): listing writes never wait for one another, only for an admin's write.
+     *
+     * ponytail: one key orders every Catalog write against every other, and now also every listing
+     * write against every admin write; per-subtree keys are the upgrade path if admin edits or
+     * filing traffic ever make this queue measurable.
      */
     public const int KEY = 0x6361745F74726565;
 
@@ -42,11 +49,27 @@ final readonly class PostgresCategoryTreeLock implements CategoryTreeLock
 
     public function exclusively(\Closure $work): mixed
     {
+        return $this->run('SELECT pg_advisory_xact_lock(:key)', $work);
+    }
+
+    /**
+     * The same key in **shared** mode, for Listing writes (`CategoriesForListing::holdSteady()`,
+     * ADR-0019). Shared conflicts with exclusive but not with shared, so no category write can
+     * commit while `$work` runs, and listing writes do not queue behind each other. Not on the
+     * Catalog port: Catalog never needs it.
+     */
+    public function sharedly(\Closure $work): mixed
+    {
+        return $this->run('SELECT pg_advisory_xact_lock_shared(:key)', $work);
+    }
+
+    private function run(string $lockSql, \Closure $work): mixed
+    {
         $connection = $this->entityManager->getConnection();
 
         try {
-            return $connection->transactional(static function () use ($connection, $work): mixed {
-                $connection->executeQuery('SELECT pg_advisory_xact_lock(:key)', ['key' => self::KEY], ['key' => ParameterType::INTEGER])->free();
+            return $connection->transactional(static function () use ($connection, $lockSql, $work): mixed {
+                $connection->executeQuery($lockSql, ['key' => self::KEY], ['key' => ParameterType::INTEGER])->free();
 
                 return $work();
             });

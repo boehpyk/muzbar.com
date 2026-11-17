@@ -54,6 +54,13 @@ doctrine:
             catalog_attribute_code: App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeCodeType
             catalog_attribute_label: App\Infrastructure\Catalog\Persistence\Doctrine\Type\AttributeLabelType
             catalog_attribute_number_rules: App\Infrastructure\Catalog\Persistence\Doctrine\Type\NumberRulesType
+            # Added by `listing-draft` (ADR-0019): the Listing context's first aggregate. `Price` is
+            # NOT here: it is two columns, so it is an embeddable (ADR-0007 amendment).
+            listing_listing_id: App\Infrastructure\Listing\Persistence\Doctrine\Type\ListingIdType
+            listing_seller_id: App\Infrastructure\Listing\Persistence\Doctrine\Type\SellerIdType
+            listing_category_id: App\Infrastructure\Listing\Persistence\Doctrine\Type\CategoryIdType
+            listing_title: App\Infrastructure\Listing\Persistence\Doctrine\Type\ListingTitleType
+            listing_description: App\Infrastructure\Listing\Persistence\Doctrine\Type\ListingDescriptionType
     orm:
         validate_xml_mapping: true
         naming_strategy: doctrine.orm.naming_strategy.underscore
@@ -83,6 +90,23 @@ doctrine:
                 dir: '%kernel.project_dir%/src/Infrastructure/Catalog/Persistence/Doctrine/mapping'
                 prefix: 'App\Domain\Catalog\Entity'
                 alias: Catalog
+            Listing:
+                type: xml
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Infrastructure/Listing/Persistence/Doctrine/mapping'
+                prefix: 'App\Domain\Listing\Entity'
+                alias: Listing
+            # A mapping block has one namespace prefix, and `Price` (an embeddable, ADR-0007
+            # amendment) lives in `ValueObject`, not `Entity` — hence a second block for the context.
+            # Its directory is a SIBLING of `mapping/`, never inside it: the locator scans a block's
+            # dir recursively and turns a subdirectory into a namespace segment, so
+            # `mapping/embeddable/Price.orm.xml` would be read as `…\Entity\embeddable\Price`.
+            ListingValueObjects:
+                type: xml
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Infrastructure/Listing/Persistence/Doctrine/embeddable'
+                prefix: 'App\Domain\Listing\ValueObject'
+                alias: ListingValueObjects
 
 when@test:
     doctrine:
