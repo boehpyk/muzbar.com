@@ -31,7 +31,7 @@
 - [x] **T4:** `ListingStatus`, `CategoryStatus`, exceptions `UnknownCategory`, `CategoryIsNotALeaf`,
       `NotTheSeller`, `ListingNotFound`; the `Listing` aggregate (`draft`, `revise`, `isSoldBy`,
       readers), every check before any assignment. (L-1, L-2, L-6, L-7)
-- [ ] **T5:** Ports `ListingRepository` and `Categories` (docblocks: "only true inside
+- [x] **T5:** Ports `ListingRepository` and `Categories` (docblocks: "only true inside
       `holdSteady()`"). Nothing injects them yet.
 
 ## Application — `Listing` (`src/src/Application/Listing/`)
