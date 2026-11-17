@@ -37,7 +37,7 @@
 ## Application — `Listing` (`src/src/Application/Listing/`)
 - [x] **T6:** `DraftListing` + `DraftListingHandler` (inside `holdSteady()`; malformed category id →
       `UnknownCategory::withMalformedId`).
-- [ ] **T7:** `ReviseListing` + `ReviseListingHandler` (inside `holdSteady()`; malformed listing id →
+- [x] **T7:** `ReviseListing` + `ReviseListingHandler` (inside `holdSteady()`; malformed listing id →
       `ListingNotFound::withMalformedId`; status read unconditionally).
 
 ## Infrastructure — persistence and the cross-context seam
