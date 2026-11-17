@@ -24,15 +24,18 @@
         {% endif %}
     </head>
     <body>
-        {# The one overlay trigger (ADR-0015), and the shape every future action link ("Sell Gear")
-           copies: an ordinary link to `/login?_target_path=<intended action>` that works without JS,
-           which assets/app.js upgrades to a dialog when it can. The target comes from `path()`, so
-           it cannot drift from the route. A signed-in visitor has nothing to sign in for, so they get
-           a plain link. Pages that are themselves the sign-in flow override this block to empty. #}
+        {# Overlay triggers (ADR-0015): an ordinary link to `/login?_target_path=<intended action>` that
+           works without JS, which assets/app.js upgrades to a dialog when it can. The target comes
+           from `path()`, so it cannot drift from the route. A signed-in visitor has nothing to sign
+           in for, so they get a plain link. Pages that are themselves the sign-in flow override this
+           block to empty. "Sell Gear" (ADR-0019) is the first copy of the "Profile" shape; the next
+           action link copies either. #}
         {% block auth_nav %}
             {% if is_granted('IS_AUTHENTICATED') %}
+                <a href="{{ path('app_sell') }}">Sell Gear</a>
                 <a href="{{ path('app_profile') }}">Profile</a>
             {% else %}
+                <a href="{{ path('app_login', {_target_path: path('app_sell')}) }}" data-auth-overlay>Sell Gear</a>
                 <a href="{{ path('app_login', {_target_path: path('app_profile')}) }}" data-auth-overlay>Profile</a>
             {% endif %}
         {% endblock %}

@@ -102,9 +102,9 @@ final class LoginOverlayMarkupTest extends WebTestCase
     {
         $crawler = $this->client->request('GET', '/forgot-password');
 
-        $trigger = $crawler->filter('a[data-auth-overlay]');
+        // Selected by text on purpose (listing-draft AC-22): "Sell Gear" is a second trigger now.
+        $trigger = $crawler->filter('a[data-auth-overlay]')->reduce(static fn (Crawler $a): bool => 'Profile' === trim($a->text()));
         self::assertCount(1, $trigger);
-        self::assertSame('Profile', trim($trigger->text()));
 
         $href = $trigger->attr('href');
         self::assertIsString($href);
