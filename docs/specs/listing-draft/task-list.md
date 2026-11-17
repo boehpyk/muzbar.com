@@ -76,7 +76,7 @@
       `CurrencyTest`, `ListingTitleTest`, `ListingDescriptionTest`, id VO tests, `ListingTest`
       (incl. check-before-assign on every refusal and the method allow-list),
       `LeafCategoryChoicesTest`. (AC-1…AC-6)
-- [ ] **T15:** `ListingIsolationTest` — context scan copied from `CatalogIsolationTest` plus the
+- [x] **T15:** `ListingIsolationTest` — context scan copied from `CatalogIsolationTest` plus the
       data-ownership scan, each asserting it scanned > 0 files. (AC-7, AC-8)
 - [ ] **T16:** Integration: `ListingFactory` (through `draft()`, `->inCategory()`, docblock
       warning it bypasses L-2); `ListingHandlersTest` (AC-9…AC-12, fresh repository before each
