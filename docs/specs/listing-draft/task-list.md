@@ -28,7 +28,7 @@
 - [x] **T2:** `ListingTitle`, `ListingDescription` + their exceptions. (L-3, L-4)
 - [x] **T3:** `Currency` (`USD|EUR|SEK|UAH`, `minorUnits()`, `fromCode()`), `Price` (`fromMinorUnits`,
       `fromDecimal` — string arithmetic only, `toDecimalString`, `equals`), `InvalidPrice`. (L-5, D7)
-- [ ] **T4:** `ListingStatus`, `CategoryStatus`, exceptions `UnknownCategory`, `CategoryIsNotALeaf`,
+- [x] **T4:** `ListingStatus`, `CategoryStatus`, exceptions `UnknownCategory`, `CategoryIsNotALeaf`,
       `NotTheSeller`, `ListingNotFound`; the `Listing` aggregate (`draft`, `revise`, `isSoldBy`,
       readers), every check before any assignment. (L-1, L-2, L-6, L-7)
 - [ ] **T5:** Ports `ListingRepository` and `Categories` (docblocks: "only true inside
