@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Application\Catalog\Handler;
 
 use App\Application\Catalog\Command\EditCategory;
+use App\Domain\Catalog\Exception\CategoryHasListings;
 use App\Domain\Catalog\Exception\CategoryNotFound;
 use App\Domain\Catalog\Exception\CategorySlugAlreadyTaken;
 use App\Domain\Catalog\Exception\InvalidCategoryId;
 use App\Domain\Catalog\Port\AttributeRepository;
 use App\Domain\Catalog\Port\CategoryRepository;
 use App\Domain\Catalog\Port\CategoryTreeLock;
+use App\Domain\Catalog\Port\CategoryUsage;
 use App\Domain\Catalog\ValueObject\CategoryId;
 use App\Domain\Catalog\ValueObject\CategoryName;
 use App\Domain\Catalog\ValueObject\CategorySlug;
@@ -28,6 +30,7 @@ final readonly class EditCategoryHandler
     public function __construct(
         private CategoryRepository $categories,
         private AttributeRepository $attributes,
+        private CategoryUsage $usage,
         private CategoryTreeLock $lock,
     ) {
     }
@@ -38,6 +41,7 @@ final readonly class EditCategoryHandler
      * @throws \App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle            (C-4)
      * @throws \App\Domain\Catalog\Exception\CategoryTreeTooDeep                     (C-5)
      * @throws \App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode (C-21)
+     * @throws CategoryHasListings                                                   the new parent has listings (C-24)
      * @throws \App\Domain\Catalog\Exception\InvalidCategoryName
      * @throws \App\Domain\Catalog\Exception\InvalidCategorySlug
      * @throws CategorySlugAlreadyTaken                                              (C-3)
@@ -59,7 +63,8 @@ final readonly class EditCategoryHandler
             // THE MOVE IS THE SECOND ACCRETION POINT (ADR-0018 decision 8), as `DeleteCategoryHandler`
             // is for deletion: a move changes the effective schema of every listing in the subtree,
             // so the Listing slice adds its move guard (or archive rule) here, beside C-21, under
-            // the same lock.
+            // the same lock. C-24 is the Listing slice's first guard here (ADR-0019); values
+            // arrive with `listing-attribute-values`.
             $newParentLineage = null === $command->parentId
                 ? Lineage::ofRoot()
                 : $this->categories->lineageOf($this->parentId($command->parentId));
@@ -75,6 +80,14 @@ final readonly class EditCategoryHandler
                     $this->attributes->codesDefinedOn($newParentLineage->ids()),
                     $this->attributes->codesDefinedOn([$category->id(), ...$this->categories->descendantsOf($category->id())]),
                 );
+
+                // C-24 after the aggregate's C-4 → C-5 → C-21: structural reasons first (AC-15).
+                // Moving a listed-on category elsewhere is fine; moving one *under* it is not.
+                $newParentId = $newParentLineage->last();
+
+                if (null !== $newParentId && $this->usage->hasListings($newParentId)) {
+                    throw CategoryHasListings::cannotGainChild($newParentId);
+                }
             }
 
             $name = CategoryName::fromString($command->name);

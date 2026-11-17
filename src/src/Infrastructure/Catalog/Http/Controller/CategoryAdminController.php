@@ -13,6 +13,7 @@ use App\Application\Catalog\Handler\EditCategoryHandler;
 use App\Domain\Catalog\Entity\Category;
 use App\Domain\Catalog\Exception\CategoryHasAttributes;
 use App\Domain\Catalog\Exception\CategoryHasChildren;
+use App\Domain\Catalog\Exception\CategoryHasListings;
 use App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle;
 use App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode;
 use App\Domain\Catalog\Exception\CategoryNotFound;
@@ -93,8 +94,8 @@ final class CategoryAdminController extends AbstractController
                 $this->addFlash('success', \sprintf('Created “%s”.', trim((string) $data->name)));
 
                 return $this->redirectToRoute('admin_category_index', [], Response::HTTP_SEE_OTHER);
-            } catch (InvalidCategoryName|InvalidCategorySlug|CategorySlugAlreadyTaken|CategoryTreeTooDeep|CategoryNotFound $e) {
-                $this->addRefusal($form, $e, $slug);
+            } catch (InvalidCategoryName|InvalidCategorySlug|CategorySlugAlreadyTaken|CategoryTreeTooDeep|CategoryNotFound|CategoryHasListings $e) {
+                $this->addRefusal($form, $e, $slug, $rows);
             }
         }
 
@@ -133,8 +134,8 @@ final class CategoryAdminController extends AbstractController
                 }
 
                 $this->addRefusal($form, $e, $slug);
-            } catch (InvalidCategoryName|InvalidCategorySlug|CategorySlugAlreadyTaken|CategoryTreeTooDeep|CategoryMoveWouldCreateCycle|CategoryMoveWouldDuplicateAttributeCode $e) {
-                $this->addRefusal($form, $e, $slug);
+            } catch (InvalidCategoryName|InvalidCategorySlug|CategorySlugAlreadyTaken|CategoryTreeTooDeep|CategoryMoveWouldCreateCycle|CategoryMoveWouldDuplicateAttributeCode|CategoryHasListings $e) {
+                $this->addRefusal($form, $e, $slug, $rows);
             }
         }
 
@@ -164,6 +165,9 @@ final class CategoryAdminController extends AbstractController
         } catch (CategoryHasAttributes) {
             // C-13 (AC-39). Checked after C-7, so a category with both reports its children.
             $this->addFlash('error', \sprintf('“%s” has attributes. Delete them first.', $category['name']));
+        } catch (CategoryHasListings) {
+            // C-23 (ADR-0019). Checked after C-7 and C-13.
+            $this->addFlash('error', \sprintf('“%s” has listings filed under it, so it cannot be deleted.', $category['name']));
         }
 
         return $this->redirectToRoute('admin_category_index', [], Response::HTTP_SEE_OTHER);
@@ -204,9 +208,10 @@ final class CategoryAdminController extends AbstractController
     /**
      * The failure contract (feature spec): each refusal on its field, in the user's words.
      *
-     * @param FormInterface<CategoryFormData> $form
+     * @param FormInterface<CategoryFormData>                                                    $form
+     * @param list<array{id: string, parentId: ?string, name: string, slug: string, depth: int}> $rows the outline the page was built from, to name a category
      */
-    private function addRefusal(FormInterface $form, \DomainException $refusal, string $slug): void
+    private function addRefusal(FormInterface $form, \DomainException $refusal, string $slug, array $rows = []): void
     {
         [$field, $message] = match (true) {
             $refusal instanceof InvalidCategoryName => ['name', 'Name must be 1–100 characters, without line breaks.'],
@@ -216,6 +221,8 @@ final class CategoryAdminController extends AbstractController
             $refusal instanceof CategoryMoveWouldCreateCycle => ['parent', 'A category cannot be moved inside itself.'],
             $refusal instanceof CategoryMoveWouldDuplicateAttributeCode => ['parent', \sprintf('Cannot move here: attribute code “%s” would appear twice in one branch. Recode or delete one of them first.', $refusal->code()->toString())],
             $refusal instanceof CategoryNotFound => ['parent', 'That parent no longer exists.'],
+            // C-24 (ADR-0019): the chosen parent has listings, on create and on move alike.
+            $refusal instanceof CategoryHasListings => ['parent', \sprintf('“%s” has listings filed under it, so it cannot have subcategories.', $this->find($rows, $refusal->categoryId()->toString())['name'] ?? 'That category')],
             default => throw $refusal,
         };
 

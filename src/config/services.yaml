@@ -50,6 +50,7 @@ services:
     # Cross-context (ADR-0019 / plan D4): the adapter lives with the data's owner, so Listing's
     # port is implemented in Catalog's Infrastructure.
     App\Domain\Listing\Port\Categories: '@App\Infrastructure\Catalog\Integration\CategoriesForListing'
+    App\Domain\Catalog\Port\CategoryUsage: '@App\Infrastructure\Listing\Integration\ListingCategoryUsage'
 
     # Its own slugger instance: no `&` -> `and` symbol map and no request-locale dependence, so a
     # name always derives the same slug (AC-25: "Bass & Guitars" -> bass-guitars).

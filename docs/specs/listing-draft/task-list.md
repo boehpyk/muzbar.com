@@ -52,7 +52,7 @@
       `Infrastructure/Catalog/Integration/CategoriesForListing` adapter (`holdSteady` → `sharedly`,
       one-query `statusOf`), the `Categories` alias, and docblock updates on `KEY` and the
       `ponytail:` ceiling. (AC-17 first half)
-- [ ] **T10:** Catalog guards, in one commit: port `CategoryUsage`, exception `CategoryHasListings`,
+- [x] **T10:** Catalog guards, in one commit: port `CategoryUsage`, exception `CategoryHasListings`,
       adapter `Infrastructure/Listing/Integration/ListingCategoryUsage` + alias; C-23 in
       `DeleteCategoryHandler` (after C-13), C-24 in `CreateCategoryHandler` (parent not null, after
       C-6) and `EditCategoryHandler` (parent changed and not null, after `moveUnder()`); the

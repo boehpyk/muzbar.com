@@ -6,11 +6,13 @@ namespace App\Application\Catalog\Handler;
 
 use App\Application\Catalog\Command\CreateCategory;
 use App\Domain\Catalog\Entity\Category;
+use App\Domain\Catalog\Exception\CategoryHasListings;
 use App\Domain\Catalog\Exception\CategoryNotFound;
 use App\Domain\Catalog\Exception\CategorySlugAlreadyTaken;
 use App\Domain\Catalog\Exception\InvalidCategoryId;
 use App\Domain\Catalog\Port\CategoryRepository;
 use App\Domain\Catalog\Port\CategoryTreeLock;
+use App\Domain\Catalog\Port\CategoryUsage;
 use App\Domain\Catalog\ValueObject\CategoryId;
 use App\Domain\Catalog\ValueObject\CategoryName;
 use App\Domain\Catalog\ValueObject\CategorySlug;
@@ -28,6 +30,7 @@ final readonly class CreateCategoryHandler
 {
     public function __construct(
         private CategoryRepository $categories,
+        private CategoryUsage $usage,
         private CategoryTreeLock $lock,
     ) {
     }
@@ -36,6 +39,7 @@ final readonly class CreateCategoryHandler
      * @throws \App\Domain\Catalog\Exception\InvalidCategoryName
      * @throws \App\Domain\Catalog\Exception\InvalidCategorySlug
      * @throws CategoryNotFound                                  the parent does not exist (C-6)
+     * @throws CategoryHasListings                               the parent has listings (C-24)
      * @throws CategorySlugAlreadyTaken                          (C-3)
      * @throws \App\Domain\Catalog\Exception\CategoryTreeTooDeep (C-5)
      */
@@ -49,6 +53,14 @@ final readonly class CreateCategoryHandler
             $parentLineage = null === $command->parentId
                 ? Lineage::ofRoot()
                 : $this->categories->lineageOf($this->parentId($command->parentId));
+
+            // C-24 (ADR-0019): a listed-on category cannot gain a child, or its listings would sit
+            // on a branch. After C-6 (the parent exists), before C-3. A root reads no listings.
+            $parentId = $parentLineage->last();
+
+            if (null !== $parentId && $this->usage->hasListings($parentId)) {
+                throw CategoryHasListings::cannotGainChild($parentId);
+            }
 
             // C-3 pre-check, for the error message. Under the tree lock no other category write can
             // slip in between it and the save, but the partial unique indexes stay the real
