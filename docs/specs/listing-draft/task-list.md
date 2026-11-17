@@ -72,7 +72,7 @@
       comment.
 
 ## Tests (qa)
-- [ ] **T14:** Domain unit: `PriceTest` (incl. `"0.29"`/`"1.15"` and the `float` source scan),
+- [x] **T14:** Domain unit: `PriceTest` (incl. `"0.29"`/`"1.15"` and the `float` source scan),
       `CurrencyTest`, `ListingTitleTest`, `ListingDescriptionTest`, id VO tests, `ListingTest`
       (incl. check-before-assign on every refusal and the method allow-list),
       `LeafCategoryChoicesTest`. (AC-1…AC-6)
