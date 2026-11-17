@@ -64,7 +64,7 @@
 - [x] **T11:** `DbalSellerDrafts` (`forSeller`, `find`; seller filter in both SQL statements;
       malformed id → `null` without a query) and `LeafCategoryChoices` (from
       `DbalCategoryOutline::rows()`, leaves only, "A › B › C" labels).
-- [ ] **T12:** `ListingFormType` / `ListingFormData`; `SellController` (`/sell`, `/sell/drafts`,
+- [x] **T12:** `ListingFormType` / `ListingFormData`; `SellController` (`/sell`, `/sell/drafts`,
       `/sell/drafts/{id}/edit`, `#[IsGranted('ROLE_USER')]`, refusal → field mapping, 404 for
       `NotTheSeller`/`ListingNotFound`, PRG 303s); templates `listing/{sell,drafts,edit,_form}.html.twig`.
 - [ ] **T13:** `security.yaml` `^/sell(/|$)` rule with the anchoring comment; "Sell Gear" in
