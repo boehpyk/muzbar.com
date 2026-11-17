@@ -199,8 +199,8 @@ final class SellController extends AbstractController
     private function addRefusal(FormInterface $form, \DomainException $refusal, ListingFormData $data): void
     {
         [$field, $message] = match (true) {
-            $refusal instanceof InvalidListingTitle => ['title', 'Give the listing a title of 3 to 120 characters.'],
-            $refusal instanceof InvalidListingDescription => ['description', 'Keep the description under 5000 characters.'],
+            $refusal instanceof InvalidListingTitle => ['title', 'Give the listing a title of 3 to 120 characters, on one line.'],
+            $refusal instanceof InvalidListingDescription => ['description', 'Keep the description under 5000 characters, in plain text.'],
             // `InvalidPrice` covers both parts of a price; an unknown currency code is the currency's
             // fault, anything else the amount's. (ChoiceType normally stops a bad code first.)
             $refusal instanceof InvalidPrice && null === Currency::tryFrom((string) $data->currency) => ['currency', ListingFormType::UNSUPPORTED_CURRENCY],

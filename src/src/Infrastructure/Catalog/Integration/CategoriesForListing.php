@@ -11,8 +11,9 @@ use App\Infrastructure\Catalog\Persistence\Doctrine\PostgresCategoryTreeLock;
 use Doctrine\DBAL\Connection;
 
 /**
- * Listing's view of the catalog (ADR-0019, plan D3/D4) — one of the only two classes that know
- * both contexts. It lives with the data's owner: `catalog_category` is read here, in Catalog's
+ * Listing's view of the catalog (ADR-0019, plan D3/D4) — one of the two cross-context *adapters*
+ * (the third crossing is a UI read: `SellController` reuses `DbalCategoryOutline` for its category
+ * select, plan D13, so a change to that outline's row shape is a change to `/sell` too). It lives with the data's owner: `catalog_category` is read here, in Catalog's
  * Infrastructure, and nowhere under `Infrastructure/Listing` (AC-7's data-ownership scan).
  *
  * `holdSteady()` takes the tree lock in shared mode, so `statusOf()` stays true until the listing

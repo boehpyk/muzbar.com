@@ -6,6 +6,7 @@ namespace App\Tests\Unit\Domain\Listing\ValueObject;
 
 use App\Domain\Listing\Exception\InvalidListingTitle;
 use App\Domain\Listing\ValueObject\ListingTitle;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 /** AC-3 (title). */
@@ -27,6 +28,21 @@ final class ListingTitleTest extends TestCase
         $title = str_repeat('ї', 120);
 
         self::assertSame($title, ListingTitle::fromString($title)->toString());
+    }
+
+    /**
+     * pdo_pgsql truncates at NUL ("Gi\0tar" is stored as "Gi", under L-3) and invalid UTF-8 is a
+     * DriverException, so either would pass this VO and break at rest.
+     */
+    #[TestWith(["Gi\0tar Fender"])]
+    #[TestWith(["Fender\nPrecision"])]
+    #[TestWith(["Fender \x7F V"])]
+    #[TestWith(["Fender \xC3"])]
+    public function testRejectsControlCharactersAndInvalidUtf8(string $value): void
+    {
+        $this->expectException(InvalidListingTitle::class);
+
+        ListingTitle::fromString($value);
     }
 
     public function testRejectsTwoCharacters(): void

@@ -218,6 +218,13 @@ Small as it is, it is the first time the codebase has to answer three questions:
   `Categories::holdSteady()`, and a new Catalog write that can turn a leaf into a branch (a "merge
   categories" tool) **must** read `hasListings()` under `exclusively()`. No index or constraint will
   catch a missed door. `CategoryTreeLockTest` covers the doors that exist; a new one needs its case.
+- **Three crossings, not two.** Besides the two adapters, `SellController` reuses Catalog's
+  `DbalCategoryOutline` for the leaf select (plan D13) and `LeafCategoryChoices` depends on its row
+  shape. A Catalog change to that read model is a change to `/sell`; `SellTest` is what notices.
+- **Status is not yet a filter — the second watch item.** `DbalSellerDrafts`, the edit route and
+  `Listing::revise()` check no status, which is correct only while `Draft` is the only one. The slice
+  that adds `Published` must add `status = 'draft'` to "my drafts" and decide in `revise()` which
+  statuses a seller may edit.
 - **The one key now also orders listing writes against admin writes.** ADR-0016's `ponytail:` ceiling
   still holds and per-subtree keys are still the upgrade path; listing writes do not contend with
   each other, only with admin writes.

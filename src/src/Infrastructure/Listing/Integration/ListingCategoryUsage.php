@@ -9,8 +9,8 @@ use App\Domain\Catalog\ValueObject\CategoryId;
 use Doctrine\DBAL\Connection;
 
 /**
- * Catalog's view of what is filed under a category (ADR-0019, plan D3/D4) — one of the only two
- * classes that know both contexts. It lives with the data's owner: `listing_listing` is read here,
+ * Catalog's view of what is filed under a category (ADR-0019, plan D3/D4) — one of the two
+ * cross-context *adapters* (plus one UI read: `SellController` reuses `DbalCategoryOutline`, plan D13). It lives with the data's owner: `listing_listing` is read here,
  * in Listing's Infrastructure, and nowhere under `Infrastructure/Catalog` (AC-7).
  *
  * Runs on the EntityManager's own connection, so inside `CategoryTreeLock::exclusively()` it reads

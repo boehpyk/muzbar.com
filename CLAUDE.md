@@ -100,7 +100,8 @@ Docker Compose · Traefik · Nginx.
 > was caught **only** by AC-14's descendant case.
 > [ADR-0018](./docs/adr/0018-schema-inheritance-derived-along-the-lineage-codes-unique-per-branch.md)
 > + ADR-0016/0017 amendments.
-> `listing-draft` (2026-11-17, **`/verify` pending**) — Listing slice 1 of 4, and the first slice where
+> `listing-draft` (2026-11-17, **passed `/verify` 2026-11-17 in two iterations** — the MAJOR was title/description
+> accepting NUL and invalid UTF-8) — Listing slice 1 of 4, and the first slice where
 > **two bounded contexts depend on each other**. One `Listing` aggregate (seller, leaf category, title,
 > description, `Price`; status `Draft`) in `listing_listing`; `/sell`, "my drafts" and edit behind the
 > "Sell Gear" overlay trigger. **Leaf-only has two owners and three doors:** Listing decides L-2 on
@@ -348,7 +349,7 @@ worker.
 ## Conventions
 
 - **PHP:** constructor property promotion; explicit return types; typed params everywhere; enums with
-  TitleCase cases; curly braces on all control structures; no dead code; no secrets in source.
+  TitleCase cases (one deliberate exception: `Currency`'s cases are ISO 4217 codes, `EUR` not `Eur`); curly braces on all control structures; no dead code; no secrets in source.
 - **Domain purity:** zero `use Symfony\...` / `use Doctrine\...` in `Domain/`. Doctrine mapping is an
   infrastructure concern. Model the business, not the table.
 - **Config:** never read env vars outside `config/` / DI parameters; inject configured values.
@@ -616,6 +617,10 @@ These are documented failure modes we design against (see [docs/infrastructure.m
 - **Test-env 404 debug pages embed the test's own call trace**, so a GET and a POST 404 never match
   byte-for-byte. "Indistinguishable" assertions compare like with like, after normalising ids and
   dump ids (`SellTest`).
+- **A free-text VO must refuse control characters and invalid UTF-8, not just count length.**
+  pdo_pgsql **truncates a string at NUL** (`"Gi\0tar"` is stored as `"Gi"`, under L-3, and the row then
+  500s on every hydration), and invalid UTF-8 is SQLSTATE 22021 — an uncaught `DriverException`.
+  `CategoryName`'s `/\p{Cc}/u` is the rule; a paragraph field allows `\t\n\r` only. Found by `/verify`.
 - **The listing form carries no length constraints.** A Symfony `Length` would answer first, with its
   own wording, and override the failure contract; the value objects are the only bound.
 

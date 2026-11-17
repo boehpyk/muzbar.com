@@ -32,6 +32,13 @@ final readonly class ListingTitle
             throw InvalidListingTitle::length($length);
         }
 
+        // Also rejects invalid UTF-8 (`preg_match` returns false, not 0, under `u`). Both matter at
+        // rest: pdo_pgsql truncates a string at NUL, and invalid UTF-8 is SQLSTATE 22021 — so a
+        // value accepted here would be stored shorter than L-3 allows, or not at all. CategoryName's rule.
+        if (0 !== preg_match('/\p{Cc}/u', $trimmed)) {
+            throw InvalidListingTitle::containsControlCharacters();
+        }
+
         return new self($trimmed);
     }
 

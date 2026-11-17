@@ -20,6 +20,7 @@ use App\Tests\Support\RegistersAUserWithKnownCredentials;
 use App\Tests\Support\SignsInThroughTheLoginForm;
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\DomCrawler\Crawler;
@@ -305,9 +306,9 @@ final class SellTest extends WebTestCase
      */
     public static function refusals(): iterable
     {
-        yield 'title too short' => [['title' => 'ab'], 'title', 'Give the listing a title of 3 to 120 characters.'];
-        yield 'title too long' => [['title' => str_repeat('a', 121)], 'title', 'Give the listing a title of 3 to 120 characters.'];
-        yield 'description too long' => [['description' => str_repeat('a', 5001)], 'description', 'Keep the description under 5000 characters.'];
+        yield 'title too short' => [['title' => 'ab'], 'title', 'Give the listing a title of 3 to 120 characters, on one line.'];
+        yield 'title too long' => [['title' => str_repeat('a', 121)], 'title', 'Give the listing a title of 3 to 120 characters, on one line.'];
+        yield 'description too long' => [['description' => str_repeat('a', 5001)], 'description', 'Keep the description under 5000 characters, in plain text.'];
         yield 'price malformed' => [['price' => 'abc'], 'price', 'Enter a price like 1250 or 1250.50, up to 9 999 999.99.'];
         yield 'price zero' => [['price' => '0'], 'price', 'Enter a price like 1250 or 1250.50, up to 9 999 999.99.'];
         yield 'price too many decimals' => [['price' => '1.234'], 'price', 'Enter a price like 1250 or 1250.50, up to 9 999 999.99.'];
@@ -336,6 +337,26 @@ final class SellTest extends WebTestCase
         foreach (['title', 'description', 'price'] as $name) {
             self::assertSame($fields[$name], $this->valueOf($page, $name), "$name did not keep its value.");
         }
+        self::assertSame([], $this->listings());
+        $this->assertNothingReportedToSentry();
+    }
+
+    /**
+     * Bytes the database would truncate (NUL) or reject (SQLSTATE 22021) are a user error, not a
+     * 500. Kept apart from the provider above only because HTML cannot carry them back: the
+     * re-rendered field shows U+FFFD, so "keeps every value" cannot hold for the refused field.
+     */
+    #[TestWith(['title', "Gi\0tar Fender", 'Give the listing a title of 3 to 120 characters, on one line.'])]
+    #[TestWith(['description', "ab\xC3", 'Keep the description under 5000 characters, in plain text.'])]
+    public function testBytesTheDatabaseCannotStoreAreRefusedOnTheirFieldNotA500(string $field, string $value, string $message): void
+    {
+        $this->buildTree();
+        $this->signIn();
+
+        $page = $this->post('/sell', [$field => $value] + $this->validFields());
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame([$message], $this->errorsOn($page, $field));
         self::assertSame([], $this->listings());
         $this->assertNothingReportedToSentry();
     }
@@ -481,7 +502,7 @@ final class SellTest extends WebTestCase
         $page = $this->post($path, ['title' => 'x'] + $this->validFields(), tokenFrom: $path);
 
         self::assertResponseStatusCodeSame(422);
-        self::assertSame(['Give the listing a title of 3 to 120 characters.'], $this->errorsOn($page, 'title'));
+        self::assertSame(['Give the listing a title of 3 to 120 characters, on one line.'], $this->errorsOn($page, 'title'));
         self::assertSame($before, $this->listings());
     }
 

@@ -65,8 +65,8 @@
 |---|---|---|---|
 | **L-1** | A listing has exactly one seller, fixed when drafted and never changed. | `Listing::draft()` (constructor parameter; no setter). | `seller_id NOT NULL`. No FK (ADR-0009 d.4). |
 | **L-2** | **A listing is filed under a category that exists and is a leaf** — when drafted and whenever its category changes. | `Listing::draft()` / `revise()`, on the `CategoryStatus` read through `Categories` while held steady. Re-saving with an **unchanged** category checks nothing (the `moveUnder()`-to-current-parent shape). | No index can see it. The **shared lock** is the guarantee on Listing's side; **C-23/C-24** are Catalog's half. |
-| **L-3** | Title: 3–120 characters after trimming. | `ListingTitle` | `varchar(120)` |
-| **L-4** | Description: 0–5000 characters after trimming. | `ListingDescription` | `varchar(5000)` |
+| **L-3** | Title: 3–120 characters after trimming; no control characters, valid UTF-8. | `ListingTitle` | `varchar(120)` |
+| **L-4** | Description: 0–5000 characters after trimming; no control characters but line breaks and tabs, valid UTF-8. | `ListingDescription` | `varchar(5000)` |
 | **L-5** | Price: an integer of minor units, 1 ≤ amount ≤ 999 999 999 (9 999 999.99 at two decimals), in an allowed currency; decimal input may not carry more fraction digits than that currency has minor units. | `Price`, `Currency` | `bigint`, `varchar(3)` |
 | **L-6** | **Only the seller may revise a listing.** | `Listing::revise(SellerId $by, …)`, checked **first**, before any assignment. | Read side: the draft read model filters by seller. |
 | **L-7** | A new listing is a `Draft`; this slice has no transition. | `Listing::draft()` | `status varchar(16)` |
@@ -321,8 +321,8 @@ Two verified users: **Ann** (seller) and **Bob**. Currencies per Q1 (owner): `US
 
 | Condition | Expected behaviour | Kind |
 |---|---|---|
-| Title blank / under 3 / over 120 chars | `InvalidListingTitle`. 422. **title**: *"Give the listing a title of 3 to 120 characters."* | user error |
-| Description over 5000 chars | `InvalidListingDescription`. 422. **description**: *"Keep the description under 5000 characters."* | user error |
+| Title blank / under 3 / over 120 chars / control characters or invalid UTF-8 | `InvalidListingTitle`. 422. **title**: *"Give the listing a title of 3 to 120 characters, on one line."* | user error |
+| Description over 5000 chars / control characters other than line breaks and tabs, or invalid UTF-8 | `InvalidListingDescription`. 422. **description**: *"Keep the description under 5000 characters, in plain text."* | user error |
 | Price malformed, zero, negative, too many decimals, over the maximum | `InvalidPrice`. 422. **price**: *"Enter a price like 1250 or 1250.50, up to 9 999 999.99."* | user error |
 | Currency not allowed (tampered select) | `InvalidPrice` (unsupported currency). 422. **currency**: *"Choose one of the listed currencies."* | user error |
 | Category unknown, malformed or deleted since the form loaded | `UnknownCategory`. 422. **category**: *"Choose a category from the list."* | user error |

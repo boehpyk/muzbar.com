@@ -30,6 +30,12 @@ final readonly class ListingDescription
             throw InvalidListingDescription::tooLong($length);
         }
 
+        // ListingTitle's rule, minus the line breaks and tabs a paragraph legitimately holds. Also
+        // rejects invalid UTF-8; a NUL would otherwise silently cut the stored text short.
+        if (0 !== preg_match('/[^\P{Cc}\t\n\r]/u', $trimmed)) {
+            throw InvalidListingDescription::containsControlCharacters();
+        }
+
         return new self($trimmed);
     }
 

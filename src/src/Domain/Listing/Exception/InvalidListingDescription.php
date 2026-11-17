@@ -12,4 +12,9 @@ final class InvalidListingDescription extends \DomainException
     {
         return new self(\sprintf('A listing description may not exceed %d characters, got %d.', ListingDescription::MAX_LENGTH, $length));
     }
+
+    public static function containsControlCharacters(): self
+    {
+        return new self('A listing description may not contain control characters (other than line breaks and tabs) or invalid UTF-8.');
+    }
 }
