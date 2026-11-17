@@ -26,7 +26,7 @@
       `InvalidSellerId`, `InvalidCategoryId`. Docblocks per plan (ADR-0009 trait note; "Listing's
       name for an id another context owns").
 - [x] **T2:** `ListingTitle`, `ListingDescription` + their exceptions. (L-3, L-4)
-- [ ] **T3:** `Currency` (`USD|EUR|SEK|UAH`, `minorUnits()`, `fromCode()`), `Price` (`fromMinorUnits`,
+- [x] **T3:** `Currency` (`USD|EUR|SEK|UAH`, `minorUnits()`, `fromCode()`), `Price` (`fromMinorUnits`,
       `fromDecimal` — string arithmetic only, `toDecimalString`, `equals`), `InvalidPrice`. (L-5, D7)
 - [ ] **T4:** `ListingStatus`, `CategoryStatus`, exceptions `UnknownCategory`, `CategoryIsNotALeaf`,
       `NotTheSeller`, `ListingNotFound`; the `Listing` aggregate (`draft`, `revise`, `isSoldBy`,
