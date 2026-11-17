@@ -78,7 +78,7 @@
       `LeafCategoryChoicesTest`. (AC-1…AC-6)
 - [x] **T15:** `ListingIsolationTest` — context scan copied from `CatalogIsolationTest` plus the
       data-ownership scan, each asserting it scanned > 0 files. (AC-7, AC-8)
-- [ ] **T16:** Integration: `ListingFactory` (through `draft()`, `->inCategory()`, docblock
+- [x] **T16:** Integration: `ListingFactory` (through `draft()`, `->inCategory()`, docblock
       warning it bypasses L-2); `ListingHandlersTest` (AC-9…AC-12, fresh repository before each
       read-back); `CategoryHandlersTest` additions (AC-13…AC-16); adapter tests (AC-17);
       `ListingSchemaTest` (AC-20). Verify once that `holdSteady()` then `exclusively()` in one DAMA

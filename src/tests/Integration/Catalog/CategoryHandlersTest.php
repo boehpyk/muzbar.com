@@ -13,6 +13,7 @@ use App\Application\Catalog\Handler\EditCategoryHandler;
 use App\Domain\Catalog\Entity\Category;
 use App\Domain\Catalog\Exception\CategoryHasAttributes;
 use App\Domain\Catalog\Exception\CategoryHasChildren;
+use App\Domain\Catalog\Exception\CategoryHasListings;
 use App\Domain\Catalog\Exception\CategoryMoveWouldCreateCycle;
 use App\Domain\Catalog\Exception\CategoryNotFound;
 use App\Domain\Catalog\Exception\CategorySlugAlreadyTaken;
@@ -25,6 +26,7 @@ use App\Domain\Catalog\ValueObject\CategoryName;
 use App\Domain\Catalog\ValueObject\CategorySlug;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
+use App\Tests\Factory\ListingFactory;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -472,5 +474,148 @@ final class CategoryHandlersTest extends KernelTestCase
         $fresh = self::getContainer()->get(CategoryRepository::class);
         self::assertInstanceOf(CategoryRepository::class, $fresh);
         self::assertSame('Guitars', $fresh->get($id)->name()->toString());
+    }
+
+    /**
+     * The `listing-draft` fixture tree (AC-13…AC-16):
+     * Instruments > Guitars > Electric, and Instruments > Bass. One draft is filed on Electric.
+     *
+     * @return array{instruments: Category, guitars: Category, electric: Category, bass: Category}
+     */
+    private function instrumentsTreeWithADraftOnElectric(): array
+    {
+        $instruments = CategoryFactory::createOne(['slug' => CategorySlug::fromString('instruments')]);
+        $guitars = CategoryFactory::new(['slug' => CategorySlug::fromString('guitars')])->childOf($instruments)->create();
+        $electric = CategoryFactory::new(['name' => CategoryName::fromString('Electric'), 'slug' => CategorySlug::fromString('electric')])->childOf($guitars)->create();
+        $bass = CategoryFactory::new(['slug' => CategorySlug::fromString('bass')])->childOf($instruments)->create();
+        ListingFactory::new()->inCategory($electric)->create();
+
+        return ['instruments' => $instruments, 'guitars' => $guitars, 'electric' => $electric, 'bass' => $bass];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function listings(): array
+    {
+        return $this->db->fetchAllAssociative('SELECT * FROM listing_listing ORDER BY id');
+    }
+
+    public function testDeletingAListedOnCategoryIsRefusedAndBothRowsRemain(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+        $categoriesBefore = $this->table();
+        $listingsBefore = $this->listings();
+
+        try {
+            ($this->delete)(new DeleteCategory($tree['electric']->id()->toString()));
+            self::fail('Expected CategoryHasListings.');
+        } catch (CategoryHasListings $e) {
+            self::assertSame($tree['electric']->id()->toString(), $e->categoryId()->toString());
+            self::assertSame($categoriesBefore, $this->table());
+            self::assertSame($listingsBefore, $this->listings());
+        }
+    }
+
+    public function testDeletingABranchStillReportsChildrenNotListings(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+
+        $this->expectException(CategoryHasChildren::class);
+
+        ($this->delete)(new DeleteCategory($tree['guitars']->id()->toString()));
+    }
+
+    public function testAListedOnLeafWithAnAttributeReportsAttributesBeforeListings(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+        AttributeFactory::new()->inCategory($tree['electric'])->create();
+
+        $this->expectException(CategoryHasAttributes::class);
+
+        ($this->delete)(new DeleteCategory($tree['electric']->id()->toString()));
+    }
+
+    public function testACategoryWithNoListingIsStillDeletedWhenOthersAreListedOn(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+
+        ($this->delete)(new DeleteCategory($tree['bass']->id()->toString()));
+
+        self::assertSame(0, $this->countWhere('id = ?', $tree['bass']->id()->toString()));
+    }
+
+    public function testCreatingUnderAListedOnCategoryIsRefusedAndWritesNothing(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+        $before = $this->table();
+
+        try {
+            ($this->create)(new CreateCategory('Solid body', 'solid-body', $tree['electric']->id()->toString()));
+            self::fail('Expected CategoryHasListings.');
+        } catch (CategoryHasListings) {
+            self::assertSame($before, $this->table());
+        }
+    }
+
+    public function testCreatingUnderACategoryWithoutListingsStillWorks(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+
+        ($this->create)(new CreateCategory('Acoustic bass', 'acoustic-bass', $tree['bass']->id()->toString()));
+
+        self::assertSame(1, $this->countWhere('slug = ?', 'acoustic-bass'));
+    }
+
+    public function testCreatingARootWorksWhateverIsListed(): void
+    {
+        $this->instrumentsTreeWithADraftOnElectric();
+
+        ($this->create)(new CreateCategory('Accessories', 'accessories', null));
+
+        self::assertSame(1, $this->countWhere('slug = ?', 'accessories'));
+    }
+
+    public function testMovingACategoryUnderAListedOnOneIsRefusedAndTheParentIsUnchanged(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+        $parentBefore = $this->parentOf($tree['bass']);
+
+        try {
+            $this->edit($tree['bass'], parent: $tree['electric'], keepParent: false);
+            self::fail('Expected CategoryHasListings.');
+        } catch (CategoryHasListings) {
+            self::assertSame($parentBefore, $this->parentOf($tree['bass']));
+        }
+    }
+
+    public function testAMoveThatIsAlsoACycleReportsTheCycleNotTheListings(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+
+        $this->expectException(CategoryMoveWouldCreateCycle::class);
+
+        $this->edit($tree['guitars'], parent: $tree['electric'], keepParent: false);
+    }
+
+    public function testAListedOnCategoryCanBeRenamedAndReslugged(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+
+        $this->edit($tree['electric'], name: 'Electric guitars', slug: 'electric-guitars');
+
+        self::assertSame('Electric guitars', $this->nameOf($tree['electric']));
+        self::assertSame(1, $this->countWhere('slug = ?', 'electric-guitars'));
+    }
+
+    public function testAListedOnCategoryCanBeMovedAndItsListingsGoWithIt(): void
+    {
+        $tree = $this->instrumentsTreeWithADraftOnElectric();
+        $listingsBefore = $this->listings();
+
+        $this->edit($tree['electric'], parent: $tree['bass'], keepParent: false);
+
+        self::assertSame($tree['bass']->id()->toString(), $this->parentOf($tree['electric']));
+        self::assertSame($listingsBefore, $this->listings());
     }
 }
