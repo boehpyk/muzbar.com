@@ -83,7 +83,7 @@
       read-back); `CategoryHandlersTest` additions (AC-13…AC-16); adapter tests (AC-17);
       `ListingSchemaTest` (AC-20). Verify once that `holdSteady()` then `exclusively()` in one DAMA
       session does not deadlock (plan Risk 3) and note the result in the test's docblock.
-- [ ] **T17:** `CategoryTreeLockTest`: `ObservedCategories` double; listing handlers read and save
+- [x] **T17:** `CategoryTreeLockTest`: `ObservedCategories` double; listing handlers read and save
       inside `holdSteady()`; the three Catalog handlers read `hasListings()` inside `exclusively()`
       (and create/edit skip it for a root / unchanged parent); the real-mode second-session probes
       from inside each closure, control first. (AC-18, AC-19)

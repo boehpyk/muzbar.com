@@ -22,22 +22,35 @@ use App\Application\Catalog\Handler\EditAttributeHandler;
 use App\Application\Catalog\Handler\EditCategoryHandler;
 use App\Application\Catalog\Handler\RelabelAttributeOptionHandler;
 use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
+use App\Application\Listing\Command\DraftListing;
+use App\Application\Listing\Command\ReviseListing;
+use App\Application\Listing\Handler\DraftListingHandler;
+use App\Application\Listing\Handler\ReviseListingHandler;
 use App\Domain\Catalog\Port\CategoryTreeLock;
+use App\Domain\Listing\Port\Categories;
+use App\Domain\Listing\Port\ListingRepository;
+use App\Infrastructure\Catalog\Integration\CategoriesForListing;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeOptionRepository;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeRepository;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineCategoryRepository;
 use App\Infrastructure\Catalog\Persistence\Doctrine\PostgresCategoryTreeLock;
+use App\Infrastructure\Listing\Integration\ListingCategoryUsage;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
+use App\Tests\Factory\ListingFactory;
 use App\Tests\Fixture\ObservedAttributeOptionRepository;
 use App\Tests\Fixture\ObservedAttributeRepository;
+use App\Tests\Fixture\ObservedCategories;
 use App\Tests\Fixture\ObservedCategoryRepository;
 use App\Tests\Fixture\ObservedCategoryTreeLock;
+use App\Tests\Fixture\ObservedCategoryUsage;
+use App\Tests\Fixture\ObservedListingRepository;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * AC-17 (slice 1) and AC-26 (slice 2): the tree lock is real, and every Catalog handler takes it.
@@ -404,5 +417,198 @@ final class CategoryTreeLockTest extends KernelTestCase
         self::assertIsString($id);
 
         return $id;
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // listing-draft: AC-18 (who calls what, inside which lock) and AC-19 (the two real modes).
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * Swaps the real `CategoryUsage` adapter (by its concrete id, see `observe()`) for one that logs
+     * whether `exclusively()` was active, on top of `observe()`'s lock and repository.
+     *
+     * @return array{ObservedCategoryTreeLock, ObservedCategoryUsage}
+     */
+    private function observeUsage(): array
+    {
+        [$lock] = $this->observe();
+        $container = self::getContainer();
+        $usage = new ObservedCategoryUsage(new ListingCategoryUsage($this->db), $lock);
+        $container->set(ListingCategoryUsage::class, $usage);
+
+        return [$lock, $usage];
+    }
+
+    /**
+     * @return array{ObservedCategories, DraftListingHandler, ReviseListingHandler}
+     */
+    private function observeListingHandlers(): array
+    {
+        $container = self::getContainer();
+        $em = $container->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $repository = $container->get(ListingRepository::class);
+        self::assertInstanceOf(ListingRepository::class, $repository);
+
+        $categories = new ObservedCategories(new CategoriesForListing(new PostgresCategoryTreeLock($em), $this->db));
+        $listings = new ObservedListingRepository($repository, $categories);
+
+        return [$categories, new DraftListingHandler($listings, $categories), new ReviseListingHandler($listings, $categories)];
+    }
+
+    public function testDraftListingHandlerReadsTheStatusAndSavesInsideHoldSteady(): void
+    {
+        $leaf = CategoryFactory::createOne();
+        [$categories, $draft] = $this->observeListingHandlers();
+
+        $draft(new DraftListing(Uuid::v7()->toRfc4122(), $leaf->id()->toString(), 'Fender Precision V', '', '10', 'EUR'));
+
+        self::assertSame(1, $categories->entries());
+        $methods = array_column($categories->calls(), 0);
+        self::assertContains('statusOf', $methods);
+        self::assertContains('save', $methods);
+        foreach ($categories->calls() as [$method, $held]) {
+            self::assertTrue($held, \sprintf('%s() ran outside Categories::holdSteady().', $method));
+        }
+    }
+
+    public function testReviseListingHandlerReadsLoadsAndSavesInsideHoldSteady(): void
+    {
+        $bass = CategoryFactory::createOne();
+        $listing = ListingFactory::new()->inCategory(CategoryFactory::createOne())->create();
+        [$categories, , $revise] = $this->observeListingHandlers();
+
+        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $bass->id()->toString(), 'Changed title', '', '10', 'EUR'));
+
+        self::assertSame(1, $categories->entries());
+        $methods = array_column($categories->calls(), 0);
+        self::assertContains('get', $methods);
+        self::assertContains('statusOf', $methods);
+        self::assertContains('save', $methods);
+        foreach ($categories->calls() as [$method, $held]) {
+            self::assertTrue($held, \sprintf('%s() ran outside Categories::holdSteady().', $method));
+        }
+    }
+
+    public function testDeleteCategoryHandlerReadsListingsInsideTheLock(): void
+    {
+        $leaf = CategoryFactory::createOne();
+        [$lock, $usage] = $this->observeUsage();
+        $handler = self::getContainer()->get(DeleteCategoryHandler::class);
+        self::assertInstanceOf(DeleteCategoryHandler::class, $handler);
+
+        $handler(new DeleteCategory($leaf->id()->toString()));
+
+        self::assertSame(1, $lock->entries());
+        self::assertSame([['hasListings', true]], $usage->calls());
+    }
+
+    public function testCreateCategoryHandlerReadsListingsInsideTheLockWhenThereIsAParent(): void
+    {
+        $parent = CategoryFactory::createOne();
+        [$lock, $usage] = $this->observeUsage();
+        $handler = self::getContainer()->get(CreateCategoryHandler::class);
+        self::assertInstanceOf(CreateCategoryHandler::class, $handler);
+
+        $handler(new CreateCategory('Electric', 'electric', $parent->id()->toString()));
+
+        self::assertSame(1, $lock->entries());
+        self::assertSame([['hasListings', true]], $usage->calls());
+    }
+
+    public function testCreateCategoryHandlerReadsNoListingsForARoot(): void
+    {
+        [$lock, $usage] = $this->observeUsage();
+        $handler = self::getContainer()->get(CreateCategoryHandler::class);
+        self::assertInstanceOf(CreateCategoryHandler::class, $handler);
+
+        $handler(new CreateCategory('Guitars', 'guitars', null));
+
+        self::assertSame(1, $lock->entries(), 'The root create did not run (a vacuous pass otherwise).');
+        self::assertSame([], $usage->calls());
+    }
+
+    public function testEditCategoryHandlerReadsListingsInsideTheLockWhenTheParentChanges(): void
+    {
+        $oldParent = CategoryFactory::createOne();
+        $moving = CategoryFactory::new()->childOf($oldParent)->create();
+        $newParent = CategoryFactory::createOne();
+        [$lock, $usage] = $this->observeUsage();
+        $handler = self::getContainer()->get(EditCategoryHandler::class);
+        self::assertInstanceOf(EditCategoryHandler::class, $handler);
+
+        $handler(new EditCategory($moving->id()->toString(), $moving->name()->toString(), $moving->slug()->toString(), $newParent->id()->toString()));
+
+        self::assertSame(1, $lock->entries());
+        self::assertSame([['hasListings', true]], $usage->calls());
+    }
+
+    public function testEditCategoryHandlerReadsNoListingsWhenTheParentIsUnchanged(): void
+    {
+        $parent = CategoryFactory::createOne();
+        $child = CategoryFactory::new()->childOf($parent)->create();
+        [$lock, $usage] = $this->observeUsage();
+        $handler = self::getContainer()->get(EditCategoryHandler::class);
+        self::assertInstanceOf(EditCategoryHandler::class, $handler);
+
+        $handler(new EditCategory($child->id()->toString(), 'Renamed', 'renamed', $parent->id()->toString()));
+
+        self::assertSame(1, $lock->entries(), 'The edit did not run (a vacuous pass otherwise).');
+        self::assertSame([], $usage->calls());
+    }
+
+    private function sharedProbe(Connection $session): bool
+    {
+        $acquired = $session->fetchOne(
+            'SELECT pg_try_advisory_xact_lock_shared(:key)',
+            ['key' => PostgresCategoryTreeLock::KEY],
+            ['key' => ParameterType::INTEGER],
+        );
+
+        return true === $acquired;
+    }
+
+    public function testControlBothProbesSucceedWhenNobodyHoldsTheLock(): void
+    {
+        $session = $this->secondSession();
+
+        try {
+            self::assertTrue($this->probe($session), 'Control: the exclusive probe must be able to answer true.');
+            self::assertTrue($this->sharedProbe($session), 'Control: the shared probe must be able to answer true.');
+        } finally {
+            $session->close();
+        }
+    }
+
+    public function testHoldSteadyBlocksAnExclusiveProbeButNotASharedOne(): void
+    {
+        $categories = self::getContainer()->get(Categories::class);
+        self::assertInstanceOf(Categories::class, $categories);
+        $session = $this->secondSession();
+
+        try {
+            // Both answers are taken inside the closure: after it returns DAMA keeps the lock held anyway.
+            [$exclusive, $shared] = $categories->holdSteady(fn (): array => [$this->probe($session), $this->sharedProbe($session)]);
+        } finally {
+            $session->close();
+        }
+
+        self::assertFalse($exclusive, 'holdSteady() did not hold the lock: an exclusive (Catalog) writer could get in.');
+        self::assertTrue($shared, 'holdSteady() took the lock exclusively: Listing writes would queue behind each other.');
+    }
+
+    public function testExclusivelyBlocksASharedProbe(): void
+    {
+        $lock = self::getContainer()->get(CategoryTreeLock::class);
+        self::assertInstanceOf(CategoryTreeLock::class, $lock);
+        $session = $this->secondSession();
+
+        try {
+            $shared = $lock->exclusively(fn (): bool => $this->sharedProbe($session));
+        } finally {
+            $session->close();
+        }
+
+        self::assertFalse($shared, 'A Listing write could commit while a Catalog write held the tree.');
     }
 }
