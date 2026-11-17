@@ -22,7 +22,7 @@
       Risk 7). No code.
 
 ## Domain — `Listing` (`src/src/Domain/Listing/`)
-- [ ] **T1:** `ListingId`, `SellerId`, `CategoryId` (Listing's) + `InvalidListingId`,
+- [x] **T1:** `ListingId`, `SellerId`, `CategoryId` (Listing's) + `InvalidListingId`,
       `InvalidSellerId`, `InvalidCategoryId`. Docblocks per plan (ADR-0009 trait note; "Listing's
       name for an id another context owns").
 - [ ] **T2:** `ListingTitle`, `ListingDescription` + their exceptions. (L-3, L-4)
