@@ -48,7 +48,7 @@
       two named indexes); `ListingRepository` alias. Prove a save → fresh-EM load round trip of a
       readonly `Price` before committing (plan Risk 5). (AC-20) — *Risk 5: held (insert, fresh-EM
       load, and a re-price UPDATE all round-trip).*
-- [ ] **T9:** `PostgresCategoryTreeLock::sharedly()` (shared private `run()`), the
+- [x] **T9:** `PostgresCategoryTreeLock::sharedly()` (shared private `run()`), the
       `Infrastructure/Catalog/Integration/CategoriesForListing` adapter (`holdSteady` → `sharedly`,
       one-query `statusOf`), the `Categories` alias, and docblock updates on `KEY` and the
       `ponytail:` ceiling. (AC-17 first half)

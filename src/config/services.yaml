@@ -47,6 +47,9 @@ services:
     App\Domain\Catalog\Port\AttributeRepository: '@App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeRepository'
     App\Domain\Catalog\Port\AttributeOptionRepository: '@App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeOptionRepository'
     App\Domain\Listing\Port\ListingRepository: '@App\Infrastructure\Listing\Persistence\Doctrine\DoctrineListingRepository'
+    # Cross-context (ADR-0019 / plan D4): the adapter lives with the data's owner, so Listing's
+    # port is implemented in Catalog's Infrastructure.
+    App\Domain\Listing\Port\Categories: '@App\Infrastructure\Catalog\Integration\CategoriesForListing'
 
     # Its own slugger instance: no `&` -> `and` symbol map and no request-locale dependence, so a
     # name always derives the same slug (AC-25: "Bass & Guitars" -> bass-guitars).
