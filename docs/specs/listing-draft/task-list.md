@@ -61,7 +61,7 @@
       compiles. (C-23, C-24, AC-30)
 
 ## Infrastructure — UI
-- [ ] **T11:** `DbalSellerDrafts` (`forSeller`, `find`; seller filter in both SQL statements;
+- [x] **T11:** `DbalSellerDrafts` (`forSeller`, `find`; seller filter in both SQL statements;
       malformed id → `null` without a query) and `LeafCategoryChoices` (from
       `DbalCategoryOutline::rows()`, leaves only, "A › B › C" labels).
 - [ ] **T12:** `ListingFormType` / `ListingFormData`; `SellController` (`/sell`, `/sell/drafts`,
