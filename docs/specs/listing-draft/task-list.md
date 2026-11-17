@@ -17,7 +17,7 @@
 - No float on any price path. No GET writes. No seller email rendered anywhere.
 
 ## Decisions & prerequisites
-- [ ] **T0:** `/adr` → **ADR-0019** (plan D1–D8, D10 with rejected alternatives, and the Phase 2
+- [x] **T0:** `/adr` → **ADR-0019** (plan D1–D8, D10 with rejected alternatives, and the Phase 2
       cross-currency consequence) and the dated **ADR-0016** and **ADR-0007** amendments (plan
       Risk 7). No code.
 
