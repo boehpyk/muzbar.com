@@ -92,7 +92,7 @@
       field + message + 422, my drafts incl. query count and isolation between Ann and Bob, edit,
       404 parity, no-GET-writes snapshot); `LoginOverlayMarkupTest` updated on purpose (select
       triggers by text); `CategoryAdminTest` additions; Sentry silence. (AC-21…AC-32)
-- [ ] **T19:** Bite proof: AC-33 mutations (a)…(h) one at a time; each must fail a named test.
+- [x] **T19:** Bite proof: AC-33 mutations (a)…(h) one at a time; each must fail a named test.
       Revert, record in the commit message, run `make test` twice. (AC-33, AC-34)
 
 ## Docs
