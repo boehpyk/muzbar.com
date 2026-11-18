@@ -8,6 +8,8 @@ use App\Domain\Listing\Entity\Listing;
 use App\Domain\Listing\Exception\CategoryIsNotALeaf;
 use App\Domain\Listing\Exception\NotTheSeller;
 use App\Domain\Listing\Exception\UnknownCategory;
+use App\Domain\Listing\ValueObject\AttributeInput;
+use App\Domain\Listing\ValueObject\AttributeSchema;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\CategoryStatus;
 use App\Domain\Listing\ValueObject\Currency;
@@ -103,9 +105,11 @@ final class ListingTest extends TestCase
             SellerId::fromString($by),
             CategoryId::fromString($category),
             $status,
+            AttributeSchema::none(),
             ListingTitle::fromString('Changed title'),
             ListingDescription::fromString('Changed'),
             Price::fromMinorUnits(999, Currency::UAH),
+            AttributeInput::fromArray([]),
         );
     }
 

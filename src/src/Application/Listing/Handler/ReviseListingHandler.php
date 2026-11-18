@@ -11,6 +11,7 @@ use App\Domain\Listing\Exception\ListingNotFound;
 use App\Domain\Listing\Exception\UnknownCategory;
 use App\Domain\Listing\Port\Categories;
 use App\Domain\Listing\Port\ListingRepository;
+use App\Domain\Listing\ValueObject\AttributeInput;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\Currency;
 use App\Domain\Listing\ValueObject\ListingDescription;
@@ -24,8 +25,10 @@ use App\Domain\Listing\ValueObject\SellerId;
  *
  * Inside `holdSteady()` like every Listing write — **including** a revise that keeps its category:
  * the rule is uniform so nobody decides per handler whether "this one is safe" (ADR-0019 decision
- * 5). The category status is read unconditionally, even when the category is unchanged and the
- * aggregate will ignore it: one indexed lookup buys a handler with no branch. L-6 and L-2 are the
+ * 5). The category status and its attribute schema are read unconditionally, even when the category
+ * is unchanged and the aggregate will ignore the status: a handler with no branch. The schema is
+ * needed either way (L-9 reads current rules on every revise), and read **inside** the lock it is
+ * true until commit (ADR-0020 decision 3). L-6 and L-2 are the
  * aggregate's; a refusal rolls the transaction back and the lock adapter forgets the aggregate.
  *
  * The values are built before `revise()` is called, so a non-seller who also sends a bad value is
@@ -49,6 +52,7 @@ final readonly class ReviseListingHandler
      * @throws \App\Domain\Listing\Exception\InvalidPrice              (L-5, incl. an unsupported currency)
      * @throws UnknownCategory                                         (L-2, incl. a malformed id)
      * @throws \App\Domain\Listing\Exception\CategoryIsNotALeaf        (L-2)
+     * @throws \App\Domain\Listing\Exception\InvalidAttributeValue     (L-9, incl. a malformed key)
      */
     public function __invoke(ReviseListing $command): void
     {
@@ -60,9 +64,11 @@ final readonly class ReviseListingHandler
                 SellerId::fromString($command->sellerId),
                 $categoryId,
                 $this->categories->statusOf($categoryId),
+                $this->categories->schemaOf($categoryId),
                 ListingTitle::fromString($command->title),
                 ListingDescription::fromString($command->description),
                 Price::fromDecimal($command->price, Currency::fromCode($command->currency)),
+                AttributeInput::fromArray($command->attributes),
             );
 
             $this->listings->save($listing);

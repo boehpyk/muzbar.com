@@ -32,7 +32,7 @@
       (L-9 per kind: option membership, ASCII whole numbers ≤ 18 digits + inclusive bounds, `yes`/`no`,
       1–200-char one-line text), `AttributeSchema` (`read()`, `has()`, `none()`), `AttributeInput`
       (`fromArray`, `onlyFor`).
-- [ ] **T4:** *(part 1 done 2026-11-18: property, `none()` in `draft()`, reader; `revise()` lands with T6)* `Listing`: `attributeValues` property (`none()` in `draft()`), widened `revise()`
+- [x] **T4:** `Listing`: `attributeValues` property (`none()` in `draft()`), widened `revise()`
       (L-6 → L-2 → L-10 → L-9 → assign), `attributeValues()` reader; docblock (L-9 contract, the
       non-rules). (The port method `Categories::schemaOf()` lands in T9 with its adapter: adding it
       here would leave `CategoriesForListing` not implementing its interface — a fatal.)
@@ -43,7 +43,7 @@
       lands in T10 with its adapter, for the same reason as T9.)
 
 ## Application
-- [ ] **T6:** `ReviseListing::$attributes`; `ReviseListingHandler` reads `schemaOf()` inside
+- [x] **T6:** `ReviseListing::$attributes`; `ReviseListingHandler` reads `schemaOf()` inside
       `holdSteady()`, builds `AttributeInput`, passes both to `revise()`. **Commit order: after T9, in one commit with
       T4's `revise()` change** (the handler calls both; phpstan fails on either alone); listed here for
       DDD order. Until T14 the controller passes

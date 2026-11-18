@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Domain\Listing\Entity;
 
 use App\Domain\Listing\Exception\CategoryIsNotALeaf;
+use App\Domain\Listing\Exception\InvalidAttributeValue;
 use App\Domain\Listing\Exception\NotTheSeller;
 use App\Domain\Listing\Exception\UnknownCategory;
+use App\Domain\Listing\ValueObject\AttributeInput;
+use App\Domain\Listing\ValueObject\AttributeSchema;
 use App\Domain\Listing\ValueObject\AttributeValues;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\CategoryStatus;
@@ -82,24 +85,42 @@ final class Listing
     }
 
     /**
-     * Replaces everything the edit form submits at once. Every check happens before any
-     * assignment, so a refused revise mutates nothing.
+     * Replaces everything the edit form submits at once, details included. Every check happens
+     * before any assignment, so a refused revise mutates nothing.
      *
-     * Order: L-6 (the seller) → L-2, only when the category changes. Keeping the current category
-     * checks nothing — the `Category::moveUnder()`-to-current-parent shape — so a listing found on
-     * a non-leaf (legacy data) can still be edited without being re-filed.
+     * Order: L-6 (the seller) → L-2, only when the category changes → L-10, only when the category
+     * changes → L-9 → assign. Keeping the current category skips L-2 — the
+     * `Category::moveUnder()`-to-current-parent shape — so a listing found on a non-leaf (legacy
+     * data) can still be edited without being re-filed.
+     *
+     * THE L-9 CONTRACT (ADR-0020 decisions 3, 4, 6). `$schema` is the effective schema of the
+     * **target** category (the new one on a re-file), a fact about the catalog this object cannot
+     * see. The aggregate decides: every value is read against its attribute's rule, current at this
+     * write. The shared lock (`Categories::holdSteady()`) makes the schema true until commit, and
+     * Catalog's C-25/C-26/C-27 refuse the deletes and moves that would strand a stored value later.
+     *
+     * L-10: on a re-file the form was rendered for the *old* category, so inputs for attributes not
+     * in force on the new one are **dropped**; with the category unchanged such an input is
+     * **refused** — nothing a seller sees should vanish without a re-file to explain it.
+     *
+     * Deliberately not rules here: `required` is not enforced on a draft (L-11, `listing-publish`),
+     * and narrowed bounds are never retroactive — a stored value outside them stays until this
+     * listing's next write, which reads it against the current rule and refuses it.
      *
      * @throws NotTheSeller
      * @throws UnknownCategory
      * @throws CategoryIsNotALeaf
+     * @throws InvalidAttributeValue
      */
     public function revise(
         SellerId $by,
         CategoryId $categoryId,
         CategoryStatus $categoryStatus,
+        AttributeSchema $schema,
         ListingTitle $title,
         ListingDescription $description,
         Price $price,
+        AttributeInput $input,
     ): void {
         if (!$this->isSoldBy($by)) {
             throw NotTheSeller::of($this->id);
@@ -107,12 +128,16 @@ final class Listing
 
         if (!$categoryId->equals($this->categoryId)) {
             self::assertFileableUnder($categoryId, $categoryStatus);
+            $input = $input->onlyFor($schema);
         }
+
+        $attributeValues = $schema->read($input);
 
         $this->categoryId = $categoryId;
         $this->title = $title;
         $this->description = $description;
         $this->price = $price;
+        $this->attributeValues = $attributeValues;
     }
 
     public function isSoldBy(SellerId $sellerId): bool
