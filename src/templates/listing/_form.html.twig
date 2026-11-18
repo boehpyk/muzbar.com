@@ -7,5 +7,14 @@
     {{ form_row(form.price) }}
     {{ form_row(form.currency) }}
     {{ form_row(form.category) }}
+    {% if form.attributes is defined %}
+        <fieldset>
+            <legend>Details</legend>
+            {{ form_errors(form.attributes) }}
+            {% for field in form.attributes %}
+                {{ form_row(field) }}
+            {% endfor %}
+        </fieldset>
+    {% endif %}
     <button type="submit">{{ button_label }}</button>
 {{ form_end(form) }}

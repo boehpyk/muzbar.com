@@ -71,7 +71,7 @@
 ## Infrastructure — UI
 - [x] **T12:** `DbalAttributeSchema::optionsFor()` (one query; `[]` without a query for no ids) and
       `DbalSellerDrafts::valuesOf()`.
-- [ ] **T13:** `ListingFormType` `attributes` sub-form (types per plan D12, labels + unit, "required to
+- [x] **T13:** `ListingFormType` `attributes` sub-form (types per plan D12, labels + unit, "required to
       publish" help, `invalid_message`s from the contract) and `ListingFormData::$attributes`;
       `_form.html.twig` Details fieldset.
 - [ ] **T14:** `SellController`: `new` → 303 to the edit page with *"Draft saved. Add the details
