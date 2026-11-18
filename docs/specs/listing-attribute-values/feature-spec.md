@@ -205,7 +205,7 @@ Electric.
       - Re-file to a `Branch` / `Missing` category → L-2's refusal, before any value is looked at.
 - [x] **AC-4** — `Listing::draft()` produces `AttributeValues::none()`. `Listing`'s public methods are
       exactly listing-draft's AC-6 list plus `attributeValues` (allow-list test updated **on purpose**).
-- [ ] **AC-5 (isolation)** — `ListingIsolationTest` and `CatalogIsolationTest` pass; the
+- [x] **AC-5 (isolation)** — `ListingIsolationTest` and `CatalogIsolationTest` pass; the
       data-ownership scan now also finds `listing_attribute_value` only under `Infrastructure/Listing`
       and `catalog_attribute` only under `Infrastructure/Catalog`, each scan counting > 0 files.
 
