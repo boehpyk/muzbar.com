@@ -80,7 +80,7 @@
       edit page with the re-file notice when the category changed.
 
 ## Tests (qa)
-- [ ] **T15:** Domain unit: `AttributeRuleTest` (every AC-1 input), `AttributeSchemaTest`,
+- [x] **T15:** Domain unit: `AttributeRuleTest` (every AC-1 input), `AttributeSchemaTest`,
       `AttributeValuesTest`, `AttributeInputTest`, `ListingTest` additions (AC-3 incl.
       check-before-assign, AC-4 allow-list updated on purpose), id VO tests. (AC-1…AC-4)
 - [ ] **T16:** `ListingIsolationTest` data-ownership scan extended. (AC-5)

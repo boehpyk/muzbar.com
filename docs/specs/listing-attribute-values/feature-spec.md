@@ -173,7 +173,7 @@ Electric.
 
 ### Values and aggregate (Domain unit tests, no kernel)
 
-- [ ] **AC-1 (`AttributeRule::read()`, L-9)** — for each, input → result:
+- [x] **AC-1 (`AttributeRule::read()`, L-9)** — for each, input → result:
       - choice(options A, B): `"A-id"` → option A; `" A-id "` → option A (trimmed); `""` and `"  "`
         → no value; `"C-id"` (another attribute's option), `"not-a-uuid"` → `InvalidAttributeValue`
         (not an option).
@@ -187,12 +187,12 @@ Electric.
       - text: `" SN-123 "` → `"SN-123"`; 200 × `"ї"` accepted; 201 characters, `"a\nb"`, `"a\tb"`,
         `"a\0b"`, `"\xC3\x28"` (invalid UTF-8) → refused.
       Every refusal names the attribute (`InvalidAttributeValue::attributeId()`).
-- [ ] **AC-2 (`AttributeSchema::read()`)** — reads an `AttributeInput` against its rules into
+- [x] **AC-2 (`AttributeSchema::read()`)** — reads an `AttributeInput` against its rules into
       `AttributeValues`, skipping empty inputs; an input for an attribute not in the schema →
       `InvalidAttributeValue` (not in force). `AttributeValues` holds at most one value per attribute
       (L-8: building it with two for one id throws `\InvalidArgumentException`); `equals()` is
       order-independent.
-- [ ] **AC-3 (`Listing::revise()` with values)** — against Electric's schema:
+- [x] **AC-3 (`Listing::revise()` with values)** — against Electric's schema:
       - Valid values for all five → `attributeValues()` returns exactly them.
       - Required attributes left empty → succeeds (L-11).
       - An invalid value → `InvalidAttributeValue`, and **every** reader (title, description, price,
@@ -203,7 +203,7 @@ Electric.
         `brand` and `strings` are dropped, no refusal (L-10); with condition = an invalid value → refused
         (kept values are still checked).
       - Re-file to a `Branch` / `Missing` category → L-2's refusal, before any value is looked at.
-- [ ] **AC-4** — `Listing::draft()` produces `AttributeValues::none()`. `Listing`'s public methods are
+- [x] **AC-4** — `Listing::draft()` produces `AttributeValues::none()`. `Listing`'s public methods are
       exactly listing-draft's AC-6 list plus `attributeValues` (allow-list test updated **on purpose**).
 - [ ] **AC-5 (isolation)** — `ListingIsolationTest` and `CatalogIsolationTest` pass; the
       data-ownership scan now also finds `listing_attribute_value` only under `Infrastructure/Listing`
