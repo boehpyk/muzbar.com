@@ -211,38 +211,38 @@ Electric.
 
 ### Use cases against a real database (Integration, DAMA)
 
-- [ ] **AC-6 (schema)** — after the migration, `listing_attribute_value` has exactly the columns of
+- [x] **AC-6 (schema)** — after the migration, `listing_attribute_value` has exactly the columns of
       plan *Data & migrations* (types, nullability), PK `(listing_id, attribute_id)`, index
       `idx_listing_attribute_value_option (attribute_id, option_id)`, the check constraint
       `chk_listing_attribute_value_one_value`, and **no foreign key**. Inserting a row with two typed
       columns set, or none, fails with SQLSTATE 23514. `make migration.make` afterwards generates
       **nothing**.
-- [ ] **AC-7 (persist)** — Ann revising D with condition = Used, brand = Fender, strings = "6",
+- [x] **AC-7 (persist)** — Ann revising D with condition = Used, brand = Fender, strings = "6",
       has_case = "yes", serial = "SN-1" writes exactly five rows, each with only its typed column set
       (`option_id` ×2, `value_int` = 6, `value_bool` = true, `value_text` = 'SN-1'). A **fresh
       EntityManager** load of D returns equal `AttributeValues`. Revising again with serial = "" and
       strings = "8" leaves four rows (serial's row gone, strings = 8). Revising with nothing changed
       leaves the same rows.
-- [ ] **AC-8 (refusals write nothing)** — each AC-1 refusal class, sent through `ReviseListingHandler`,
+- [x] **AC-8 (refusals write nothing)** — each AC-1 refusal class, sent through `ReviseListingHandler`,
       leaves `listing_listing` and `listing_attribute_value` identical to a snapshot taken before.
-- [ ] **AC-9 (re-file, L-10)** — with AC-7's values, re-filing D to Bass leaves exactly one row
+- [x] **AC-9 (re-file, L-10)** — with AC-7's values, re-filing D to Bass leaves exactly one row
       (condition); `brand`, `strings`, `has_case`, `serial` rows are gone.
-- [ ] **AC-10 (never retroactive)** — with strings = 6 stored, an admin narrows strings to 7…12: the
+- [x] **AC-10 (never retroactive)** — with strings = 6 stored, an admin narrows strings to 7…12: the
       edit succeeds and D's row still says 6. Ann's next revise sending strings = "6" is refused on
       strings; sending "7" succeeds. Marking `has_case` required and defining a new required attribute
       on Instruments both succeed and leave D's rows unchanged; Ann's next revise without them succeeds
       (L-11).
-- [ ] **AC-11 (`Categories::schemaOf()`)** — for Electric: exactly the five attributes (inherited from
+- [x] **AC-11 (`Categories::schemaOf()`)** — for Electric: exactly the five attributes (inherited from
       Instruments and Guitars included, Bass's excluded), each with its kind; condition's and brand's
       option ids in id order; strings' bounds 4 and 12. For Bass: two. Unknown id → empty schema. A
       legacy duplicate code on one branch (ADR-0018 d.7) yields both attributes without error.
-- [ ] **AC-12 (C-25)** — with D holding a brand value: `DeleteAttribute(brand)` throws
+- [x] **AC-12 (C-25)** — with D holding a brand value: `DeleteAttribute(brand)` throws
       `AttributeInUse`; the attribute and both options remain. `DeleteAttribute(serial)` when no
       listing holds a serial value succeeds even though D is filed under Electric.
-- [ ] **AC-13 (C-26)** — with D holding brand = Fender: removing Fender throws `AttributeInUse`;
+- [x] **AC-13 (C-26)** — with D holding brand = Fender: removing Fender throws `AttributeInUse`;
       removing Gibson succeeds. With Fender the **only** option and in use, the refusal is C-18's
       `AttributeNeedsAnOption` (C-18 → C-26).
-- [ ] **AC-14 (C-27)** — with D holding any value:
+- [x] **AC-14 (C-27)** — with D holding any value:
       - moving **Electric** under **Instruments** throws `CategoryHasListings` (cannot move) and its
         `parent_id` is unchanged; moving **Guitars** (D's ancestor) under **Bass** is refused the same
         way (the subtree, not only the category);
@@ -251,14 +251,14 @@ Electric.
         values;
       - order: Guitars under Electric reports the cycle (C-4 first); with a second draft on Bass,
         Guitars under Bass reports C-24 (`cannotGainChild`) before C-27.
-- [ ] **AC-15 (unguarded on purpose)** — with D holding a value for every attribute: recoding strings,
+- [x] **AC-15 (unguarded on purpose)** — with D holding a value for every attribute: recoding strings,
       relabelling brand, relabelling the Fender option, toggling `required` on condition, and changing
       strings' bounds all succeed, and D's five rows are byte-identical before and after.
 - [ ] **AC-16 (the lock, recording doubles)** — `ReviseListingHandler` calls `statusOf()`,
       `schemaOf()` and `save()` inside `holdSteady()`. `DeleteAttributeHandler`,
       `RemoveAttributeOptionHandler` and `EditCategoryHandler` (parent changed) call their usage reads
       inside `exclusively()`. Each removal of a lock fails a named test.
-- [ ] **AC-17 (values persist only through the repository; hydrate on every load)** — a listing loaded
+- [x] **AC-17 (values persist only through the repository; hydrate on every load)** — a listing loaded
       by `EntityManager::find()` in a fresh EM, and one refreshed by Foundry, both carry their stored
       values. `ListingFactory::withValues()` writes rows through `ListingRepository::save()` (asserted
       by counting rows). `NoDdlTest` still passes with the three guarded handlers.

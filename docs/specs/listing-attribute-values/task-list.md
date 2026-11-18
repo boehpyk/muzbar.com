@@ -84,7 +84,7 @@
       `AttributeValuesTest`, `AttributeInputTest`, `ListingTest` additions (AC-3 incl.
       check-before-assign, AC-4 allow-list updated on purpose), id VO tests. (AC-1…AC-4)
 - [x] **T16:** `ListingIsolationTest` data-ownership scan extended. (AC-5)
-- [ ] **T17:** Integration: `ListingFactory::withValues()` (through the aggregate and
+- [x] **T17:** Integration: `ListingFactory::withValues()` (through the aggregate and
       `ListingRepository::save()`); `ListingAttributeValuesSchemaTest` (AC-6 incl. two 23514 inserts);
       `ListingHandlersTest` additions (AC-7…AC-10, fresh EM before each read-back); adapter tests
       (AC-11, usage adapters); attribute/category handler additions (AC-12…AC-15);
