@@ -50,7 +50,7 @@
       `attributes: []`.
 
 ## Infrastructure — persistence and the seam
-- [ ] **T7:** Migration (hand-written: table, PK, `chk_listing_attribute_value_one_value`,
+- [x] **T7:** Migration (hand-written: table, PK, `chk_listing_attribute_value_one_value`,
       `idx_listing_attribute_value_option`; no FK); widen `schema_filter` to exclude
       `listing_attribute_value` (comment extended). Prove `make migration.make` is empty.
 - [ ] **T8:** `DoctrineListingRepository::save()` writes values (delete + multi-row insert, typed
