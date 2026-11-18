@@ -254,7 +254,7 @@ Electric.
 - [x] **AC-15 (unguarded on purpose)** — with D holding a value for every attribute: recoding strings,
       relabelling brand, relabelling the Fender option, toggling `required` on condition, and changing
       strings' bounds all succeed, and D's five rows are byte-identical before and after.
-- [ ] **AC-16 (the lock, recording doubles)** — `ReviseListingHandler` calls `statusOf()`,
+- [x] **AC-16 (the lock, recording doubles)** — `ReviseListingHandler` calls `statusOf()`,
       `schemaOf()` and `save()` inside `holdSteady()`. `DeleteAttributeHandler`,
       `RemoveAttributeOptionHandler` and `EditCategoryHandler` (parent changed) call their usage reads
       inside `exclusively()`. Each removal of a lock fails a named test.

@@ -89,7 +89,7 @@
       `ListingHandlersTest` additions (AC-7…AC-10, fresh EM before each read-back); adapter tests
       (AC-11, usage adapters); attribute/category handler additions (AC-12…AC-15);
       `ListingValuesPersistenceTest` (AC-17); `NoDdlTest` green.
-- [ ] **T18:** `CategoryTreeLockTest`: `schemaOf()` and `save()` inside `holdSteady()`; the three
+- [x] **T18:** `CategoryTreeLockTest`: `schemaOf()` and `save()` inside `holdSteady()`; the three
       usage reads inside `exclusively()` (and C-27 skipped for an unchanged parent). (AC-16)
 - [ ] **T19:** Functional: `SellTest` additions (Details section, order, prefill, "Fretboard wood"
       gate preview, create → edit redirect with the listing-draft AC-25 assertion updated on purpose,
