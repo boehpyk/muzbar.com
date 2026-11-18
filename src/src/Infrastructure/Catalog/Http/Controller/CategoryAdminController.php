@@ -221,6 +221,9 @@ final class CategoryAdminController extends AbstractController
             $refusal instanceof CategoryMoveWouldCreateCycle => ['parent', 'A category cannot be moved inside itself.'],
             $refusal instanceof CategoryMoveWouldDuplicateAttributeCode => ['parent', \sprintf('Cannot move here: attribute code “%s” would appear twice in one branch. Recode or delete one of them first.', $refusal->code()->toString())],
             $refusal instanceof CategoryNotFound => ['parent', 'That parent no longer exists.'],
+            // C-27 (ADR-0020): the moved category's subtree holds values. Before C-24's arm, which
+            // names the *new parent*; this one names the category being moved (its current name).
+            $refusal instanceof CategoryHasListings && $refusal->isMove() => ['parent', \sprintf('Listings under “%s” have details filled in, so it cannot be moved yet.', $this->find($rows, $refusal->categoryId()->toString())['name'] ?? 'this category')],
             // C-24 (ADR-0019): the chosen parent has listings, on create and on move alike.
             $refusal instanceof CategoryHasListings => ['parent', \sprintf('“%s” has listings filed under it, so it cannot have subcategories.', $this->find($rows, $refusal->categoryId()->toString())['name'] ?? 'That category')],
             default => throw $refusal,

@@ -65,7 +65,7 @@
       C-25 in `DeleteAttributeHandler`, C-26 in `RemoveAttributeOptionHandler` (after C-18);
       `ListingCategoryUsage::hasAttributeValues()` + C-27 in `EditCategoryHandler` (after C-24, reusing
       the `descendantsOf()` result); accretion-point comments; `ObservedAttributeUsage` fixture.
-- [ ] **T11:** Admin refusal mapping: `AttributeAdminController` (delete → flash, option remove →
+- [x] **T11:** Admin refusal mapping: `AttributeAdminController` (delete → flash, option remove →
       flash), `CategoryAdminController::edit()` (`cannotMove` → 422 on `parent`, its own message).
 
 ## Infrastructure — UI
