@@ -314,7 +314,7 @@ Electric.
       - (l) remove the `postLoad` hydration → AC-7 / AC-17
       - (m) `schemaOf()` reads only the category's own attributes, not the lineage → AC-11
       - (n) text rule without the control-character check → AC-1
-- [ ] **AC-29** — `make check` green, `make test` passes **twice in a row**, Deptrac 0 violations with
+- [x] **AC-29** — `make check` green, `make test` passes **twice in a row**, Deptrac 0 violations with
       `--fail-on-uncovered`, `make migration.make` empty; roadmap's three stale "`/verify` pending"
       notes fixed.
 

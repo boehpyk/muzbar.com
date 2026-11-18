@@ -99,7 +99,7 @@
       record in the commit message, run `make test` twice. (AC-28, AC-29)
 
 ## Docs
-- [ ] **T21:** Update the docs:
+- [x] **T21:** Update the docs:
       - **`docs/roadmap.md`:** fix the three stale "`/verify` pending" notes — line 227
         `catalog-attribute-schema` (passed 2026-11-15), line 247 `catalog-schema-inheritance` (passed
         2026-11-16), line 278 `listing-draft` (passed 2026-11-17); tick `listing-attribute-values`;

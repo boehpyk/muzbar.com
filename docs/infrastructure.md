@@ -391,6 +391,14 @@ seconds — and not engineered around. It ends when `migrate` completes; if it d
 migration failed: run `migrate` by hand. No pre-deploy query and no backfill: no listing exists
 anywhere before this slice, so every category is trivially consistent with C-23/C-24.
 
+**`listing-attribute-values` widens the same window**
+([ADR-0020](./adr/0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md)).
+Until `migrate` creates `listing_attribute_value`, the draft **edit page** (GET and POST) — and
+`/sell` create, because every `save()` rewrites the value rows and every load hydrates them — admin
+**attribute delete** (C-25), **option remove** (C-26) and **category move** (C-27) answer **500**.
+Same verdict and same cure: accepted, seconds long, ends when `migrate` completes. No backfill: no
+value exists before this slice, so every guard trivially holds.
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker
