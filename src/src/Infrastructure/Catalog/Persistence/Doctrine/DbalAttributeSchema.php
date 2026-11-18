@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Catalog\Persistence\Doctrine;
 
 use App\Domain\Catalog\Entity\Category;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 
@@ -115,6 +116,38 @@ final readonly class DbalAttributeSchema
         );
 
         return $rows;
+    }
+
+    /**
+     * Every option of every attribute in `$attributeIds`, grouped by attribute, each list in id
+     * (insertion) order — in **one** query however many choice attributes there are (the sell edit
+     * page's budget, listing-attribute-values AC-25). No ids: `[]` without a query. An attribute
+     * with no options is absent from the result.
+     *
+     * @param list<string> $attributeIds
+     *
+     * @return array<string, list<OptionRow>>
+     */
+    public function optionsFor(array $attributeIds): array
+    {
+        if ([] === $attributeIds) {
+            return [];
+        }
+
+        /** @var list<array{attribute_id: string, id: string, label: string}> $rows */
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT attribute_id, id, label FROM catalog_attribute_option WHERE attribute_id IN (:attributes) ORDER BY attribute_id, id',
+            ['attributes' => $attributeIds],
+            ['attributes' => ArrayParameterType::STRING],
+        );
+
+        $byAttribute = [];
+
+        foreach ($rows as $row) {
+            $byAttribute[$row['attribute_id']][] = ['id' => $row['id'], 'label' => $row['label']];
+        }
+
+        return $byAttribute;
     }
 
     /**

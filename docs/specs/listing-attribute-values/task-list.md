@@ -69,7 +69,7 @@
       flash), `CategoryAdminController::edit()` (`cannotMove` → 422 on `parent`, its own message).
 
 ## Infrastructure — UI
-- [ ] **T12:** `DbalAttributeSchema::optionsFor()` (one query; `[]` without a query for no ids) and
+- [x] **T12:** `DbalAttributeSchema::optionsFor()` (one query; `[]` without a query for no ids) and
       `DbalSellerDrafts::valuesOf()`.
 - [ ] **T13:** `ListingFormType` `attributes` sub-form (types per plan D12, labels + unit, "required to
       publish" help, `invalid_message`s from the contract) and `ListingFormData::$attributes`;

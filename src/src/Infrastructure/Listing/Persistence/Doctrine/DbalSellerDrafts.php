@@ -81,6 +81,27 @@ final readonly class DbalSellerDrafts
         return false === $row ? null : self::toRow($row);
     }
 
+    /**
+     * The draft's stored details as the edit form's prefill, keyed by attribute id: an option id, a
+     * whole number as a string, `yes`/`no`, or the text — exactly what the form would submit.
+     *
+     * **No seller filter**: call it only with an id `find()` has already passed for this seller.
+     *
+     * @return array<string, string>
+     */
+    public function valuesOf(string $listingId): array
+    {
+        /** @var array<string, string> $values */
+        $values = $this->connection->fetchAllKeyValue(
+            "SELECT attribute_id, COALESCE(option_id::text, value_int::text,
+                    CASE WHEN value_bool THEN 'yes' WHEN NOT value_bool THEN 'no' END, value_text)
+             FROM listing_attribute_value WHERE listing_id = :listing",
+            ['listing' => $listingId],
+        );
+
+        return $values;
+    }
+
     private static function sellerId(string $value): ?SellerId
     {
         try {
