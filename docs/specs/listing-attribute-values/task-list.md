@@ -24,7 +24,7 @@
       the dated amendments to **ADR-0004, ADR-0007, ADR-0016, ADR-0018, ADR-0019** (plan Risk 7). No code.
 
 ## Domain — `Listing`
-- [ ] **T1:** `AttributeId`, `AttributeOptionId` (Listing's copies + `Invalid…` exceptions),
+- [x] **T1:** `AttributeId`, `AttributeOptionId` (Listing's copies + `Invalid…` exceptions),
       `AttributeKind` enum.
 - [ ] **T2:** `AttributeValue` (four named constructors, kind-exclusive readers, text rule re-applied)
       and `AttributeValues` (`none`, `of` refusing duplicates — L-8, `for`, sorted `toList`, `equals`).
