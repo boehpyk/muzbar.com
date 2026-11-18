@@ -57,7 +57,7 @@
       params, comment "only writer"); `ListingAttributeValuesLoader` (`postLoad`, reflection, refuses a
       row with ≠ 1 typed column). Prove a save → fresh-EM load round trip and a Foundry `refresh()`
       before committing (Risk 4).
-- [ ] **T9:** Port method `Categories::schemaOf()` (docblock: only true inside `holdSteady()`) **and**
+- [x] **T9:** Port method `Categories::schemaOf()` (docblock: only true inside `holdSteady()`) **and**
       `CategoriesForListing::schemaOf()` (bounded lineage CTE, `array_agg` option ids,
       `::bigint` bounds, kind mapped by value, unknown kind → `\LogicException`, `ponytail:` note on
       option counts). Update `ObservedCategories` so `CategoryTreeLockTest` compiles.

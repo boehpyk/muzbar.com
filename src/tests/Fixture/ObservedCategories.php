@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Fixture;
 
 use App\Domain\Listing\Port\Categories;
+use App\Domain\Listing\ValueObject\AttributeSchema;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\CategoryStatus;
 
@@ -45,6 +46,13 @@ final class ObservedCategories implements Categories
         $this->record(__FUNCTION__);
 
         return $this->inner->statusOf($id);
+    }
+
+    public function schemaOf(CategoryId $id): AttributeSchema
+    {
+        $this->record(__FUNCTION__);
+
+        return $this->inner->schemaOf($id);
     }
 
     public function isHeld(): bool
