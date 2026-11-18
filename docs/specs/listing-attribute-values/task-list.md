@@ -95,7 +95,7 @@
       gate preview, create → edit redirect with the listing-draft AC-25 assertion updated on purpose,
       save, re-file notice, every refusal's field + message + 422, 404 parity, query count 5 with 1 vs 4
       choice attributes, no-GET-writes), admin refusal tests, Sentry silence. (AC-18…AC-27)
-- [ ] **T20:** Bite proof: AC-28 mutations (a)…(n) one at a time; each fails a named test. Revert,
+- [x] **T20:** Bite proof: AC-28 mutations (a)…(n) one at a time; each fails a named test. Revert,
       record in the commit message, run `make test` twice. (AC-28, AC-29)
 
 ## Docs

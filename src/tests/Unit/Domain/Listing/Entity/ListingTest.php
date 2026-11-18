@@ -209,16 +209,16 @@ final class ListingTest extends TestCase
     /**
      * @param array<string, string> $input
      */
-    private function reviseWith(Listing $listing, string $by, string $category, CategoryStatus $status, AttributeSchema $schema, array $input): void
+    private function reviseWith(Listing $listing, string $by, string $category, CategoryStatus $status, AttributeSchema $schema, array $input, string $title = 'Changed title', string $description = 'Changed', int $minorUnits = 999): void
     {
         $listing->revise(
             SellerId::fromString($by),
             CategoryId::fromString($category),
             $status,
             $schema,
-            ListingTitle::fromString('Changed title'),
-            ListingDescription::fromString('Changed'),
-            Price::fromMinorUnits(999, Currency::UAH),
+            ListingTitle::fromString($title),
+            ListingDescription::fromString($description),
+            Price::fromMinorUnits($minorUnits, Currency::UAH),
             AttributeInput::fromArray($input),
         );
     }
@@ -287,8 +287,8 @@ final class ListingTest extends TestCase
         $before = [$this->snapshot($listing), $this->valuesAsScalars($listing)];
 
         try {
-            // Title, description, price and category are all valid and different: they must not leak in.
-            $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), [self::STRINGS => '13']);
+            // Title, description and price are all valid and different from what is held: they must not leak in.
+            $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), [self::STRINGS => '13'], 'Never saved', 'Never saved either', 1);
             self::fail('An out-of-range value was accepted.');
         } catch (InvalidAttributeValue $e) {
             self::assertSame(InvalidAttributeValueReason::OutOfRange, $e->reason());

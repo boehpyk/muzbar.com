@@ -300,7 +300,7 @@ Electric.
 
 ### Cross-cutting
 
-- [ ] **AC-28 (tests bite)** — each mutation fails a named test (recorded in the commit message):
+- [x] **AC-28 (tests bite)** — each mutation fails a named test (recorded in the commit message):
       - (a) `AttributeRule` accepts any well-formed UUID for a choice → AC-1 / AC-22
       - (b) drop the number bound check → AC-1 / AC-10
       - (c) assign values before checking them → AC-3 (check-before-assign)
