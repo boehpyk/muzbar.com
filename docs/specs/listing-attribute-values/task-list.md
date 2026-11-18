@@ -26,7 +26,7 @@
 ## Domain — `Listing`
 - [x] **T1:** `AttributeId`, `AttributeOptionId` (Listing's copies + `Invalid…` exceptions),
       `AttributeKind` enum.
-- [ ] **T2:** `AttributeValue` (four named constructors, kind-exclusive readers, text rule re-applied)
+- [x] **T2:** `AttributeValue` (four named constructors, kind-exclusive readers, text rule re-applied)
       and `AttributeValues` (`none`, `of` refusing duplicates — L-8, `for`, sorted `toList`, `equals`).
 - [ ] **T3:** `InvalidAttributeValue` (six reasons, `attributeKey()`), `AttributeRule` with `read()`
       (L-9 per kind: option membership, ASCII whole numbers ≤ 18 digits + inclusive bounds, `yes`/`no`,
