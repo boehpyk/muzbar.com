@@ -74,7 +74,7 @@
 - [x] **T13:** `ListingFormType` `attributes` sub-form (types per plan D12, labels + unit, "required to
       publish" help, `invalid_message`s from the contract) and `ListingFormData::$attributes`;
       `_form.html.twig` Details fieldset.
-- [ ] **T14:** `SellController`: `new` → 303 to the edit page with *"Draft saved. Add the details
+- [x] **T14:** `SellController`: `new` → 303 to the edit page with *"Draft saved. Add the details
       below."*; `edit` builds the schema rows (effective + options + prefill), maps
       `InvalidAttributeValue` to `attributes[<key>]` with the contract's messages, redirects back to the
       edit page with the re-file notice when the category changed.

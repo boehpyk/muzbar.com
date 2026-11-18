@@ -264,14 +264,17 @@ final class SellTest extends WebTestCase
         $this->post('/sell', $this->validFields());
 
         self::assertResponseStatusCodeSame(303);
-        self::assertResponseRedirects('/sell/drafts');
         $rows = $this->listings();
         self::assertCount(1, $rows);
+        // listing-attribute-values (Q4, AC-20) changed the target on purpose: the new draft's edit
+        // page, where the details its category asks for are filled in — no longer /sell/drafts.
+        self::assertIsString($rows[0]['id']);
+        self::assertResponseRedirects('/sell/drafts/'.$rows[0]['id'].'/edit');
         self::assertSame($ann->id()->toString(), $rows[0]['seller_id']);
         self::assertSame($this->electric->id()->toString(), $rows[0]['category_id']);
         self::assertSame(123450, $rows[0]['price_amount']);
         $this->client->followRedirect();
-        self::assertSelectorTextContains('.flash-success', 'Draft saved.');
+        self::assertSelectorTextContains('.flash-success', 'Draft saved. Add the details below.');
         $this->assertNothingReportedToSentry();
     }
 
@@ -479,7 +482,9 @@ final class SellTest extends WebTestCase
         $this->post($path, ['title' => 'Changed title', 'price' => '99', 'currency' => 'UAH', 'category' => $this->bass->id()->toString(), 'description' => 'New'], tokenFrom: $path);
 
         self::assertResponseStatusCodeSame(303);
-        self::assertResponseRedirects('/sell/drafts');
+        // This edit re-files the draft (Electric → Bass), so since listing-attribute-values (AC-21)
+        // it lands back on the edit page with the re-file notice — changed on purpose.
+        self::assertResponseRedirects($path);
         $row = $this->db->fetchAssociative('SELECT * FROM listing_listing WHERE id = ?', [$draft->id()->toString()]);
         self::assertIsArray($row);
         self::assertSame('Changed title', $row['title']);
@@ -488,7 +493,7 @@ final class SellTest extends WebTestCase
         self::assertSame($this->bass->id()->toString(), $row['category_id']);
         self::assertSame($ann->id()->toString(), $row['seller_id']);
         $this->client->followRedirect();
-        self::assertSelectorTextContains('.flash-success', 'Draft saved.');
+        self::assertSelectorTextContains('.flash-success', 'Draft saved. The details now follow “Bass”: check them below.');
     }
 
     public function testARefusedEditRendersThe422AndLeavesTheRowUnchanged(): void

@@ -9,6 +9,8 @@ use App\Application\Listing\Command\ReviseListing;
 use App\Application\Listing\Handler\DraftListingHandler;
 use App\Application\Listing\Handler\ReviseListingHandler;
 use App\Domain\Listing\Exception\CategoryIsNotALeaf;
+use App\Domain\Listing\Exception\InvalidAttributeValue;
+use App\Domain\Listing\Exception\InvalidAttributeValueReason;
 use App\Domain\Listing\Exception\InvalidListingDescription;
 use App\Domain\Listing\Exception\InvalidListingTitle;
 use App\Domain\Listing\Exception\InvalidPrice;
@@ -16,6 +18,7 @@ use App\Domain\Listing\Exception\ListingNotFound;
 use App\Domain\Listing\Exception\NotTheSeller;
 use App\Domain\Listing\Exception\UnknownCategory;
 use App\Domain\Listing\ValueObject\Currency;
+use App\Infrastructure\Catalog\Persistence\Doctrine\DbalAttributeSchema;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DbalCategoryOutline;
 use App\Infrastructure\Identity\Security\SecurityUser;
 use App\Infrastructure\Listing\Form\LeafCategoryChoices;
@@ -45,6 +48,10 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * - **No GET writes** (ADR-0015); every write is a POST with the form's CSRF token, then a 303.
  * - **Domain refusals are not logged**: they are user errors (AC-32), mapped to field errors with
  *   the failure contract's wording.
+ * - **The Details section is rendered from Catalog's admin read model** (`DbalAttributeSchema`,
+ *   listing-attribute-values plan D11 — the fourth cross-context crossing), while the Domain decides
+ *   on `Categories::schemaOf()` read again under the lock at POST. A schema change in between only
+ *   produces a refusal: fail closed.
  */
 #[Route('/sell')]
 #[IsGranted('ROLE_USER')]
@@ -52,10 +59,13 @@ final class SellController extends AbstractController
 {
     private const string SAVED = 'Draft saved.';
     private const string NOT_A_LEAF = 'That category now has subcategories. Choose a more specific one.';
+    private const string ADD_DETAILS = 'Draft saved. Add the details below.';
+    private const string REFILED = 'Draft saved. The details now follow “%s”: check them below.';
 
     public function __construct(
         private readonly DbalCategoryOutline $outline,
         private readonly DbalSellerDrafts $drafts,
+        private readonly DbalAttributeSchema $schema,
     ) {
     }
 
@@ -81,7 +91,7 @@ final class SellController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             try {
-                $draftListing(new DraftListing(
+                $listingId = $draftListing(new DraftListing(
                     $user->id(),
                     (string) $data->category,
                     (string) $data->title,
@@ -90,9 +100,10 @@ final class SellController extends AbstractController
                     (string) $data->currency,
                 ));
 
-                $this->addFlash('success', self::SAVED);
+                // The details depend on the category, unknown until now (Q4): the edit page asks.
+                $this->addFlash('success', self::ADD_DETAILS);
 
-                return $this->redirectToRoute('app_sell_drafts', [], Response::HTTP_SEE_OTHER);
+                return $this->redirectToRoute('app_sell_draft_edit', ['id' => $listingId->toString()], Response::HTTP_SEE_OTHER);
             } catch (InvalidListingTitle|InvalidListingDescription|InvalidPrice|UnknownCategory|CategoryIsNotALeaf $e) {
                 $this->addRefusal($form, $e, $data);
             }
@@ -136,7 +147,17 @@ final class SellController extends AbstractController
         $data->currency = $draft['currency'];
         $data->category = $draft['categoryId'];
 
-        $form = $this->createForm(ListingFormType::class, $data, ['category_choices' => $choices]);
+        // The page's data is five queries however many choice attributes there are (AC-25): the
+        // draft, the outline, the effective schema, every option of every choice, the stored values.
+        $schema = $this->detailsSchema($draft['categoryId']);
+        // Only values for fields on the form: a stray key (a legacy row for an attribute no longer in
+        // force) would be submitted back and refused as "no longer applies".
+        $data->attributes = [] === $schema ? [] : array_intersect_key(
+            $this->drafts->valuesOf($draft['id']),
+            array_flip(array_column($schema, 'id')),
+        );
+
+        $form = $this->createForm(ListingFormType::class, $data, ['category_choices' => $choices, 'schema' => $schema]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted()) {
@@ -153,7 +174,18 @@ final class SellController extends AbstractController
                     (string) $data->description,
                     (string) $data->price,
                     (string) $data->currency,
+                    // An empty field is no value (L-11); omitting it also keeps an empty field whose
+                    // attribute left the schema from being refused for nothing.
+                    array_filter($data->attributes, static fn (?string $value): bool => null !== $value && '' !== $value),
                 ));
+
+                if ($data->category !== $draft['categoryId']) {
+                    // Re-filed: the aggregate dropped what the new category does not ask (L-10), and
+                    // the new category may ask more — so back to the form, not the list (AC-21).
+                    $this->addFlash('success', \sprintf(self::REFILED, self::nameOf($rows, (string) $data->category)));
+
+                    return $this->redirectToRoute('app_sell_draft_edit', ['id' => $draft['id']], Response::HTTP_SEE_OTHER);
+                }
 
                 $this->addFlash('success', self::SAVED);
 
@@ -164,10 +196,71 @@ final class SellController extends AbstractController
                 throw $this->createNotFoundException();
             } catch (InvalidListingTitle|InvalidListingDescription|InvalidPrice|UnknownCategory|CategoryIsNotALeaf $e) {
                 $this->addRefusal($form, $e, $data);
+            } catch (InvalidAttributeValue $e) {
+                $this->addDetailRefusal($form, $e);
             }
         }
 
         return $this->render('listing/edit.html.twig', ['form' => $form, 'draft' => $draft], $this->statusFor($form));
+    }
+
+    /**
+     * The Details sub-form's rows: the effective schema (root first, then label) with each choice
+     * attribute's options, fetched for all of them in one query.
+     *
+     * @return list<array{id: string, label: string, type: string, required: bool, unit: ?string, options: list<array{id: string, label: string}>}>
+     */
+    private function detailsSchema(string $categoryId): array
+    {
+        $rows = $this->schema->effectiveFor($categoryId);
+        $options = $this->schema->optionsFor(array_column(
+            array_filter($rows, static fn (array $row): bool => 'choice' === $row['type']),
+            'id',
+        ));
+
+        return array_map(static fn (array $row): array => [
+            'id' => $row['id'],
+            'label' => $row['label'],
+            'type' => $row['type'],
+            'required' => $row['required'],
+            'unit' => $row['unit'],
+            'options' => $options[$row['id']] ?? [],
+        ], $rows);
+    }
+
+    /**
+     * @param list<array{id: string, parentId: ?string, name: string, slug: string, depth: int}> $rows
+     */
+    private static function nameOf(array $rows, string $categoryId): string
+    {
+        return array_column($rows, 'name', 'id')[$categoryId] ?? 'the new category';
+    }
+
+    /**
+     * L-9's refusals, on the attribute's field in the failure contract's words. A key with no field
+     * (a tampered or since-deleted attribute) lands on the form itself.
+     *
+     * @param FormInterface<ListingFormData> $form
+     */
+    private function addDetailRefusal(FormInterface $form, InvalidAttributeValue $refusal): void
+    {
+        $message = match ($refusal->reason()) {
+            InvalidAttributeValueReason::NotAnOption => ListingFormType::NOT_AN_OPTION,
+            InvalidAttributeValueReason::NotAWholeNumber => 'Enter a whole number, like 6.',
+            InvalidAttributeValueReason::OutOfRange => match (true) {
+                null !== $refusal->min() && null !== $refusal->max() => \sprintf('Enter a whole number from %d to %d.', $refusal->min(), $refusal->max()),
+                null !== $refusal->min() => \sprintf('Enter a whole number of at least %d.', $refusal->min()),
+                null !== $refusal->max() => \sprintf('Enter a whole number of at most %d.', $refusal->max()),
+                default => 'Enter a whole number, like 6.',
+            },
+            InvalidAttributeValueReason::NotYesOrNo => ListingFormType::NOT_YES_OR_NO,
+            InvalidAttributeValueReason::BadText => 'Keep this to one line of up to 200 characters.',
+            InvalidAttributeValueReason::NotInForce => 'This detail no longer applies. Reload the page.',
+        };
+
+        $details = $form->has('attributes') ? $form->get('attributes') : null;
+        $field = null !== $details && $details->has($refusal->attributeKey()) ? $details->get($refusal->attributeKey()) : $form;
+        $field->addError(new FormError($message));
     }
 
     /**
