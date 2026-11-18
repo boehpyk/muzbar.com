@@ -177,8 +177,10 @@ Electric.
       - choice(options A, B): `"A-id"` → option A; `" A-id "` → option A (trimmed); `""` and `"  "`
         → no value; `"C-id"` (another attribute's option), `"not-a-uuid"` → `InvalidAttributeValue`
         (not an option).
-      - number(4…12): `"4"`, `"12"`, `" 7 "`, `"007"` → 4, 12, 7, 7; `"3"`, `"13"` → out of range;
-        `"-1"`, `"7.0"`, `"7,5"`, `"1e1"`, `"+7"`, `"1 0"`, `"٧"` (Arabic-Indic), `"1234567890123456789"`
+      - number(4…12): `"4"`, `"12"`, `" 7 "`, `"007"` → 4, 12, 7, 7; `"3"`, `"13"`, `"-1"` → out of range
+        (*amended 2026-11-18 in /implement:* `"-1"` was listed as "not a whole number", which
+        contradicts Q6 and this AC's own `"-5"`; the code won, on purpose);
+        `"7.0"`, `"7,5"`, `"1e1"`, `"+7"`, `"1 0"`, `"٧"` (Arabic-Indic), `"1234567890123456789"`
         (19 digits) → not a whole number. number(no bounds): `"-5"` and `"999999999999999999"` accepted.
         number(min 4 only): `"1000000"` accepted, `"3"` refused.
       - boolean: `"yes"` → true, `"no"` → false; `"Yes"`, `"1"`, `"true"`, `"on"` → refused.
