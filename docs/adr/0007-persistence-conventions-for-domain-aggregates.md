@@ -148,3 +148,18 @@ Recorded by the `listing-draft` slice
 3. **Readonly embeddables are hydrated by reflection.** A `final readonly` VO is proved by a
    save → fresh-EntityManager load round trip before anything builds on it; if that ever fails, the
    fallback is two private fields on the aggregate, recorded in ADR-0019.
+
+## Amendment, 2026-11-18 — a collection of value objects that must live in a typed table is persisted by the repository
+
+Recorded by the `listing-attribute-values` slice
+([ADR-0020](./0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md), plan D2).
+
+1. **A collection of value objects inside an aggregate that must be stored in its own typed table**
+   (not `jsonb`, ADR-0014's shape) is held by the aggregate as one immutable value
+   (`AttributeValues`), **persisted by the repository adapter** (delete the aggregate's rows, insert
+   the current ones, in the caller's transaction) and **hydrated by a `postLoad` entity listener**
+   that sets the property by reflection. **Never a Doctrine collection in the Domain** — that is a
+   vendor import Deptrac rejects, and `orphanRemoval` inserts before it deletes.
+2. **The child table is unmapped and excluded by `doctrine.dbal.schema_filter`**, so it has no
+   Doctrine safety net; its migration is hand-written and its shape is guarded by a test. An
+   EntityManager flush alone persists none of it — the repository is the only writer.

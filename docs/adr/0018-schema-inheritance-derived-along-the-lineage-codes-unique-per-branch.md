@@ -162,3 +162,20 @@ The forces:
 - **Watch:** a legacy duplicate (decision 7) blocks writes on its branch that involve its code until recoded — by design,
   but it looks like a bug to an admin who does not know the history. The AC-25/AC-27 messages name
   the code.
+
+## Amendment, 2026-11-18 — decision 8 points 1, 3 and 4 answered
+
+Recorded by the `listing-attribute-values` slice
+([ADR-0020](./0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md), plan D3, D6).
+
+1. **Point 1 (the move):** answered by **C-27**, coarse — a category cannot be moved while any listing
+   in its subtree holds any value. Checked in `EditCategoryHandler`, beside C-21, after C-24. A
+   precise or archive-based rule is `listing-schema-drift`'s.
+2. **Point 2 (a new required attribute):** handed to `listing-publish` unchanged. `required` is not
+   enforced on a draft (L-11) and never retroactively.
+3. **Point 3 (deleting an attribute):** answered **by refusal for now** — C-25 (attribute in use) and
+   C-26 (option in use). Soft delete moves to `listing-schema-drift` (ADR-0004's 2026-11-18
+   amendment).
+4. **Point 4 (the effective schema for other contexts):** answered by Listing's
+   `Categories::schemaOf(): AttributeSchema` — a fact in Listing's own words, adapted by
+   `CategoriesForListing` over the same lineage query. Still derived, never stored (C-22).

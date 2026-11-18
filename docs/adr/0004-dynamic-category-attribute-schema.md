@@ -80,3 +80,20 @@ stands** (as `catalog_attribute` / `catalog_attribute_option`, ADR-0007 naming).
    `DeleteAttributeHandler` and `RemoveAttributeOptionHandler`.
 2. **`is_facet` / `is_searchable` are deferred to Phase 2.** Nothing reads them yet; both are
    additive columns when search arrives.
+
+## Amendment, 2026-11-18 — amendment 1's expiry discharged by refusal; the value layer gains `value_bool`
+
+Recorded by the `listing-attribute-values` slice
+([ADR-0020](./0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md), plan D6, D9).
+
+1. **The 2026-11-15 amendment's expiry clause is discharged by refusal, not by soft delete.** The
+   first listing value exists, and with it the "in use by listings" guards: **C-25** (an attribute in
+   use cannot be deleted) and **C-26** (an option in use cannot be removed) refuse instead of
+   archiving. Soft delete (`archived_at`, hidden from forms) moves to `listing-schema-drift`. Hard
+   delete of attributes and options that **no** listing uses continues unchanged.
+2. **The value layer is `listing_attribute_value (listing_id, attribute_id, option_id, value_int,
+   value_bool, value_text)`.** `value_bool` is added to decision 2's sketch — a boolean is not a 0/1
+   integer. A `CHECK (num_nonnulls(…) = 1)` keeps exactly one typed column set per row.
+3. **Only `(attribute_id, option_id)` is indexed now.** Number-range, boolean and text indexes are
+   one migration each when a Phase 2 query needs them. The no-runtime-DDL invariant is unchanged:
+   defining an attribute writes rows, never a column.
