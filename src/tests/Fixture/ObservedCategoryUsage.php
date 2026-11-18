@@ -9,7 +9,8 @@ use App\Domain\Catalog\ValueObject\CategoryId;
 
 /**
  * Delegates to the real adapter and records, per call, whether the observed tree lock was held
- * (C-23/C-24 must read `hasListings()` inside `CategoryTreeLock::exclusively()`, AC-18).
+ * (C-23/C-24 must read `hasListings()`, C-27 `hasAttributeValues()`, inside
+ * `CategoryTreeLock::exclusively()`).
  */
 final class ObservedCategoryUsage implements CategoryUsage
 {
@@ -35,5 +36,12 @@ final class ObservedCategoryUsage implements CategoryUsage
         $this->calls[] = [__FUNCTION__, $this->lock->isHeld()];
 
         return $this->inner->hasListings($id);
+    }
+
+    public function hasAttributeValues(array $ids): bool
+    {
+        $this->calls[] = [__FUNCTION__, $this->lock->isHeld()];
+
+        return $this->inner->hasAttributeValues($ids);
     }
 }

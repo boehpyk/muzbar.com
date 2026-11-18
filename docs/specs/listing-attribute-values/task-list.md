@@ -61,7 +61,7 @@
       `CategoriesForListing::schemaOf()` (bounded lineage CTE, `array_agg` option ids,
       `::bigint` bounds, kind mapped by value, unknown kind → `\LogicException`, `ponytail:` note on
       option counts). Update `ObservedCategories` so `CategoryTreeLockTest` compiles.
-- [ ] **T10:** Catalog guards, in one commit: `ListingAttributeUsage` adapter + `AttributeUsage` alias;
+- [x] **T10:** Catalog guards, in one commit: `ListingAttributeUsage` adapter + `AttributeUsage` alias;
       C-25 in `DeleteAttributeHandler`, C-26 in `RemoveAttributeOptionHandler` (after C-18);
       `ListingCategoryUsage::hasAttributeValues()` + C-27 in `EditCategoryHandler` (after C-24, reusing
       the `descendantsOf()` result); accretion-point comments; `ObservedAttributeUsage` fixture.

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Application\Catalog\Handler;
 
 use App\Application\Catalog\Command\DeleteAttribute;
+use App\Domain\Catalog\Exception\AttributeInUse;
 use App\Domain\Catalog\Exception\AttributeNotFound;
 use App\Domain\Catalog\Exception\InvalidAttributeId;
 use App\Domain\Catalog\Port\AttributeOptionRepository;
 use App\Domain\Catalog\Port\AttributeRepository;
+use App\Domain\Catalog\Port\AttributeUsage;
 use App\Domain\Catalog\Port\CategoryTreeLock;
 use App\Domain\Catalog\ValueObject\AttributeId;
 
@@ -17,8 +19,9 @@ use App\Domain\Catalog\ValueObject\AttributeId;
  * aggregate has a `delete()` (ADR-0012), and the set-based sweep bypasses no rule: C-18 governs a
  * living choice attribute, and once the attribute is gone it has no subject.
  *
- * Hard delete only until values exist (ADR-0004 amendment, 2026-11-15): the Listing slice turns
- * this into archiving, or adds its "in use by listings" guard, **here**.
+ * C-25 (ADR-0020 decision 6): an attribute any listing holds a value for is refused, read under the
+ * lock so no seller can store a value between the read and the delete. Refusal is the fail-closed
+ * placeholder: `listing-schema-drift` turns this into archiving, **here**.
  *
  * Inside `exclusively()` like every Catalog write, so no option can be added to the attribute
  * between the delete and the sweep.
@@ -29,16 +32,22 @@ final readonly class DeleteAttributeHandler
         private AttributeRepository $attributes,
         private AttributeOptionRepository $options,
         private CategoryTreeLock $lock,
+        private AttributeUsage $usage,
     ) {
     }
 
     /**
      * @throws AttributeNotFound unknown or malformed id
+     * @throws AttributeInUse    a listing holds a value for it (C-25)
      */
     public function __invoke(DeleteAttribute $command): void
     {
         $this->lock->exclusively(function () use ($command): void {
             $attribute = $this->attributes->get($this->attributeId($command->id));
+
+            if ($this->usage->isInUse($attribute->id())) {
+                throw AttributeInUse::cannotDelete($attribute->id());
+            }
 
             // THE ORDER IS DELIBERATE (plan D7, ADR-0017 decision 8): attribute removed FIRST,
             // options swept after. The attribute row is the commit point of the definition. Should

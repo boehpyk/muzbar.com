@@ -540,7 +540,8 @@ final class CategoryTreeLockTest extends KernelTestCase
         $handler(new EditCategory($moving->id()->toString(), $moving->name()->toString(), $moving->slug()->toString(), $newParent->id()->toString()));
 
         self::assertSame(1, $lock->entries());
-        self::assertSame([['hasListings', true]], $usage->calls());
+        // listing-attribute-values (C-27) adds the second read on purpose, after C-24's.
+        self::assertSame([['hasListings', true], ['hasAttributeValues', true]], $usage->calls());
     }
 
     public function testEditCategoryHandlerReadsNoListingsWhenTheParentIsUnchanged(): void

@@ -6,6 +6,7 @@ namespace App\Infrastructure\Listing\Integration;
 
 use App\Domain\Catalog\Port\CategoryUsage;
 use App\Domain\Catalog\ValueObject\CategoryId;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 
 /**
@@ -28,6 +29,25 @@ final readonly class ListingCategoryUsage implements CategoryUsage
         return (bool) $this->connection->fetchOne(
             'SELECT EXISTS (SELECT 1 FROM listing_listing WHERE category_id = :id)',
             ['id' => $id->toString()],
+        );
+    }
+
+    /**
+     * C-27: the subtree's listings joined to their values — `idx_listing_listing_category` finds the
+     * listings, the values' primary key (leading `listing_id`) answers EXISTS.
+     */
+    public function hasAttributeValues(array $ids): bool
+    {
+        if ([] === $ids) {
+            return false;
+        }
+
+        return (bool) $this->connection->fetchOne(
+            'SELECT EXISTS (SELECT 1 FROM listing_attribute_value v
+                JOIN listing_listing l ON l.id = v.listing_id
+                WHERE l.category_id IN (:ids))',
+            ['ids' => array_map(static fn (CategoryId $id): string => $id->toString(), $ids)],
+            ['ids' => ArrayParameterType::STRING],
         );
     }
 }
