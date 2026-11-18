@@ -181,7 +181,7 @@ final class ListingTest extends TestCase
         sort($methods);
 
         self::assertSame(
-            ['categoryId', 'description', 'draft', 'id', 'isSoldBy', 'price', 'revise', 'sellerId', 'status', 'title'],
+            ['attributeValues', 'categoryId', 'description', 'draft', 'id', 'isSoldBy', 'price', 'revise', 'sellerId', 'status', 'title'],
             $methods,
         );
     }

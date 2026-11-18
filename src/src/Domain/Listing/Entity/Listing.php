@@ -7,6 +7,7 @@ namespace App\Domain\Listing\Entity;
 use App\Domain\Listing\Exception\CategoryIsNotALeaf;
 use App\Domain\Listing\Exception\NotTheSeller;
 use App\Domain\Listing\Exception\UnknownCategory;
+use App\Domain\Listing\ValueObject\AttributeValues;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\CategoryStatus;
 use App\Domain\Listing\ValueObject\ListingDescription;
@@ -38,6 +39,12 @@ use App\Domain\Listing\ValueObject\SellerId;
  * consumer wants `ListingPublished`.
  *
  * Properties are plain `private`, not `readonly` (ADR-0007): Doctrine hydrates them.
+ *
+ * Except one: `$attributeValues` — the listing's "Details", its parts (ADR-0020 decision 1) — is
+ * **not** Doctrine-mapped. The Domain may not hold a Doctrine collection, and the values belong in a
+ * typed table for Phase 2's facets, so the repository writes them and a `postLoad` listener sets
+ * them (decision 2). A load path that skipped the listener leaves the property uninitialised and
+ * the first read throws — loud, never a silent empty set.
  */
 final class Listing
 {
@@ -49,11 +56,13 @@ final class Listing
         private ListingDescription $description,
         private Price $price,
         private ListingStatus $status,
+        private AttributeValues $attributeValues,
     ) {
     }
 
     /**
-     * L-1: the seller is fixed here and never changes. L-7: a new listing is a draft.
+     * L-1: the seller is fixed here and never changes. L-7: a new listing is a draft, with no
+     * details yet — the create form has none, because the category is not known until it is submitted.
      *
      * @throws UnknownCategory
      * @throws CategoryIsNotALeaf
@@ -69,7 +78,7 @@ final class Listing
     ): self {
         self::assertFileableUnder($categoryId, $categoryStatus);
 
-        return new self($id, $sellerId, $categoryId, $title, $description, $price, ListingStatus::Draft);
+        return new self($id, $sellerId, $categoryId, $title, $description, $price, ListingStatus::Draft, AttributeValues::none());
     }
 
     /**
@@ -144,6 +153,11 @@ final class Listing
     public function status(): ListingStatus
     {
         return $this->status;
+    }
+
+    public function attributeValues(): AttributeValues
+    {
+        return $this->attributeValues;
     }
 
     /**
