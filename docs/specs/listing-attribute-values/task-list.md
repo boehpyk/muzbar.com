@@ -38,7 +38,7 @@
       here would leave `CategoriesForListing` not implementing its interface — a fatal.)
 
 ## Domain — `Catalog`
-- [ ] **T5:** Port `AttributeUsage`; exception `AttributeInUse` (`cannotDelete`, `cannotRemoveOption`);
+- [x] **T5:** Port `AttributeUsage`; exception `AttributeInUse` (`cannotDelete`, `cannotRemoveOption`);
       `CategoryHasListings::cannotMove()`. Nothing injects them yet. (`CategoryUsage::hasAttributeValues()`
       lands in T10 with its adapter, for the same reason as T9.)
 
