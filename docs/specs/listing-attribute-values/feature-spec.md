@@ -265,37 +265,37 @@ Electric.
 
 ### HTTP surface (Functional)
 
-- [ ] **AC-18 (the Details section)** — `GET /sell/drafts/{D}/edit` shows a fieldset "Details" with one
+- [x] **AC-18 (the Details section)** — `GET /sell/drafts/{D}/edit` shows a fieldset "Details" with one
       field per attribute of Electric's effective schema, in `effectiveFor()` order (root first, then
       label), each labelled by the attribute's label, a number's unit appended in parentheses
       ("Strings (pcs)"), and required ones followed by "required to publish". Fields: choice → `<select>`
       with an empty "—" first, then options in id order; number and text → `<input type="text">`;
       boolean → `<select>` "—" / "Yes" / "No". Fields are prefilled from the stored values. A draft on a
       category with no attributes shows no Details section.
-- [ ] **AC-19 (Phase 1 gate preview)** — after `DefineAttributeHandler` defines a choice "Fretboard
+- [x] **AC-19 (Phase 1 gate preview)** — after `DefineAttributeHandler` defines a choice "Fretboard
       wood" (Rosewood, Maple) on **Instruments**, D's edit page shows it with no deploy, no migration,
       and `listing_attribute_value` rows unchanged.
-- [ ] **AC-20 (create → details)** — `/sell` still shows no Details section. A valid POST now responds
+- [x] **AC-20 (create → details)** — `/sell` still shows no Details section. A valid POST now responds
       **303 to the new draft's edit page** (changed on purpose from `/sell/drafts`, Q4; listing-draft's
       AC-25 test updated, not deleted) with the flash *"Draft saved. Add the details below."*
-- [ ] **AC-21 (save details)** — a valid POST with details responds 303 to `/sell/drafts` with *"Draft
+- [x] **AC-21 (save details)** — a valid POST with details responds 303 to `/sell/drafts` with *"Draft
       saved."*; the rows are AC-7's. A POST that changes the category responds 303 **to the edit page**
       with *"Draft saved. The details now follow “Bass”: check them below."*, and AC-9's rows remain.
-- [ ] **AC-22 (refusals on the form)** — each *user error* row of the failure contract re-renders with
+- [x] **AC-22 (refusals on the form)** — each *user error* row of the failure contract re-renders with
       **422**, its message on that attribute's field, every other field keeping its submitted value,
       and nothing written.
-- [ ] **AC-23 (someone else's draft)** — Bob's GET/POST on D's edit URL, with or without `attributes`,
+- [x] **AC-23 (someone else's draft)** — Bob's GET/POST on D's edit URL, with or without `attributes`,
       is the same 404 as before (listing-draft AC-29); D's rows unchanged.
-- [ ] **AC-24 (admin refusals)** —
+- [x] **AC-24 (admin refusals)** —
       - deleting brand in use: error flash *"“Brand” is used by listings, so it cannot be deleted."*;
       - removing Fender in use: error flash *"“Fender” is used by listings, so it cannot be removed."*;
       - moving Electric: **422** on **parent**: *"Listings under “Electric” have details filled in, so it
         cannot be moved yet."*
-- [ ] **AC-25 (query budget)** — the edit page issues **five** SQL queries for its data (draft, category
+- [x] **AC-25 (query budget)** — the edit page issues **five** SQL queries for its data (draft, category
       outline, effective schema, options of all choice attributes, stored values), the same count with
       one choice attribute as with four (`QueryRecordingStatement`).
-- [ ] **AC-26 (no GET writes)** — the edit and create GETs leave every table unchanged.
-- [ ] **AC-27** — every *user error* refusal is not logged at `error`; `RecordingSentryTransport` stays
+- [x] **AC-26 (no GET writes)** — the edit and create GETs leave every table unchanged.
+- [x] **AC-27** — every *user error* refusal is not logged at `error`; `RecordingSentryTransport` stays
       empty.
 
 ### Cross-cutting

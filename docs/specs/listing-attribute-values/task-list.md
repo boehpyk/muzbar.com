@@ -91,7 +91,7 @@
       `ListingValuesPersistenceTest` (AC-17); `NoDdlTest` green.
 - [x] **T18:** `CategoryTreeLockTest`: `schemaOf()` and `save()` inside `holdSteady()`; the three
       usage reads inside `exclusively()` (and C-27 skipped for an unchanged parent). (AC-16)
-- [ ] **T19:** Functional: `SellTest` additions (Details section, order, prefill, "Fretboard wood"
+- [x] **T19:** Functional: `SellTest` additions (Details section, order, prefill, "Fretboard wood"
       gate preview, create → edit redirect with the listing-draft AC-25 assertion updated on purpose,
       save, re-file notice, every refusal's field + message + 422, 404 parity, query count 5 with 1 vs 4
       choice attributes, no-GET-writes), admin refusal tests, Sentry silence. (AC-18…AC-27)

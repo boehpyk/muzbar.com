@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Listing;
 
+use App\Application\Catalog\Command\DefineAttribute;
+use App\Application\Catalog\Handler\DefineAttributeHandler;
+use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Entity\Category;
-use App\Domain\Catalog\ValueObject\CategoryName;
-use App\Domain\Catalog\ValueObject\CategorySlug;
+use App\Domain\Catalog\ValueObject\NumberRules;
 use App\Domain\Identity\Entity\User;
 use App\Domain\Listing\Entity\Listing;
 use App\Domain\Listing\ValueObject\Currency;
 use App\Infrastructure\Listing\Form\ListingFormType;
+use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
 use App\Tests\Factory\ListingFactory;
 use App\Tests\Fixture\QueryRecordingStatement;
+use App\Tests\Support\BuildsTheValuesTree;
 use App\Tests\Support\ClearsRateLimiters;
 use App\Tests\Support\ReadsSentryEvents;
 use App\Tests\Support\RegistersAUserWithKnownCredentials;
@@ -27,7 +31,7 @@ use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * AC-21, AC-23 … AC-29, AC-31 and AC-32 over HTTP against the real database (DAMA). One
+ * listing-attribute-values AC-18 … AC-27 (the "Details" tests, at the bottom) and listing-draft's AC-21, AC-23 … AC-29, AC-31 and AC-32 over HTTP against the real database (DAMA). One
  * `KernelBrowser` per test (the session is the sign-in; a second client would lose it) with
  * `disableReboot()` so recorded Sentry events survive the request. Rows are read back through DBAL.
  *
@@ -35,6 +39,7 @@ use Symfony\Component\Uid\Uuid;
  */
 final class SellTest extends WebTestCase
 {
+    use BuildsTheValuesTree;
     use ClearsRateLimiters;
     use ReadsSentryEvents;
     use RegistersAUserWithKnownCredentials;
@@ -44,11 +49,6 @@ final class SellTest extends WebTestCase
 
     private KernelBrowser $client;
     private Connection $db;
-
-    private Category $instruments;
-    private Category $guitars;
-    private Category $electric;
-    private Category $bass;
 
     protected function setUp(): void
     {
@@ -62,12 +62,10 @@ final class SellTest extends WebTestCase
 
     // ---------------------------------------------------------------- helpers
 
+    /** The categories only: the Details tests add `buildTheAttributes()` themselves. */
     private function buildTree(): void
     {
-        $this->instruments = CategoryFactory::createOne(['name' => CategoryName::fromString('Instruments'), 'slug' => CategorySlug::fromString('instruments')]);
-        $this->guitars = CategoryFactory::new(['name' => CategoryName::fromString('Guitars'), 'slug' => CategorySlug::fromString('guitars')])->childOf($this->instruments)->create();
-        $this->electric = CategoryFactory::new(['name' => CategoryName::fromString('Electric'), 'slug' => CategorySlug::fromString('electric')])->childOf($this->guitars)->create();
-        $this->bass = CategoryFactory::new(['name' => CategoryName::fromString('Bass'), 'slug' => CategorySlug::fromString('bass')])->childOf($this->instruments)->create();
+        $this->buildTheCategories();
     }
 
     private function user(string $email): User
@@ -119,7 +117,7 @@ final class SellTest extends WebTestCase
     }
 
     /**
-     * @param array<string, string> $fields
+     * @param array<string, string|array<string, string>> $fields
      */
     private function post(string $path, array $fields, ?string $token = null, string $tokenFrom = '/sell'): Crawler
     {
@@ -571,6 +569,489 @@ final class SellTest extends WebTestCase
         $before = $this->everything();
 
         foreach (['/sell', '/sell/drafts', '/sell/drafts/'.$draft->id()->toString().'/edit'] as $path) {
+            $this->client->request('GET', $path);
+            self::assertResponseStatusCodeSame(200, $path);
+        }
+
+        self::assertSame($before, $this->everything());
+    }
+
+    // ============================================================================================
+    // listing-attribute-values: the Details section (AC-18 … AC-27)
+    // ============================================================================================
+
+    private function detailsPath(Listing $draft): string
+    {
+        return '/sell/drafts/'.$draft->id()->toString().'/edit';
+    }
+
+    /**
+     * Ann, signed in, the tree with its attributes, and draft D on Electric.
+     *
+     * @param bool $filled whether D already holds the five values of AC-7 (the attributes are built inside, so the inputs cannot be passed in)
+     *
+     * @return array{User, Listing}
+     */
+    private function annWithDraftD(bool $filled = false): array
+    {
+        $this->buildTree();
+        $this->buildTheAttributes();
+        $ann = $this->signIn();
+        $draft = ListingFactory::new()->soldBy($ann)->inCategory($this->electric)->titled('Fender Precision V')->withValues($filled ? $this->allFiveElectricInputs() : [])->create();
+
+        return [$ann, $draft];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function valueRows(): array
+    {
+        return $this->db->fetchAllAssociative('SELECT * FROM listing_attribute_value ORDER BY listing_id, attribute_id');
+    }
+
+    private function field(Attribute $attribute): string
+    {
+        return 'attributes_'.$attribute->id()->toString();
+    }
+
+    /**
+     * @return list<string> the attribute ids of the Details fields, in page order
+     */
+    private function detailFieldIds(Crawler $page): array
+    {
+        return $page->filter('fieldset [name^="listing_form[attributes]["]')->each(static function (Crawler $node): string {
+            \assert(1 === preg_match('/^listing_form\[attributes\]\[([0-9a-f-]{36})\]$/', (string) $node->attr('name'), $m));
+
+            return $m[1];
+        });
+    }
+
+    /**
+     * @return list<array{string, string}> value and text of each option of a select
+     */
+    private function optionsOf(Crawler $page, string $field): array
+    {
+        return $page->filter('#listing_form_'.$field.' option')->each(static fn (Crawler $o): array => [(string) $o->attr('value'), trim($o->text())]);
+    }
+
+    private function labelOf(Crawler $page, string $field): string
+    {
+        return trim($page->filter('label[for="listing_form_'.$field.'"]')->text());
+    }
+
+    // ---------------------------------------------------------------- AC-18
+
+    public function testTheEditPageAsksForExactlyTheEffectiveSchemaInRootFirstThenLabelOrder(): void
+    {
+        [, $draft] = $this->annWithDraftD();
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame('Details', trim($page->filter('fieldset legend')->text()));
+        self::assertSame(
+            array_map(static fn (Attribute $a): string => $a->id()->toString(), [$this->condition, $this->brand, $this->hasCase, $this->serial, $this->strings]),
+            $this->detailFieldIds($page),
+            'Root first (depth descending), then label: Condition, Brand, Has case, Serial, Strings.',
+        );
+        self::assertCount(0, $page->filter('#listing_form_'.$this->field($this->bassStrings)));
+    }
+
+    public function testEachDetailIsLabelledByItsAttributeAndANumbersUnitIsInParentheses(): void
+    {
+        [, $draft] = $this->annWithDraftD();
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        self::assertSame('Condition', $this->labelOf($page, $this->field($this->condition)));
+        self::assertSame('Brand', $this->labelOf($page, $this->field($this->brand)));
+        self::assertSame('Has case', $this->labelOf($page, $this->field($this->hasCase)));
+        self::assertSame('Serial', $this->labelOf($page, $this->field($this->serial)));
+        self::assertSame('Strings (pcs)', $this->labelOf($page, $this->field($this->strings)));
+    }
+
+    public function testRequiredAttributesAreFollowedByRequiredToPublishAndTheOthersAreNot(): void
+    {
+        [, $draft] = $this->annWithDraftD();
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        $help = static fn (string $field): string => $page->filter('#listing_form_'.$field)->ancestors()->first()->filter('.form-text, .help-text, small, p')->count() > 0
+            ? trim($page->filter('#listing_form_'.$field)->ancestors()->first()->filter('.form-text, .help-text, small, p')->first()->text())
+            : '';
+        self::assertSame('required to publish', $help($this->field($this->condition)));
+        self::assertSame('required to publish', $help($this->field($this->brand)));
+        self::assertSame('', $help($this->field($this->strings)));
+        self::assertSame('', $help($this->field($this->serial)));
+    }
+
+    public function testChoiceFieldsAreSelectsWithADashFirstThenTheOptionsInIdOrder(): void
+    {
+        [, $draft] = $this->annWithDraftD();
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        self::assertSame('select', $page->filter('#listing_form_'.$this->field($this->brand))->nodeName());
+        self::assertSame(
+            [['', '—'], [$this->optionIdOf($this->brand, 'Fender'), 'Fender'], [$this->optionIdOf($this->brand, 'Gibson'), 'Gibson']],
+            $this->optionsOf($page, $this->field($this->brand)),
+        );
+        self::assertSame(
+            [['', '—'], [$this->optionIdOf($this->condition, 'New'), 'New'], [$this->optionIdOf($this->condition, 'Used'), 'Used']],
+            $this->optionsOf($page, $this->field($this->condition)),
+        );
+    }
+
+    public function testNumberAndTextFieldsAreTextInputsAndABooleanIsADashYesNoSelect(): void
+    {
+        [, $draft] = $this->annWithDraftD();
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        foreach ([$this->strings, $this->serial] as $attribute) {
+            $node = $page->filter('#listing_form_'.$this->field($attribute));
+            self::assertSame('input', $node->nodeName());
+            self::assertSame('text', $node->attr('type'));
+        }
+        self::assertSame('select', $page->filter('#listing_form_'.$this->field($this->hasCase))->nodeName());
+        self::assertSame([['', '—'], ['yes', 'Yes'], ['no', 'No']], $this->optionsOf($page, $this->field($this->hasCase)));
+    }
+
+    public function testTheDetailsArePrefilledFromTheStoredValues(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        self::assertSame($this->optionIdOf($this->condition, 'Used'), $this->valueOf($page, $this->field($this->condition)));
+        self::assertSame($this->optionIdOf($this->brand, 'Fender'), $this->valueOf($page, $this->field($this->brand)));
+        self::assertSame('6', $this->valueOf($page, $this->field($this->strings)));
+        self::assertSame('yes', $this->valueOf($page, $this->field($this->hasCase)));
+        self::assertSame('SN-1', $this->valueOf($page, $this->field($this->serial)));
+    }
+
+    public function testADraftWithNoStoredValuesShowsEmptyDetails(): void
+    {
+        [, $draft] = $this->annWithDraftD();
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        foreach ([$this->condition, $this->brand, $this->strings, $this->hasCase, $this->serial] as $attribute) {
+            self::assertSame('', $this->valueOf($page, $this->field($attribute)), $attribute->code()->toString());
+        }
+    }
+
+    public function testADraftOnACategoryWithNoAttributesShowsNoDetailsSection(): void
+    {
+        $this->buildTree();
+        $this->buildTheAttributes();
+        $ann = $this->signIn();
+        $lonely = CategoryFactory::createOne();
+        $draft = $this->draftOf($ann, $lonely);
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertCount(0, $page->filter('fieldset'));
+        self::assertStringNotContainsString('Details', $page->filter('form')->text());
+    }
+
+    // ---------------------------------------------------------------- AC-19 (the Phase 1 gate, previewed)
+
+    public function testANewAttributeDefinedOnTheRootAppearsOnTheEditPageWithNoDeployAndNoNewRow(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $before = $this->valueRows();
+        $this->client->request('GET', $this->detailsPath($draft));
+        self::assertCount(0, $this->client->getCrawler()->filter('#listing_form_attributes_fretboard'), 'Sanity: nothing called Fretboard yet.');
+
+        $container = self::getContainer();
+        $handler = $container->get(DefineAttributeHandler::class);
+        self::assertInstanceOf(DefineAttributeHandler::class, $handler);
+        $id = $handler(new DefineAttribute($this->instruments->id()->toString(), 'choice', 'Fretboard wood', 'fretboard-wood', false, optionLabels: ['Rosewood', 'Maple']))->toString();
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        self::assertSame('Fretboard wood', $this->labelOf($page, 'attributes_'.$id));
+        self::assertSame(['—', 'Rosewood', 'Maple'], array_column($this->optionsOf($page, 'attributes_'.$id), 1));
+        self::assertSame('', $this->valueOf($page, 'attributes_'.$id));
+        self::assertCount(6, $this->detailFieldIds($page));
+        self::assertSame($before, $this->valueRows());
+    }
+
+    // ---------------------------------------------------------------- AC-20
+
+    public function testTheCreatePageStillShowsNoDetailsEvenThoughCategoriesHaveAttributes(): void
+    {
+        $this->buildTree();
+        $this->buildTheAttributes();
+        $this->signIn();
+
+        $page = $this->client->request('GET', '/sell');
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertCount(0, $page->filter('fieldset'));
+        self::assertCount(0, $page->filter('[name^="listing_form[attributes]"]'));
+    }
+
+    public function testPostingDetailsToTheCreateFormIsRefusedAsAnExtraField(): void
+    {
+        $this->buildTree();
+        $this->buildTheAttributes();
+        $this->signIn();
+
+        $this->client->request('POST', '/sell', ['listing_form' => ['_token' => $this->token()] + $this->validFields() + ['attributes' => [$this->serial->id()->toString() => 'SN-1']]]);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame([], $this->listings());
+        $this->assertNothingReportedToSentry();
+    }
+
+    // ---------------------------------------------------------------- AC-21
+
+    /**
+     * @param array<string, string> $details by attribute id
+     *
+     * @return array<string, string|array<string, string>>
+     */
+    private function electricFields(array $details): array
+    {
+        return $this->validFields() + ['attributes' => $details];
+    }
+
+    public function testSavingDetailsRedirectsToTheDraftsPageAndWritesTheFiveRows(): void
+    {
+        [, $draft] = $this->annWithDraftD();
+        $path = $this->detailsPath($draft);
+
+        $this->post($path, $this->electricFields($this->allFiveElectricInputs()), tokenFrom: $path);
+
+        self::assertResponseStatusCodeSame(303);
+        self::assertResponseRedirects('/sell/drafts');
+        $this->client->followRedirect();
+        self::assertSelectorTextContains('.flash-success', 'Draft saved.');
+        self::assertStringNotContainsString('details', (string) $this->client->getCrawler()->filter('.flash-success')->text());
+        $rows = $this->db->fetchAllAssociative('SELECT * FROM listing_attribute_value WHERE listing_id = ?', [$draft->id()->toString()]);
+        self::assertCount(5, $rows);
+        $byAttribute = array_column($rows, null, 'attribute_id');
+        self::assertSame($this->optionIdOf($this->condition, 'Used'), $byAttribute[$this->condition->id()->toString()]['option_id']);
+        self::assertSame($this->optionIdOf($this->brand, 'Fender'), $byAttribute[$this->brand->id()->toString()]['option_id']);
+        self::assertSame(6, $byAttribute[$this->strings->id()->toString()]['value_int']);
+        self::assertTrue($byAttribute[$this->hasCase->id()->toString()]['value_bool']);
+        self::assertSame('SN-1', $byAttribute[$this->serial->id()->toString()]['value_text']);
+        $this->assertNothingReportedToSentry();
+    }
+
+    public function testBlankDetailsInTheFormClearTheStoredValues(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $path = $this->detailsPath($draft);
+        $blank = array_map(static fn (string $_): string => '', $this->allFiveElectricInputs());
+
+        $this->post($path, $this->electricFields($blank), tokenFrom: $path);
+
+        self::assertResponseStatusCodeSame(303);
+        self::assertSame([], $this->valueRows());
+    }
+
+    public function testRefilingFromTheFormRedirectsBackToTheEditPageWithTheNoticeAndKeepsOnlyTheSharedDetail(): void
+    {
+        [, $draft] = $this->annWithDraftD();
+        $path = $this->detailsPath($draft);
+
+        $this->post($path, ['category' => $this->bass->id()->toString()] + $this->electricFields($this->allFiveElectricInputs()), tokenFrom: $path);
+
+        self::assertResponseStatusCodeSame(303);
+        self::assertResponseRedirects($path);
+        $page = $this->client->followRedirect();
+        self::assertSelectorTextContains('.flash-success', 'Draft saved. The details now follow “Bass”: check them below.');
+        $rows = $this->valueRows();
+        self::assertCount(1, $rows);
+        self::assertSame($this->condition->id()->toString(), $rows[0]['attribute_id']);
+        // The page it lands on is Bass's form, with the kept detail prefilled.
+        self::assertSame([$this->condition->id()->toString(), $this->bassStrings->id()->toString()], $this->detailFieldIds($page));
+        self::assertSame($this->optionIdOf($this->condition, 'Used'), $this->valueOf($page, $this->field($this->condition)));
+    }
+
+    // ---------------------------------------------------------------- AC-22 + AC-27
+
+    /**
+     * Each user-error row of the failure contract: a field, a posted value, the message under it.
+     *
+     * @return iterable<string, array{string, string, string}>
+     */
+    public static function detailRefusals(): iterable
+    {
+        yield 'a tampered option' => ['brand', '018f5b2a-0000-7000-8000-00000000ffff', 'Choose one of the listed options.'];
+        yield 'an option of another attribute' => ['brand', 'USED', 'Choose one of the listed options.'];
+        yield 'a number that is not whole' => ['strings', '7.5', 'Enter a whole number, like 6.'];
+        yield 'words for a number' => ['strings', 'six', 'Enter a whole number, like 6.'];
+        yield 'a number above the bounds' => ['strings', '13', 'Enter a whole number from 4 to 12.'];
+        yield 'a number below the bounds' => ['strings', '3', 'Enter a whole number from 4 to 12.'];
+        yield 'a tampered boolean' => ['has_case', 'Yes', 'Choose Yes or No.'];
+        yield 'a text of 201 characters' => ['serial', '2xx', 'Keep this to one line of up to 200 characters.'];
+        yield 'a multi-line text' => ['serial', "line one\nline two", 'Keep this to one line of up to 200 characters.'];
+        yield 'a text with a tab' => ['serial', "a\tb", 'Keep this to one line of up to 200 characters.'];
+    }
+
+    #[DataProvider('detailRefusals')]
+    public function testEachDetailRefusalIs422WithItsMessageOnThatFieldKeepingEverySubmittedValueAndWritingNothing(string $which, string $raw, string $message): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $path = $this->detailsPath($draft);
+        $key = ['brand' => $this->brand, 'strings' => $this->strings, 'has_case' => $this->hasCase, 'serial' => $this->serial][$which];
+        $raw = match ($raw) {
+            'USED' => $this->optionIdOf($this->condition, 'Used'),
+            '2xx' => str_repeat('x', 201),
+            default => $raw,
+        };
+        // Everything else is submitted *different* from what is stored, to prove the form keeps what was typed.
+        $submitted = [
+            $this->condition->id()->toString() => $this->optionIdOf($this->condition, 'New'),
+            $this->brand->id()->toString() => $this->optionIdOf($this->brand, 'Gibson'),
+            $this->strings->id()->toString() => '8',
+            $this->hasCase->id()->toString() => 'no',
+            $this->serial->id()->toString() => 'SN-2',
+            $key->id()->toString() => $raw,
+        ];
+        $listings = $this->listings();
+        $values = $this->valueRows();
+
+        $page = $this->post($path, ['title' => 'Never saved'] + $this->electricFields($submitted), tokenFrom: $path);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame([$message], $this->errorsOn($page, $this->field($key)));
+        foreach ([$this->condition, $this->brand, $this->strings, $this->hasCase, $this->serial] as $attribute) {
+            if ($attribute === $key) {
+                continue;
+            }
+            self::assertSame([], $this->errorsOn($page, $this->field($attribute)), $attribute->code()->toString().' must not carry the error.');
+            self::assertSame($submitted[$attribute->id()->toString()], $this->valueOf($page, $this->field($attribute)), $attribute->code()->toString().' lost its submitted value.');
+        }
+        self::assertSame('Never saved', $this->valueOf($page, 'title'));
+        self::assertSame($listings, $this->listings());
+        self::assertSame($values, $this->valueRows());
+        $this->assertNothingReportedToSentry();
+    }
+
+    public function testNumbersWithOnlyAMinimumOrOnlyAMaximumSayWhichBoundWasBroken(): void
+    {
+        $this->buildTree();
+        $this->buildTheAttributes();
+        $atLeast = AttributeFactory::new()->inCategory($this->electric)->coded('at-least')->labelled('At least')->number(NumberRules::of(null, 4, null))->create();
+        $atMost = AttributeFactory::new()->inCategory($this->electric)->coded('at-most')->labelled('At most')->number(NumberRules::of(null, null, 12))->create();
+        $ann = $this->signIn();
+        $draft = $this->draftOf($ann);
+        $path = $this->detailsPath($draft);
+
+        $page = $this->post($path, $this->electricFields([$atLeast->id()->toString() => '3', $atMost->id()->toString() => '13']), tokenFrom: $path);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(['Enter a whole number of at least 4.'], $this->errorsOn($page, $this->field($atLeast)));
+
+        $page = $this->post($path, $this->electricFields([$atLeast->id()->toString() => '4', $atMost->id()->toString() => '13']), tokenFrom: $path);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(['Enter a whole number of at most 12.'], $this->errorsOn($page, $this->field($atMost)));
+        self::assertSame([], $this->valueRows());
+        $this->assertNothingReportedToSentry();
+    }
+
+    public function testAKeyForAnAttributeTheFormDoesNotHaveIsAnExtraFieldRefusedWith422AndNothingIsWritten(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $path = $this->detailsPath($draft);
+        $values = $this->valueRows();
+
+        foreach ([$this->bassStrings->id()->toString(), 'not-a-uuid'] as $key) {
+            $page = $this->post($path, $this->electricFields($this->allFiveElectricInputs() + [$key => '4']), tokenFrom: $path);
+
+            self::assertResponseStatusCodeSame(422, $key);
+            self::assertGreaterThan(0, $page->filter('form li')->count(), 'The refusal must be visible on the form.');
+        }
+
+        self::assertSame($values, $this->valueRows());
+        $this->assertNothingReportedToSentry();
+    }
+
+    // ---------------------------------------------------------------- AC-23
+
+    public function testSomeoneElsesDraftIsTheSame404WithOrWithoutDetailsAndItsRowsDoNotMove(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $this->signIn('bob@example.com');
+        $values = $this->valueRows();
+        $listings = $this->listings();
+        $token = $this->token();
+        $unknown = Uuid::v7()->toRfc4122();
+        $ids = [$draft->id()->toString(), $unknown];
+
+        // The debug page also prints this test's own call (its arguments), so each payload is
+        // compared with itself: Ann's draft against an id that does not exist.
+        foreach (['with details' => $this->electricFields($this->allFiveElectricInputs()), 'without details' => $this->validFields()] as $label => $fields) {
+            $bodies = [];
+            foreach (['Ann\'s draft' => $draft->id()->toString(), 'an unknown id' => $unknown] as $which => $id) {
+                $this->client->request('POST', '/sell/drafts/'.$id.'/edit', ['listing_form' => ['_token' => $token] + $fields]);
+                self::assertResponseStatusCodeSame(404, $label.', '.$which);
+                $bodies[$which] = $this->normalised((string) $this->client->getResponse()->getContent(), $ids);
+            }
+            self::assertCount(1, array_unique($bodies), 'Posting '.$label.': the 404 bodies differ, so one of them leaks whether the draft exists.');
+        }
+        $this->client->request('GET', '/sell/drafts/'.$draft->id()->toString().'/edit');
+        self::assertResponseStatusCodeSame(404);
+
+        self::assertSame($values, $this->valueRows(), 'Bob changed Ann\'s details.');
+        self::assertSame($listings, $this->listings());
+        $this->assertNothingReportedToSentry();
+    }
+
+    // ---------------------------------------------------------------- AC-25
+
+    /**
+     * @return list<string> the SQL the edit page sent for its data, the security user refresh excluded
+     */
+    private function dataQueriesOfTheEditPage(Listing $draft): array
+    {
+        $pdo = $this->db->getNativeConnection();
+        self::assertInstanceOf(\PDO::class, $pdo);
+
+        QueryRecordingStatement::install($pdo);
+        try {
+            $this->client->request('GET', $this->detailsPath($draft));
+        } finally {
+            $sql = QueryRecordingStatement::uninstall($pdo);
+        }
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertNotSame([], $sql, 'The recorder saw nothing, so the counts prove nothing.');
+
+        return array_values(array_filter($sql, static fn (string $q): bool => !str_contains($q, 'identity_user')));
+    }
+
+    public function testTheEditPageIssuesFiveDataQueriesWhetherItHasOneChoiceAttributeOrFour(): void
+    {
+        [$ann, $draft] = $this->annWithDraftD(filled: true);
+        // Electric's effective schema already has two choices (condition, brand); take it to four.
+        AttributeFactory::new()->inCategory($this->electric)->coded('finish')->choice(['Matte', 'Gloss'])->create();
+        AttributeFactory::new()->inCategory($this->electric)->coded('body')->choice(['Alder', 'Ash', 'Mahogany'])->create();
+        $four = $this->dataQueriesOfTheEditPage($draft);
+
+        $lonely = CategoryFactory::createOne();
+        AttributeFactory::new()->inCategory($lonely)->coded('only-choice')->choice(['A', 'B'])->create();
+        $one = $this->dataQueriesOfTheEditPage($this->draftOf($ann, $lonely, 'One choice'));
+
+        self::assertCount(5, $four, "Four choice attributes:\n".implode("\n", $four));
+        self::assertCount(5, $one, "One choice attribute:\n".implode("\n", $one));
+    }
+
+    // ---------------------------------------------------------------- AC-26
+
+    public function testNoSellPageChangesAnyTableOnGetEvenWithAttributesAndStoredValues(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $before = $this->everything();
+        self::assertNotSame([], $before['listing_attribute_value'], 'The snapshot has no values in it, so it proves little.');
+
+        foreach (['/sell', '/sell/drafts', $this->detailsPath($draft)] as $path) {
             $this->client->request('GET', $path);
             self::assertResponseStatusCodeSame(200, $path);
         }

@@ -14,6 +14,7 @@ use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeOptionRepos
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeRepository;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
+use App\Tests\Factory\ListingFactory;
 use App\Tests\Fixture\QueryRecordingStatement;
 use App\Tests\Fixture\RacingAttributeOptionRepository;
 use App\Tests\Fixture\RacingAttributeRepository;
@@ -1459,5 +1460,59 @@ final class AttributeAdminTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(200);
         self::assertStringContainsString('Changes apply to “Instruments” and every category below it.', $page->filter('body')->text());
+    }
+
+    // ---------------------------------------------------------------- listing-attribute-values AC-24 (C-25, C-26)
+
+    /**
+     * @return array{Category, Attribute}
+     */
+    private function categoryWithBrandInUse(): array
+    {
+        $category = CategoryFactory::createOne();
+        $brand = AttributeFactory::new()->inCategory($category)->coded('brand')->labelled('Brand')->choice(['Fender', 'Gibson'])->create();
+        ListingFactory::new()->inCategory($category)->withValues([$brand->id()->toString() => $this->optionId($brand, 'Fender')])->create();
+
+        return [$category, $brand];
+    }
+
+    public function testDeletingAnAttributeInUseIsAnErrorFlashOnTheListAndChangesNothing(): void
+    {
+        [$category, $brand] = $this->categoryWithBrandInUse();
+        $this->signInAsAdmin();
+        $before = $this->tables();
+
+        $this->client->request('POST', '/admin/attributes/'.$brand->id()->toString().'/delete', ['_token' => $this->mintToken('delete-attribute-'.$brand->id()->toString())]);
+
+        self::assertResponseStatusCodeSame(303);
+        self::assertResponseRedirects($this->listPath($category));
+        $this->client->followRedirect();
+        self::assertSelectorTextContains('.flash-error', '“Brand” is used by listings, so it cannot be deleted.');
+        self::assertSame($before, $this->tables());
+        $this->assertNothingReportedToSentry();
+    }
+
+    public function testRemovingAnOptionInUseIsAnErrorFlashOnTheEditPageAndTheOptionRemains(): void
+    {
+        [, $brand] = $this->categoryWithBrandInUse();
+        $this->signInAsAdmin();
+        $before = $this->tables();
+
+        $this->client->request('POST', '/admin/attributes/'.$brand->id()->toString().'/options/'.$this->optionId($brand, 'Fender').'/delete', ['_token' => $this->optionsToken($brand)]);
+
+        $this->assertRedirectsToEditThenFlash($brand, 'error', '“Fender” is used by listings, so it cannot be removed.');
+        self::assertSame($before, $this->tables());
+        self::assertSame(['Fender', 'Gibson'], $this->optionLabels($brand));
+    }
+
+    public function testRemovingAnUnusedOptionOfAnAttributeInUseStillSucceeds(): void
+    {
+        [, $brand] = $this->categoryWithBrandInUse();
+        $this->signInAsAdmin();
+
+        $this->client->request('POST', '/admin/attributes/'.$brand->id()->toString().'/options/'.$this->optionId($brand, 'Gibson').'/delete', ['_token' => $this->optionsToken($brand)]);
+
+        $this->assertRedirectsToEditThenFlash($brand, 'success', 'Removed the option.');
+        self::assertSame(['Fender'], $this->optionLabels($brand));
     }
 }
