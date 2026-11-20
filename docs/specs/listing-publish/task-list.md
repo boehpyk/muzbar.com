@@ -65,7 +65,7 @@
 - [x] **T13:** `SellController::edit()`: read `action`; `publish` only for Draft/Withdrawn with an
       unchanged category; the three success redirects + flashes; map `ListingIncomplete` (per field /
       on the form) and `PublishedListingCannotBeRefiled` (on `category`).
-- [ ] **T14:** `SellController::withdraw()` (POST, CSRF → 403 before lookup, ownership → 404,
+- [x] **T14:** `SellController::withdraw()` (POST, CSRF → 403 before lookup, ownership → 404,
       `ListingNotPublished` → error flash, 303).
 
 ## Tests (qa)

@@ -23,5 +23,13 @@
 
     {{ include('listing/_form.html.twig', {buttons: buttons}) }}
 
+    {% if draft.status == 'published' %}
+        {# A separate POST form with its own token, outside the listing form (D12). #}
+        <form class="listing-withdraw" method="post" action="{{ path('app_sell_draft_withdraw', {id: draft.id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('withdraw-listing-' ~ draft.id) }}">
+            <button type="submit">Withdraw</button>
+        </form>
+    {% endif %}
+
     <p><a href="{{ path('app_sell_drafts') }}">Back to your listings</a></p>
 {% endblock %}

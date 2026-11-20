@@ -6,8 +6,10 @@ namespace App\Infrastructure\Listing\Http\Controller;
 
 use App\Application\Listing\Command\DraftListing;
 use App\Application\Listing\Command\ReviseListing;
+use App\Application\Listing\Command\WithdrawListing;
 use App\Application\Listing\Handler\DraftListingHandler;
 use App\Application\Listing\Handler\ReviseListingHandler;
+use App\Application\Listing\Handler\WithdrawListingHandler;
 use App\Domain\Listing\Exception\CategoryIsNotALeaf;
 use App\Domain\Listing\Exception\InvalidAttributeValue;
 use App\Domain\Listing\Exception\InvalidAttributeValueReason;
@@ -16,6 +18,7 @@ use App\Domain\Listing\Exception\InvalidListingTitle;
 use App\Domain\Listing\Exception\InvalidPrice;
 use App\Domain\Listing\Exception\ListingIncomplete;
 use App\Domain\Listing\Exception\ListingNotFound;
+use App\Domain\Listing\Exception\ListingNotPublished;
 use App\Domain\Listing\Exception\NotTheSeller;
 use App\Domain\Listing\Exception\PublishedListingCannotBeRefiled;
 use App\Domain\Listing\Exception\UnknownCategory;
@@ -38,7 +41,7 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
- * A seller's private listing surface: draft, list, edit (plan D13). Unstyled semantic markup (Q7).
+ * A seller's private listing surface: draft, list, edit, publish, withdraw (plan D13, listing-publish). Unstyled semantic markup (Q7).
  *
  * `#[IsGranted]` is belt and braces with `security.yaml`'s anchored `^/sell(/|$)` rule, as for
  * `/account`. THE RULES THIS CLASS KEEPS:
@@ -68,6 +71,8 @@ final class SellController extends AbstractController
     private const string REFILED_NOT_PUBLISHED = 'Saved, not published yet. The details now follow “%s”: check them, then publish.';
     private const string FILL_TO_PUBLISH = 'Fill this in to publish.';
     private const string NEW_REQUIRED_DETAIL = 'A new detail is now required. Reload the page.';
+    private const string WITHDRAWN = 'Withdrawn. It is no longer public.';
+    private const string NOT_PUBLISHED = 'Only a published listing can be withdrawn.';
 
     public function __construct(
         private readonly DbalCategoryOutline $outline,
@@ -233,6 +238,31 @@ final class SellController extends AbstractController
         }
 
         return $this->render('listing/edit.html.twig', ['form' => $form, 'draft' => $draft], $this->statusFor($form));
+    }
+
+    #[Route('/drafts/{id}/withdraw', name: 'app_sell_draft_withdraw', methods: ['POST'])]
+    public function withdraw(string $id, Request $request, #[CurrentUser] SecurityUser $user, WithdrawListingHandler $withdrawListing): Response
+    {
+        // The token before the lookup (D13, the `CategoryAdminController::delete()` precedent): a bad
+        // token is the same 403 for every id, so it reveals nothing about which ids exist.
+        if (!$this->isCsrfTokenValid('withdraw-listing-'.$id, $request->request->getString('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+
+        $listing = $this->drafts->find($id, $user->id()) ?? throw $this->createNotFoundException();
+
+        try {
+            // A withdrawn listing is a no-op, so a double-submit lands on the same success (L-12).
+            $withdrawListing(new WithdrawListing($listing['id'], $user->id()));
+            $this->addFlash('success', self::WITHDRAWN);
+        } catch (NotTheSeller|ListingNotFound) {
+            throw $this->createNotFoundException();
+        } catch (ListingNotPublished) {
+            // A draft: a stale tab or a tampered POST. A user error, not logged (AC-27).
+            $this->addFlash('error', self::NOT_PUBLISHED);
+        }
+
+        return $this->redirectToRoute('app_sell_drafts', [], Response::HTTP_SEE_OTHER);
     }
 
     /**
