@@ -44,7 +44,8 @@ final class ListingIsolationTest extends TestCase
         $scanned = 0;
         $offences = [];
         foreach (['Domain/Listing', 'Application/Listing'] as $dir) {
-            [$count, $hits] = $this->scan($dir, ['php'], '/App\\\\(?:Domain|Application|Infrastructure)\\\\(?!Listing\\\\)\w+\\\\/');
+            // `Shared` is the shared kernel (events, Clock), not a bounded context.
+            [$count, $hits] = $this->scan($dir, ['php'], '/App\\\\(?:Domain|Application|Infrastructure)\\\\(?!Listing\\\\|Shared\\\\)\w+\\\\/');
             $scanned += $count;
             $offences = [...$offences, ...$hits];
         }

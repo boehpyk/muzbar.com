@@ -29,7 +29,7 @@
       otherwise.
 - [x] **T2:** `ListingStatus::Published`, `::Withdrawn`; exceptions `ListingIncomplete`,
       `ListingNotPublished`, `PublishedListingCannotBeRefiled`.
-- [ ] **T3:** Event `ListingPublished` (ids + `publishedAt`, docblock: no snapshot, no secret,
+- [x] **T3:** Event `ListingPublished` (ids + `publishedAt`, docblock: no snapshot, no secret,
       dispatched after commit).
 - [ ] **T4:** `Listing`: `RecordsEvents`; `publishedAt` property (null in `draft()`) + mapping field
       in `Listing.orm.xml` + the generated migration (one commit: a mapped property without its
