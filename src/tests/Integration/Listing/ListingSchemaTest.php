@@ -44,6 +44,7 @@ final class ListingSchemaTest extends KernelTestCase
             'id' => ['uuid', null, 'NO'],
             'price_amount' => ['bigint', null, 'NO'],
             'price_currency' => ['character varying', 3, 'NO'],
+            'published_at' => ['timestamp with time zone', null, 'YES'],
             'seller_id' => ['uuid', null, 'NO'],
             'status' => ['character varying', 16, 'NO'],
             'title' => ['character varying', 120, 'NO'],

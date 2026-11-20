@@ -24,6 +24,7 @@ use App\Domain\Listing\ValueObject\ListingStatus;
 use App\Domain\Listing\ValueObject\ListingTitle;
 use App\Domain\Listing\ValueObject\Price;
 use App\Domain\Listing\ValueObject\SellerId;
+use App\Domain\Shared\Event\RecordsEvents;
 use PHPUnit\Framework\TestCase;
 
 /** AC-3, AC-4 (attribute values), plus listing-draft's AC-4, AC-5, AC-6. */
@@ -372,10 +373,10 @@ final class ListingTest extends TestCase
         }
     }
 
-    public function testListingRecordsNoDomainEvents(): void
+    public function testListingRecordsDomainEvents(): void
     {
-        self::assertSame([], class_uses(Listing::class));
-        self::assertFalse((new \ReflectionClass(Listing::class))->hasMethod('releaseEvents'));
+        // Inverted on purpose by listing-publish (AC-6): `publish()` records `ListingPublished`.
+        self::assertSame([RecordsEvents::class => RecordsEvents::class], class_uses(Listing::class));
     }
 
     public function testThePublicMethodsAreExactlyTheAllowList(): void
@@ -387,7 +388,7 @@ final class ListingTest extends TestCase
         sort($methods);
 
         self::assertSame(
-            ['attributeValues', 'categoryId', 'description', 'draft', 'id', 'isSoldBy', 'price', 'revise', 'sellerId', 'status', 'title'],
+            ['attributeValues', 'categoryId', 'description', 'draft', 'id', 'isSoldBy', 'price', 'publish', 'publishedAt', 'releaseEvents', 'revise', 'sellerId', 'status', 'title', 'withdraw'],
             $methods,
         );
     }

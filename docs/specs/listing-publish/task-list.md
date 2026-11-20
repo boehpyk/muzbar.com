@@ -31,7 +31,7 @@
       `ListingNotPublished`, `PublishedListingCannotBeRefiled`.
 - [x] **T3:** Event `ListingPublished` (ids + `publishedAt`, docblock: no snapshot, no secret,
       dispatched after commit).
-- [ ] **T4:** `Listing`: `RecordsEvents`; `publishedAt` property (null in `draft()`) + mapping field
+- [x] **T4:** `Listing`: `RecordsEvents`; `publishedAt` property (null in `draft()`) + mapping field
       in `Listing.orm.xml` + the generated migration (one commit: a mapped property without its
       column fails every load); `publish()` (L-6 → no-op → L-2 → stored-value L-9 → L-13 → assign +
       record), `withdraw()` (L-6 → no-op/refuse → assign), `revise()` gains L-15 and L-13-when-
