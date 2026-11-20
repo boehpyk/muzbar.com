@@ -82,7 +82,7 @@
 - [x] **T19:** Functional: `SellTest` (AC-16…AC-20, AC-26), new `PublicListingTest` (AC-21…AC-25 —
       content, privacy incl. the SQL capture, 404 parity across four cases × three viewers, query
       budget with a 50-option attribute, no GET writes), Sentry silence (AC-27).
-- [ ] **T20:** Bite proof: AC-28 mutations (a)…(o) one at a time; each fails a named test. Revert,
+- [x] **T20:** Bite proof: AC-28 mutations (a)…(o) one at a time; each fails a named test. Revert,
       record in the commit message, run `make test` twice and once with `zend.assertions=-1`. (AC-28,
       AC-29)
 
