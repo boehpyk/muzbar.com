@@ -72,7 +72,7 @@
 - [x] **T15:** Domain unit: `ListingTest` (AC-1…AC-4, AC-6 allow-list and the `RecordsEvents`
       assertion changed **on purpose**), `AttributeSchemaTest::missingFrom`, `AttributeValueTest`
       round trip (AC-5); `ListingIsolationTest`/`CatalogIsolationTest` green (AC-7).
-- [ ] **T16:** `ListingFactory::published()` / `->withdrawn()` (through the aggregate and
+- [x] **T16:** `ListingFactory::published()` / `->withdrawn()` (through the aggregate and
       `ListingRepository::save()`, **releasing events**), a fixed whole-second test Clock.
 - [ ] **T17:** Integration: schema (AC-8), handlers with a recording dispatcher and fresh EM reads
       (AC-9, AC-10, AC-12, AC-13), `schemaOf()` required (AC-11), status-blind Catalog guards
