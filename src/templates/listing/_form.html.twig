@@ -1,5 +1,7 @@
 {# Shared by the sell and edit pages. Root-level errors (bad CSRF token, extra fields such as a
-   posted `seller`) land on the form, not a field. #}
+   posted `seller`) land on the form, not a field. The caller passes `buttons`: a list of
+   `{label, action?}`; an `action` is posted as the top-level `action` parameter (edit page:
+   `save` | `publish`, listing-publish D12). #}
 {{ form_start(form) }}
     {{ form_errors(form) }}
     {{ form_row(form.title) }}
@@ -16,5 +18,7 @@
             {% endfor %}
         </fieldset>
     {% endif %}
-    <button type="submit">{{ button_label }}</button>
+    {% for button in buttons %}
+        <button type="submit"{% if button.action is defined %} name="action" value="{{ button.action }}"{% endif %}>{{ button.label }}</button>
+    {% endfor %}
 {{ form_end(form) }}

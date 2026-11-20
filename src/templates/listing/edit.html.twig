@@ -1,11 +1,27 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Edit draft{% endblock %}
+{% block title %}Edit listing{% endblock %}
 
 {% block body %}
-    <h1>Edit draft</h1>
+    <h1>Edit listing</h1>
 
-    {{ include('listing/_form.html.twig', {button_label: 'Save draft'}) }}
+    {# The buttons depend on the status (listing-publish AC-17); the controller decides what a
+       clicked `publish` may do (only from a draft or a withdrawn listing, on an unchanged category). #}
+    <p class="listing-status">Status: <strong>{{ draft.status|capitalize }}</strong>
+        {% if draft.status == 'published' %}
+            <a class="listing-public-link" href="{{ path('app_listing_show', {id: draft.id}) }}">View the public page</a>
+        {% endif %}
+    </p>
 
-    <p><a href="{{ path('app_sell_drafts') }}">Back to your drafts</a></p>
+    {% if draft.status == 'published' %}
+        {% set buttons = [{label: 'Save changes', action: 'save'}] %}
+    {% elseif draft.status == 'withdrawn' %}
+        {% set buttons = [{label: 'Save', action: 'save'}, {label: 'Save and publish again', action: 'publish'}] %}
+    {% else %}
+        {% set buttons = [{label: 'Save draft', action: 'save'}, {label: 'Save and publish', action: 'publish'}] %}
+    {% endif %}
+
+    {{ include('listing/_form.html.twig', {buttons: buttons}) }}
+
+    <p><a href="{{ path('app_sell_drafts') }}">Back to your listings</a></p>
 {% endblock %}

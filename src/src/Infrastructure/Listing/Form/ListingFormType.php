@@ -22,6 +22,9 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * the page loaded — is refused by ChoiceType with the failure contract's wording; the controller
  * re-words the one case ChoiceType cannot tell apart (a leaf that has since become a branch).
  *
+ * `published` (edit page only) renders `category` disabled with the reason (L-15, listing-publish D12).
+ * The submit buttons live in the templates (`action=save|publish`), so the type never varies by status.
+ *
  * `schema` (edit page only; null on `/sell`, so a posted `attributes` there is an extra field) adds
  * the "Details" sub-form `listing_form[attributes][<attribute id>]`, built from Catalog's admin
  * read model (plan D11), never from the Domain fact. **No field answers before the Domain** (D12):
@@ -42,6 +45,8 @@ final class ListingFormType extends AbstractType
     public const string NOT_AN_OPTION = 'Choose one of the listed options.';
 
     public const string NOT_YES_OR_NO = 'Choose Yes or No.';
+
+    public const string PUBLISHED_CATEGORY = 'Withdraw the listing to move it to another category.';
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
@@ -73,6 +78,10 @@ final class ListingFormType extends AbstractType
                 'choices' => array_keys($categories),
                 'choice_label' => static fn (string $id): string => $categories[$id],
                 'invalid_message' => self::UNKNOWN_CATEGORY,
+                // L-15: a published listing keeps its category. Disabled, Symfony ignores a submitted
+                // value and keeps the model's; the Domain's refusal is the backstop.
+                'disabled' => $options['published'],
+                'help' => $options['published'] ? self::PUBLISHED_CATEGORY : null,
             ])
         ;
 
@@ -134,6 +143,8 @@ final class ListingFormType extends AbstractType
         ]);
         $resolver->setRequired('category_choices');
         $resolver->setAllowedTypes('category_choices', 'array');
+        $resolver->setDefault('published', false);
+        $resolver->setAllowedTypes('published', 'bool');
         $resolver->setDefault('schema', null);
         $resolver->setAllowedTypes('schema', ['null', 'array']);
     }

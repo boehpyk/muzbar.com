@@ -157,7 +157,11 @@ final class SellController extends AbstractController
             array_flip(array_column($schema, 'id')),
         );
 
-        $form = $this->createForm(ListingFormType::class, $data, ['category_choices' => $choices, 'schema' => $schema]);
+        $form = $this->createForm(ListingFormType::class, $data, [
+            'category_choices' => $choices,
+            'schema' => $schema,
+            'published' => 'published' === $draft['status'],
+        ]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted()) {

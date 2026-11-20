@@ -59,7 +59,7 @@
       description with `nl2br`, Details `<dl>` in `effectiveFor()` order, no seller data — comment
       says why).
 - [x] **T11:** "Your listings": title, status word per row, "View" link for published.
-- [ ] **T12:** `ListingFormType` option `published` (category `disabled` + help text); edit page:
+- [x] **T12:** `ListingFormType` option `published` (category `disabled` + help text); edit page:
       status, buttons per status (`action=save|publish`, in the template), public link, withdraw
       form.
 - [ ] **T13:** `SellController::edit()`: read `action`; `publish` only for Draft/Withdrawn with an
