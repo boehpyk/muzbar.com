@@ -62,7 +62,7 @@
 - [x] **T12:** `ListingFormType` option `published` (category `disabled` + help text); edit page:
       status, buttons per status (`action=save|publish`, in the template), public link, withdraw
       form.
-- [ ] **T13:** `SellController::edit()`: read `action`; `publish` only for Draft/Withdrawn with an
+- [x] **T13:** `SellController::edit()`: read `action`; `publish` only for Draft/Withdrawn with an
       unchanged category; the three success redirects + flashes; map `ListingIncomplete` (per field /
       on the form) and `PublishedListingCannotBeRefiled` (on `category`).
 - [ ] **T14:** `SellController::withdraw()` (POST, CSRF → 403 before lookup, ownership → 404,

@@ -14,8 +14,10 @@ use App\Domain\Listing\Exception\InvalidAttributeValueReason;
 use App\Domain\Listing\Exception\InvalidListingDescription;
 use App\Domain\Listing\Exception\InvalidListingTitle;
 use App\Domain\Listing\Exception\InvalidPrice;
+use App\Domain\Listing\Exception\ListingIncomplete;
 use App\Domain\Listing\Exception\ListingNotFound;
 use App\Domain\Listing\Exception\NotTheSeller;
+use App\Domain\Listing\Exception\PublishedListingCannotBeRefiled;
 use App\Domain\Listing\Exception\UnknownCategory;
 use App\Domain\Listing\ValueObject\Currency;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DbalAttributeSchema;
@@ -61,6 +63,11 @@ final class SellController extends AbstractController
     private const string NOT_A_LEAF = 'That category now has subcategories. Choose a more specific one.';
     private const string ADD_DETAILS = 'Draft saved. Add the details below.';
     private const string REFILED = 'Draft saved. The details now follow “%s”: check them below.';
+    private const string PUBLISHED = 'Published. This is what buyers see.';
+    private const string UPDATED = 'Saved. Your listing is updated.';
+    private const string REFILED_NOT_PUBLISHED = 'Saved, not published yet. The details now follow “%s”: check them, then publish.';
+    private const string FILL_TO_PUBLISH = 'Fill this in to publish.';
+    private const string NEW_REQUIRED_DETAIL = 'A new detail is now required. Reload the page.';
 
     public function __construct(
         private readonly DbalCategoryOutline $outline,
@@ -169,6 +176,14 @@ final class SellController extends AbstractController
         }
 
         if ($form->isSubmitted() && $form->isValid()) {
+            $wasPublished = 'published' === $draft['status'];
+            $refiled = $data->category !== $draft['categoryId'];
+            // "Save and publish" (D12). Ignored on a published listing (already public) and on a
+            // re-file: the new category's details were never on the form (plan Q2, AC-18). Any other
+            // `action` value is a plain save.
+            $publishClicked = 'publish' === $request->request->getString('action') && !$wasPublished;
+            $publish = $publishClicked && !$refiled;
+
             try {
                 $reviseListing(new ReviseListing(
                     $draft['id'],
@@ -181,18 +196,24 @@ final class SellController extends AbstractController
                     // An empty field is no value (L-11); omitting it also keeps an empty field whose
                     // attribute left the schema from being refused for nothing.
                     array_filter($data->attributes, static fn (?string $value): bool => null !== $value && '' !== $value),
-                    publish: false, // until listing-publish T13 reads the clicked button
+                    $publish,
                 ));
 
-                if ($data->category !== $draft['categoryId']) {
+                if ($publish) {
+                    $this->addFlash('success', self::PUBLISHED);
+
+                    return $this->redirectToRoute('app_listing_show', ['id' => $draft['id']], Response::HTTP_SEE_OTHER);
+                }
+
+                if ($refiled) {
                     // Re-filed: the aggregate dropped what the new category does not ask (L-10), and
                     // the new category may ask more — so back to the form, not the list (AC-21).
-                    $this->addFlash('success', \sprintf(self::REFILED, self::nameOf($rows, (string) $data->category)));
+                    $this->addFlash('success', \sprintf($publishClicked ? self::REFILED_NOT_PUBLISHED : self::REFILED, self::nameOf($rows, (string) $data->category)));
 
                     return $this->redirectToRoute('app_sell_draft_edit', ['id' => $draft['id']], Response::HTTP_SEE_OTHER);
                 }
 
-                $this->addFlash('success', self::SAVED);
+                $this->addFlash('success', $wasPublished ? self::UPDATED : self::SAVED);
 
                 return $this->redirectToRoute('app_sell_drafts', [], Response::HTTP_SEE_OTHER);
             } catch (NotTheSeller|ListingNotFound) {
@@ -203,6 +224,11 @@ final class SellController extends AbstractController
                 $this->addRefusal($form, $e, $data);
             } catch (InvalidAttributeValue $e) {
                 $this->addDetailRefusal($form, $e);
+            } catch (ListingIncomplete $e) {
+                $this->addIncompleteRefusal($form, $e);
+            } catch (PublishedListingCannotBeRefiled) {
+                // L-15. Unreachable through the form (the field is disabled); the Domain's backstop.
+                $form->get('category')->addError(new FormError(ListingFormType::PUBLISHED_CATEGORY));
             }
         }
 
@@ -266,6 +292,30 @@ final class SellController extends AbstractController
         $details = $form->has('attributes') ? $form->get('attributes') : null;
         $field = null !== $details && $details->has($refusal->attributeKey()) ? $details->get($refusal->attributeKey()) : $form;
         $field->addError(new FormError($message));
+    }
+
+    /**
+     * L-13: every missing required detail on its own field, all at once. An id with no field (an
+     * attribute made required after the page loaded) is reported once, on the form itself.
+     *
+     * @param FormInterface<ListingFormData> $form
+     */
+    private function addIncompleteRefusal(FormInterface $form, ListingIncomplete $refusal): void
+    {
+        $details = $form->has('attributes') ? $form->get('attributes') : null;
+        $unseen = false;
+
+        foreach ($refusal->attributeIds() as $id) {
+            if (null !== $details && $details->has($id->toString())) {
+                $details->get($id->toString())->addError(new FormError(self::FILL_TO_PUBLISH));
+            } else {
+                $unseen = true;
+            }
+        }
+
+        if ($unseen) {
+            $form->addError(new FormError(self::NEW_REQUIRED_DETAIL));
+        }
     }
 
     /**
