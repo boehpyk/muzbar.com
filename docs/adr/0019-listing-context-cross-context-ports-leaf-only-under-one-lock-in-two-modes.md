@@ -262,3 +262,23 @@ Recorded by the `listing-attribute-values` slice
 4. **The watch item widens again.** A Listing write that changes values reads `schemaOf()` inside
    `holdSteady()`; a Catalog write that deletes an attribute or option, or changes a parent, reads
    the matching usage inside `exclusively()`.
+
+## Amendment, 2026-11-20 — the "status is not yet a filter" watch item is discharged; a fifth crossing
+
+Recorded by the `listing-publish` slice ([ADR-0021](./0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md), plan D9, D10, D11).
+
+1. **The watch item is discharged, and the answer is not the one it predicted.** `Published` and
+   `Withdrawn` exist now, yet "my drafts" did **not** gain `status = 'draft'`: **"Your listings"
+   shows every status** (URL and `DbalSellerDrafts` keep their names, owner Q8), and **`revise()`
+   accepts every status**, with L-13 (complete while published) and L-15 (no re-file while
+   published) deciding what each may do. **Catalog's guards stay status-blind on purpose**:
+   C-23…C-27 count listings of every status, because a withdrawn listing can be published again
+   and must still be on a leaf with values that mean something. Mutation (m) pins it (AC-14).
+2. **Status *is* a filter on the public side**, in SQL: `DbalSellerDrafts::findPublished()` reads
+   `WHERE id = :id AND status = 'published'` and never selects `seller_id`.
+3. **A fifth crossing:** the public `ListingController` reads Catalog's `DbalCategoryOutline` and
+   `DbalAttributeSchema` — `effectiveFor()` and a new `optionLabels()` (labels by option id, one
+   query) — to show a listing's category path and details. A UI read like the others; a change to
+   either read model is a change to `/listings/{id}`.
+4. **Withdraw runs inside `holdSteady()` too,** though it reads no catalog fact: decision 5's
+   "every Listing write" stays without exceptions.

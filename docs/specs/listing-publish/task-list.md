@@ -18,7 +18,7 @@
 - No GET writes. Withdraw is POST-only with its own CSRF token.
 
 ## Decisions & prerequisites
-- [ ] **T0:** `/adr` → **ADR-0021** (plan D1–D11 with rejected alternatives and consequences) and the
+- [x] **T0:** `/adr` → **ADR-0021** (plan D1–D11 with rejected alternatives and consequences) and the
       dated amendments to **ADR-0008, ADR-0018, ADR-0019, ADR-0020** (plan Risk 7). No code.
 
 ## Domain — `Listing`

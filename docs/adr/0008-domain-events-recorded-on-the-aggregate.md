@@ -105,3 +105,28 @@ discharged.
 The second bullet — "the first listener that does I/O is the trigger to go asynchronous" — is
 discharged by the same decision: `IssueVerificationOnUserRegistered` does no I/O of its own beyond
 queueing, because `SendEmailMessage` is routed to an async transport.
+
+### Amendment, 2026-11-20 — "after a successful save" means after the transaction that holds the save commits
+
+Recorded by the `listing-publish` slice ([ADR-0021](./0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md), plan D5).
+
+Decision 2 was written for handlers whose `save()` *is* the commit. `ReviseListingHandler` is the
+first event-raising handler whose save runs inside a **closure-owned transaction**
+(`Categories::holdSteady()`, ADR-0019 d.5), where the save returning is not the commit. Dispatching
+there would publish a fact that a later failure in the same transaction could still roll back —
+the failure "Dispatch *before* save" was rejected for.
+
+The rule, restated: **dispatch after the transaction that contains the save commits.** Where a
+handler's work runs in a closure that owns the transaction, **release inside and dispatch outside**:
+
+```php
+$events = $this->categories->holdSteady(function () use (…): array {
+    // … save($listing);
+    return $listing->releaseEvents();
+});
+$this->events->dispatch(...$events);
+```
+
+The call site carries a comment saying why. The "crash between commit and dispatch loses the event"
+window is unchanged and re-accepted for `ListingPublished`, which ships with no listener; its first
+listener must revisit it as ADR-0010 did for mail. Decisions 1 and 3–7 are unchanged.
