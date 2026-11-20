@@ -177,6 +177,7 @@ final class SellController extends AbstractController
                     // An empty field is no value (L-11); omitting it also keeps an empty field whose
                     // attribute left the schema from being refused for nothing.
                     array_filter($data->attributes, static fn (?string $value): bool => null !== $value && '' !== $value),
+                    publish: false, // until listing-publish T13 reads the clicked button
                 ));
 
                 if ($data->category !== $draft['categoryId']) {

@@ -39,7 +39,7 @@
       migration.make` is empty afterwards.
 
 ## Application
-- [ ] **T5:** `ReviseListing::$publish` (no default); `ReviseListingHandler` gains `Clock` and
+- [x] **T5:** `ReviseListing::$publish` (no default); `ReviseListingHandler` gains `Clock` and
       `DomainEventDispatcher`, publishes inside `holdSteady()` when asked, returns released events
       from the closure, dispatches after (call-site comment, D5). Controller passes `publish: false`
       until T13.

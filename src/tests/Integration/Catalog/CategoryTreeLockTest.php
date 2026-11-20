@@ -29,6 +29,8 @@ use App\Application\Listing\Handler\ReviseListingHandler;
 use App\Domain\Catalog\Port\CategoryTreeLock;
 use App\Domain\Listing\Port\Categories;
 use App\Domain\Listing\Port\ListingRepository;
+use App\Domain\Shared\Port\Clock;
+use App\Domain\Shared\Port\DomainEventDispatcher;
 use App\Infrastructure\Catalog\Integration\CategoriesForListing;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeOptionRepository;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeRepository;
@@ -454,8 +456,12 @@ final class CategoryTreeLockTest extends KernelTestCase
 
         $categories = new ObservedCategories(new CategoriesForListing(new PostgresCategoryTreeLock($em), $this->db));
         $listings = new ObservedListingRepository($repository, $categories);
+        $clock = $container->get(Clock::class);
+        self::assertInstanceOf(Clock::class, $clock);
+        $events = $container->get(DomainEventDispatcher::class);
+        self::assertInstanceOf(DomainEventDispatcher::class, $events);
 
-        return [$categories, new DraftListingHandler($listings, $categories), new ReviseListingHandler($listings, $categories)];
+        return [$categories, new DraftListingHandler($listings, $categories), new ReviseListingHandler($listings, $categories, $clock, $events)];
     }
 
     public function testDraftListingHandlerReadsTheStatusAndSavesInsideHoldSteady(): void
@@ -480,7 +486,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         $listing = ListingFactory::new()->inCategory(CategoryFactory::createOne())->create();
         [$categories, , $revise] = $this->observeListingHandlers();
 
-        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $bass->id()->toString(), 'Changed title', '', '10', 'EUR', []));
+        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $bass->id()->toString(), 'Changed title', '', '10', 'EUR', [], false));
 
         self::assertSame(1, $categories->entries());
         $methods = array_column($categories->calls(), 0);
@@ -505,7 +511,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         $listing = ListingFactory::new()->inCategory($category)->create();
         [$categories, , $revise] = $this->observeListingHandlers();
 
-        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $category->id()->toString(), 'Changed title', '', '10', 'EUR', [$serial->id()->toString() => 'SN-1']));
+        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $category->id()->toString(), 'Changed title', '', '10', 'EUR', [$serial->id()->toString() => 'SN-1'], false));
 
         self::assertSame(1, $categories->entries());
         self::assertSame(
