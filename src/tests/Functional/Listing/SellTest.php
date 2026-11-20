@@ -628,7 +628,10 @@ final class SellTest extends WebTestCase
     private function detailFieldIds(Crawler $page): array
     {
         return $page->filter('fieldset [name^="listing_form[attributes]["]')->each(static function (Crawler $node): string {
-            \assert(1 === preg_match('/^listing_form\[attributes\]\[([0-9a-f-]{36})\]$/', (string) $node->attr('name'), $m));
+            // Never inside assert(): with zend.assertions=-1 (CI) the match is not even run.
+            if (1 !== preg_match('/^listing_form\[attributes\]\[([0-9a-f-]{36})\]$/', (string) $node->attr('name'), $m)) {
+                self::fail('Not a Details field name: '.$node->attr('name'));
+            }
 
             return $m[1];
         });
