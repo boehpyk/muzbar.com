@@ -74,7 +74,7 @@
       round trip (AC-5); `ListingIsolationTest`/`CatalogIsolationTest` green (AC-7).
 - [x] **T16:** `ListingFactory::published()` / `->withdrawn()` (through the aggregate and
       `ListingRepository::save()`, **releasing events**), a fixed whole-second test Clock.
-- [ ] **T17:** Integration: schema (AC-8), handlers with a recording dispatcher and fresh EM reads
+- [x] **T17:** Integration: schema (AC-8), handlers with a recording dispatcher and fresh EM reads
       (AC-9, AC-10, AC-12, AC-13), `schemaOf()` required (AC-11), status-blind Catalog guards
       (AC-14).
 - [ ] **T18:** `CategoryTreeLockTest`: revise+publish reads and save inside `holdSteady()`, dispatch

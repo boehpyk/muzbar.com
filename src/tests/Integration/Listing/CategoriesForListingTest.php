@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Listing;
 
+use App\Application\Catalog\Command\EditAttribute;
+use App\Application\Catalog\Handler\EditAttributeHandler;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Entity\Category;
 use App\Domain\Catalog\ValueObject\NumberRules;
@@ -12,6 +14,7 @@ use App\Domain\Listing\Port\Categories;
 use App\Domain\Listing\ValueObject\AttributeId;
 use App\Domain\Listing\ValueObject\AttributeInput;
 use App\Domain\Listing\ValueObject\AttributeSchema;
+use App\Domain\Listing\ValueObject\AttributeValues;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\CategoryStatus;
 use App\Tests\Factory\AttributeFactory;
@@ -199,5 +202,52 @@ final class CategoriesForListingTest extends KernelTestCase
 
         self::assertTrue($schema->has(AttributeId::fromString($empty->id()->toString())));
         self::assertFalse($this->accepts($schema, $empty, Uuid::v7()->toRfc4122()));
+    }
+
+    /**
+     * @return list<string> the codes of the attributes `schemaOf()` reports as required for `$category`
+     */
+    private function requiredCodes(Category $category): array
+    {
+        $byId = [];
+        foreach (['condition' => $this->condition, 'brand' => $this->brand, 'strings' => $this->strings, 'has-case' => $this->hasCase, 'serial' => $this->serial] as $code => $attribute) {
+            $byId[$attribute->id()->toString()] = $code;
+        }
+
+        $codes = array_map(
+            static fn (AttributeId $id): string => $byId[$id->toString()] ?? '?',
+            $this->schemaOf($category)->missingFrom(AttributeValues::none()),
+        );
+        sort($codes);
+
+        return $codes;
+    }
+
+    /** listing-publish AC-11. */
+    public function testElectricsSchemaReportsConditionAndBrandAsRequiredAndTheRestAsNot(): void
+    {
+        $this->buildTheValuesTree();
+
+        self::assertSame(['brand', 'condition'], $this->requiredCodes($this->electric));
+    }
+
+    public function testTogglingRequiredOnAnAttributeFlipsItOnTheNextRead(): void
+    {
+        $this->buildTheValuesTree();
+        $edit = self::getContainer()->get(EditAttributeHandler::class);
+        self::assertInstanceOf(EditAttributeHandler::class, $edit);
+
+        $edit(new EditAttribute($this->strings->id()->toString(), 'Strings', 'strings', true, 'pcs', 4, 12));
+        self::assertSame(['brand', 'condition', 'strings'], $this->requiredCodes($this->electric));
+
+        $edit(new EditAttribute($this->condition->id()->toString(), 'Condition', 'condition', false));
+        self::assertSame(['brand', 'strings'], $this->requiredCodes($this->electric));
+    }
+
+    public function testRequiredIsReportedForInheritedAttributesOnlyAlongTheLineage(): void
+    {
+        $this->buildTheValuesTree();
+
+        self::assertSame(['condition'], $this->requiredCodes($this->bass));
     }
 }

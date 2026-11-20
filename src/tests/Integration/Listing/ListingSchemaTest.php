@@ -51,6 +51,33 @@ final class ListingSchemaTest extends KernelTestCase
         ], $actual);
     }
 
+    /** listing-publish AC-8. */
+    public function testPublishedAtIsWholeSecondAndNullableDefaultingToNull(): void
+    {
+        $row = $this->db->fetchAssociative(
+            "SELECT datetime_precision, column_default, is_nullable FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'listing_listing' AND column_name = 'published_at'",
+        );
+
+        self::assertIsArray($row);
+        self::assertSame(0, $row['datetime_precision']);
+        // `DEFAULT NULL` is introspected as an explicit NULL cast; either way no value is invented.
+        self::assertContains($row['column_default'], [null, 'NULL::timestamp with time zone']);
+        self::assertSame('YES', $row['is_nullable']);
+    }
+
+    public function testARowWrittenWithoutPublishedAtReadsAsADraftThatWasNeverPublished(): void
+    {
+        $id = '018f5b2a-0000-7000-8000-0000000000aa';
+        $this->db->executeStatement(
+            "INSERT INTO listing_listing (id, seller_id, category_id, title, description, price_amount, price_currency, status)
+             VALUES (?, '018f5b2a-0000-7000-8000-0000000000a1', '018f5b2a-0000-7000-8000-0000000000e1', 'Legacy', '', 100, 'EUR', 'draft')",
+            [$id],
+        );
+
+        self::assertSame(['draft', null], array_values($this->db->fetchAssociative('SELECT status, published_at FROM listing_listing WHERE id = ?', [$id]) ?: []));
+    }
+
     public function testThePrimaryKeyIsId(): void
     {
         $columns = $this->db->fetchFirstColumn(
