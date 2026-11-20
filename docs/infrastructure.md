@@ -399,6 +399,18 @@ Until `migrate` creates `listing_attribute_value`, the draft **edit page** (GET 
 Same verdict and same cure: accepted, seconds long, ends when `migrate` completes. No backfill: no
 value exists before this slice, so every guard trivially holds.
 
+**`listing-publish` reopens it for one column**
+([ADR-0021](./adr/0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md)).
+Until `migrate` adds `listing_listing.published_at`, everything that loads a listing — every
+Doctrine hydration (the edit page GET and POST, `/sell` create, withdraw) and every
+`DbalSellerDrafts` read ("Your listings", the new public page `/listings/{id}`) — answers **500**
+(each reaches Sentry). The admin side is **not** in it this time: Catalog's guards count rows and
+never name the column. Same verdict and same cure: accepted, seconds long, ends when `migrate`
+completes. The migration is one nullable `ADD COLUMN` — no backfill, no status DDL (`status` was
+already `varchar(16)`): every pre-existing row is a draft, and `published_at IS NULL` is exactly
+right for a listing never published (L-16). When checking the column by hand, its introspected
+default reads `NULL::timestamp with time zone`, not a literal `NULL` — both mean "no default".
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker

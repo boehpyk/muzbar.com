@@ -293,12 +293,6 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         under the exclusive lock; price as integer minor units, `USD`/`EUR`/`SEK`/`UAH`.
         [ADR-0019](./adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
         + ADR-0007/0016 amendments. 1436 tests.
-  - [ ] *Candidates before `listing-publish` (the first page anyone else sees):*
-        **public SCSS pipeline** (ADR-0006; `listing-draft` plan Q7) — `sass-bundle`, `public.css`,
-        tokens; the sell pages ship as unstyled semantic markup until then. **UUID id trait refactor**
-        (ADR-0009; plan Risk 4) — **eleven** copies of the id value-object shape now exist, Listing's
-        `SellerId`/`CategoryId`/`AttributeId`/`AttributeOptionId` included; one trait, touching
-        Identity, Catalog and Listing, its own slice — schedule it before `listing-publish` (ADR-0020).
   - [x] `listing-attribute-values` (2026-11-18; **passed `/verify` 2026-11-20 first time**) — the value layer (ADR-0004 §2): `listing_attribute_value` with
         typed columns and the generic `(attribute_id, option_id)`-style indexes, values owned by the
         `Listing` aggregate. Catalog exposes **`EffectiveSchema`** (D11.4) to other contexts; Listing
@@ -318,12 +312,31 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         `CategoryUsage::hasAttributeValues()`, under `exclusively()`.
         [ADR-0020](./adr/0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md)
         + ADR-0004/0007/0016/0018/0019 amendments. All fourteen AC-28 mutations bit. 1436 → 1637 tests.
-  - [ ] `listing-publish` — `Draft → Published` (+ `Withdrawn`). **D11.2 answered here: "required"
+  - [x] `listing-publish` (2026-11-21; **not yet through `/verify`**) — `Draft → Published` (+ `Withdrawn`). **D11.2 answered here: "required"
         and current number rules bite at publish and at every later edit, never retroactively** — so
         a new required attribute, or narrowed bounds, makes a listing incomplete only when its owner
         next touches it. Public page `/listings/{id}` for published listings only, no seller email
         (PRD §6 privacy). `ListingPublished` event, no listener yet. No expiry — that is Phase 2's
         30-day lifecycle.
+        **Shipped:** the lifecycle is a state machine inside `Listing` (L-12: `Draft → Published`,
+        `Published ⇄ Withdrawn`, nothing returns to `Draft`); L-13 (complete against the schema
+        current *at that write*) checked by `publish()` and by `revise()` only while published — so
+        "never retroactive" is a consequence, not a mechanism; L-14 (publish re-checks leaf and
+        stored values unconditionally); L-15 (a published listing cannot be re-filed); L-16
+        (`published_at`, kept on withdraw). "Save and publish" is a flag on `ReviseListing` — one
+        transaction; `ListingPublished` released inside `holdSteady()`, **dispatched after it
+        returns** (after commit, not merely after save). Public page reads with `status =
+        'published'` in SQL and **never selects `seller_id`**; option labels fetched only for stored
+        ids (≤ 5 queries). Catalog's guards confirmed **status-blind** (ADR-0019's watch item
+        discharged). Routes and `DbalSellerDrafts` keep their names (Q8); the page is "Your listings".
+        [ADR-0021](./adr/0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md)
+        + ADR-0008/0018/0019/0020 amendments. All fifteen AC-28 mutations bit. 1637 → 1743 tests.
+  - [ ] `uuid-id-trait` *(immediately after `listing-publish` — plan Q7)* — `refactor/uuid-id-trait`:
+        **eleven** copies of the id value-object shape (ADR-0009; plan Risk 4), Listing's
+        `SellerId`/`CategoryId`/`AttributeId`/`AttributeOptionId` included; one trait, touching
+        Identity, Catalog and Listing, its own mechanical all-green slice. ADR-0020 asked for it
+        *before* `listing-publish` to stop the count growing; that slice added no copy, so it moved
+        to just after.
   - [ ] `listing-schema-drift` *(may follow the gate if the refusals hold up)* — replaces slice 2's
         refusals with ADR-0004's real rules: soft-delete attributes/options (`archived_at`, hidden
         from forms, values retained — and decide whether an archived code still blocks C-21), and a
@@ -347,7 +360,15 @@ Stand up the skeleton the SDLC assumes. No product features yet.
       tsquery sanitizer (ADR-0002).
 - [ ] Morphing single-page listing wizard as a **Symfony UX Live Component** — selecting a category
       reshapes the lower form (parametric dropdowns) without a reload or data loss (US-1, UX §).
+- [ ] `public-styles` *(before the public search UI — `listing-publish` plan Q7)* — the public SCSS
+      pipeline (ADR-0006): `sass-bundle`, `public.css`, tokens. The sell pages and the public listing
+      page ship as unstyled semantic markup with stable class names until then, so styling is
+      purely additive. Its real customer is the search UI below, where the design is the product.
 - [ ] Public faceted search UI with dynamic, category-driven facets (US-2, FR-3).
+- [ ] **Seller contact channels** *(before public launch — `listing-publish` plan Q4)* — the public
+      listing page shows **no** seller data and no way to reach the seller. PRD §6 wants "explicitly
+      preferred external channels" (mail-relay form, phone, Telegram) without exposing the email
+      (Constitution §8). Its own slice; must ship before `/` stops being the coming-soon stub.
 - [ ] 30-day ad lifecycle: Symfony Scheduler expiry + hide, 3-day-prior warning email with 1-click
       renewal link (Messenger + Mailer). Mailpit in dev.
 - [ ] "Subscribe to this Search": capture facet params + verified email on a 0-result page; the

@@ -87,7 +87,7 @@
       AC-29)
 
 ## Docs
-- [ ] **T21:** Update the docs:
+- [x] **T21:** Update the docs:
       - **`docs/roadmap.md`:** tick `listing-publish`; re-order the "Candidates before
         `listing-publish`" line per Q7 — `uuid-id-trait` immediately after this slice, `public-styles`
         before Phase 2's public search UI; add a **seller contact channels** item before public launch
