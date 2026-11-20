@@ -58,7 +58,7 @@
       requirements) + `listing/show.html.twig` (title, price, category path, "Listed on", escaped
       description with `nl2br`, Details `<dl>` in `effectiveFor()` order, no seller data — comment
       says why).
-- [ ] **T11:** "Your listings": title, status word per row, "View" link for published.
+- [x] **T11:** "Your listings": title, status word per row, "View" link for published.
 - [ ] **T12:** `ListingFormType` option `published` (category `disabled` + help text); edit page:
       status, buttons per status (`action=save|publish`, in the template), public link, withdraw
       form.

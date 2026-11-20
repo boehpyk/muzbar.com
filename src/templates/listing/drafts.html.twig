@@ -1,22 +1,27 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Your drafts{% endblock %}
+{% block title %}Your listings{% endblock %}
 
 {% block body %}
-    <h1>Your drafts</h1>
+    <h1>Your listings</h1>
 
-    {# Only the signed-in seller's drafts reach this template (`DbalSellerDrafts` filters in SQL),
-       and no seller data at all: a draft is private, and an email is never shown (PRD §6). #}
+    {# Only the signed-in seller's listings reach this template (`DbalSellerDrafts` filters in SQL),
+       every status, and no seller data at all: an email is never shown (PRD §6). The template and
+       route keep their "drafts" names (listing-publish Q8). #}
     {% if drafts is empty %}
         <p>You have no drafts yet. <a href="{{ path('app_sell') }}">Sell gear</a></p>
     {% else %}
         <ul class="drafts">
             {% for draft in drafts %}
-                <li class="draft">
+                <li class="draft draft-{{ draft.status }}">
                     <span class="draft-title">{{ draft.title }}</span>
+                    <span class="draft-status">{{ draft.status|capitalize }}</span>
                     <span class="draft-price">{{ draft.price }} {{ draft.currency }}</span>
                     <span class="draft-category">{{ paths[draft.categoryId] ?? 'Unknown category' }}</span>
                     <a href="{{ path('app_sell_draft_edit', {id: draft.id}) }}">Edit</a>
+                    {% if draft.status == 'published' %}
+                        <a class="draft-view" href="{{ path('app_listing_show', {id: draft.id}) }}">View</a>
+                    {% endif %}
                 </li>
             {% endfor %}
         </ul>
