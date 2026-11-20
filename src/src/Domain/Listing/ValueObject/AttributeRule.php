@@ -8,9 +8,9 @@ use App\Domain\Listing\Exception\InvalidAttributeOptionId;
 use App\Domain\Listing\Exception\InvalidAttributeValue;
 
 /**
- * One entry of a category's attribute schema, in Listing's words: an attribute id, its kind and
- * what a value must meet — for a choice its option ids, for a number its optional bounds. No
- * labels: no Domain code shows anything (ADR-0020 decision 3). Part of the `AttributeSchema` fact,
+ * One entry of a category's attribute schema, in Listing's words: an attribute id, its kind, whether
+ * it is required, and what a value must meet — for a choice its option ids, for a number its optional
+ * bounds. No labels: no Domain code shows anything (ADR-0020 decision 3). Part of the `AttributeSchema` fact,
  * so only true inside `Categories::holdSteady()`.
  *
  * `read()` is L-9 for one attribute: it turns the seller's text into a value or refuses it. Parsing
@@ -39,6 +39,7 @@ final readonly class AttributeRule
     private function __construct(
         private AttributeId $attributeId,
         private AttributeKind $kind,
+        private bool $required,
         private array $optionIds = [],
         private ?int $min = null,
         private ?int $max = null,
@@ -49,7 +50,7 @@ final readonly class AttributeRule
      * @param list<AttributeOptionId> $optionIds every option of the attribute — of **this**
      *                                           attribute only, so another one's option is refused
      */
-    public static function choice(AttributeId $attributeId, array $optionIds): self
+    public static function choice(AttributeId $attributeId, array $optionIds, bool $required): self
     {
         $byId = [];
 
@@ -57,23 +58,23 @@ final readonly class AttributeRule
             $byId[$optionId->toString()] = $optionId;
         }
 
-        return new self($attributeId, AttributeKind::Choice, optionIds: $byId);
+        return new self($attributeId, AttributeKind::Choice, $required, optionIds: $byId);
     }
 
     /** Both bounds inclusive, each optional. */
-    public static function number(AttributeId $attributeId, ?int $min, ?int $max): self
+    public static function number(AttributeId $attributeId, ?int $min, ?int $max, bool $required): self
     {
-        return new self($attributeId, AttributeKind::Number, min: $min, max: $max);
+        return new self($attributeId, AttributeKind::Number, $required, min: $min, max: $max);
     }
 
-    public static function boolean(AttributeId $attributeId): self
+    public static function boolean(AttributeId $attributeId, bool $required): self
     {
-        return new self($attributeId, AttributeKind::Boolean);
+        return new self($attributeId, AttributeKind::Boolean, $required);
     }
 
-    public static function text(AttributeId $attributeId): self
+    public static function text(AttributeId $attributeId, bool $required): self
     {
-        return new self($attributeId, AttributeKind::Text);
+        return new self($attributeId, AttributeKind::Text, $required);
     }
 
     public function attributeId(): AttributeId
@@ -84,6 +85,16 @@ final readonly class AttributeRule
     public function kind(): AttributeKind
     {
         return $this->kind;
+    }
+
+    /**
+     * Whether a **public** listing must have a value for this attribute (L-13). Never checked by
+     * `read()`: a draft may leave it blank (L-11). Every named constructor takes it with no default
+     * (plan D4), so a forgotten flag fails to compile instead of silently never biting.
+     */
+    public function isRequired(): bool
+    {
+        return $this->required;
     }
 
     /**

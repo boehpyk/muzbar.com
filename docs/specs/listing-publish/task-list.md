@@ -22,7 +22,7 @@
       dated amendments to **ADR-0008, ADR-0018, ADR-0019, ADR-0020** (plan Risk 7). No code.
 
 ## Domain — `Listing`
-- [ ] **T1:** `AttributeRule` gains `required` (every named constructor takes `bool $required`, no
+- [x] **T1:** `AttributeRule` gains `required` (every named constructor takes `bool $required`, no
       default) + `isRequired()`; `AttributeSchema::missingFrom()`; `AttributeValue::toRaw()`. Update
       `CategoriesForListing::schemaOf()` (select `a.is_required`) and `ListingFactory`'s rule
       builder **in the same commit** — the constructors change signature, so nothing compiles

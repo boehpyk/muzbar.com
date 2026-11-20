@@ -149,10 +149,10 @@ final class ListingFactory extends PersistentObjectFactory
             AttributeType::Choice => AttributeRule::choice($id, array_map(
                 static fn (mixed $optionId): AttributeOptionId => AttributeOptionId::fromString(\is_string($optionId) ? $optionId : throw new \LogicException('A non-string option id.')),
                 $manager->getConnection()->fetchFirstColumn('SELECT id FROM catalog_attribute_option WHERE attribute_id = ? ORDER BY id', [$attributeId]),
-            )),
-            AttributeType::Number => AttributeRule::number($id, $attribute->numberRules()?->minimum(), $attribute->numberRules()?->maximum()),
-            AttributeType::Boolean => AttributeRule::boolean($id),
-            AttributeType::Text => AttributeRule::text($id),
+            ), $attribute->isRequired()),
+            AttributeType::Number => AttributeRule::number($id, $attribute->numberRules()?->minimum(), $attribute->numberRules()?->maximum(), $attribute->isRequired()),
+            AttributeType::Boolean => AttributeRule::boolean($id, $attribute->isRequired()),
+            AttributeType::Text => AttributeRule::text($id, $attribute->isRequired()),
         };
     }
 

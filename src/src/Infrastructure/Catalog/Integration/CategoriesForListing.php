@@ -77,7 +77,7 @@ final readonly class CategoriesForListing implements Categories
                 FROM catalog_category c JOIN up ON c.id = up.parent_id
                 WHERE up.depth_from_self < :bound
             )
-            SELECT a.id, a.type,
+            SELECT a.id, a.type, a.is_required,
                 (a.number_rules->>'min')::bigint AS minimum, (a.number_rules->>'max')::bigint AS maximum,
                 array_to_json(array_agg(o.id ORDER BY o.id) FILTER (WHERE o.id IS NOT NULL)) AS option_ids
             FROM up
@@ -105,12 +105,17 @@ final readonly class CategoriesForListing implements Categories
         }
 
         $attributeId = AttributeId::fromString($id);
+        $required = $row['is_required'];
+
+        if (!\is_bool($required)) {
+            throw new \LogicException(\sprintf('Attribute "%s" has a non-boolean is_required.', $id));
+        }
 
         return match (AttributeKind::tryFrom($type)) {
-            AttributeKind::Choice => AttributeRule::choice($attributeId, self::optionIds($row['option_ids'])),
-            AttributeKind::Number => AttributeRule::number($attributeId, self::bound($row['minimum']), self::bound($row['maximum'])),
-            AttributeKind::Boolean => AttributeRule::boolean($attributeId),
-            AttributeKind::Text => AttributeRule::text($attributeId),
+            AttributeKind::Choice => AttributeRule::choice($attributeId, self::optionIds($row['option_ids']), $required),
+            AttributeKind::Number => AttributeRule::number($attributeId, self::bound($row['minimum']), self::bound($row['maximum']), $required),
+            AttributeKind::Boolean => AttributeRule::boolean($attributeId, $required),
+            AttributeKind::Text => AttributeRule::text($attributeId, $required),
             null => throw new \LogicException(\sprintf('Attribute "%s" has an unknown type "%s".', $id, $type)),
         };
     }

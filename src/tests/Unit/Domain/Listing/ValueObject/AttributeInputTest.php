@@ -49,7 +49,7 @@ final class AttributeInputTest extends TestCase
 
     public function testOnlyForKeepsTheEntriesOfAttributesInTheSchema(): void
     {
-        $schema = AttributeSchema::of(AttributeRule::boolean(AttributeId::fromString(self::A)));
+        $schema = AttributeSchema::of(AttributeRule::boolean(AttributeId::fromString(self::A), false));
 
         $kept = AttributeInput::fromArray([self::A => 'yes', self::B => '5'])->onlyFor($schema)->entries();
 

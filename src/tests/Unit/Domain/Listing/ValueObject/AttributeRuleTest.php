@@ -29,7 +29,7 @@ final class AttributeRuleTest extends TestCase
 
     private function choice(): AttributeRule
     {
-        return AttributeRule::choice($this->id(), [AttributeOptionId::fromString(self::OPT_A), AttributeOptionId::fromString(self::OPT_B)]);
+        return AttributeRule::choice($this->id(), [AttributeOptionId::fromString(self::OPT_A), AttributeOptionId::fromString(self::OPT_B)], false);
     }
 
     private function assertRefused(AttributeRule $rule, string $raw, InvalidAttributeValueReason $reason): InvalidAttributeValue
@@ -83,7 +83,7 @@ final class AttributeRuleTest extends TestCase
     {
         $id = $this->id();
 
-        foreach ([$this->choice(), AttributeRule::number($id, 4, 12), AttributeRule::boolean($id), AttributeRule::text($id)] as $rule) {
+        foreach ([$this->choice(), AttributeRule::number($id, 4, 12, false), AttributeRule::boolean($id, false), AttributeRule::text($id, false)] as $rule) {
             self::assertNull($rule->read($raw), $rule->kind()->value);
         }
     }
@@ -100,7 +100,7 @@ final class AttributeRuleTest extends TestCase
 
     public function testChoiceWithNoOptionsRefusesEverything(): void
     {
-        $this->assertRefused(AttributeRule::choice($this->id(), []), self::OPT_A, InvalidAttributeValueReason::NotAnOption);
+        $this->assertRefused(AttributeRule::choice($this->id(), [], false), self::OPT_A, InvalidAttributeValueReason::NotAnOption);
     }
 
     // --- number
@@ -119,7 +119,7 @@ final class AttributeRuleTest extends TestCase
     #[DataProvider('acceptedBoundedNumbers')]
     public function testNumberAcceptsAWholeNumberWithinInclusiveBounds(string $raw, int $expected): void
     {
-        $value = AttributeRule::number($this->id(), 4, 12)->read($raw);
+        $value = AttributeRule::number($this->id(), 4, 12, false)->read($raw);
 
         self::assertNotNull($value);
         self::assertSame(AttributeKind::Number, $value->kind());
@@ -139,7 +139,7 @@ final class AttributeRuleTest extends TestCase
     #[DataProvider('outOfRangeForFourToTwelve')]
     public function testNumberOutsideTheBoundsIsOutOfRangeAndCarriesTheBounds(string $raw): void
     {
-        $e = $this->assertRefused(AttributeRule::number($this->id(), 4, 12), $raw, InvalidAttributeValueReason::OutOfRange);
+        $e = $this->assertRefused(AttributeRule::number($this->id(), 4, 12, false), $raw, InvalidAttributeValueReason::OutOfRange);
 
         self::assertSame(4, $e->min());
         self::assertSame(12, $e->max());
@@ -164,12 +164,12 @@ final class AttributeRuleTest extends TestCase
     #[DataProvider('notWholeNumbers')]
     public function testNumberThatIsNotAWholeNumberIsRefused(string $raw): void
     {
-        $this->assertRefused(AttributeRule::number($this->id(), 4, 12), $raw, InvalidAttributeValueReason::NotAWholeNumber);
+        $this->assertRefused(AttributeRule::number($this->id(), 4, 12, false), $raw, InvalidAttributeValueReason::NotAWholeNumber);
     }
 
     public function testUnboundedNumberAcceptsNegativeAndEighteenDigitValues(): void
     {
-        $rule = AttributeRule::number($this->id(), null, null);
+        $rule = AttributeRule::number($this->id(), null, null, false);
 
         self::assertSame(-5, $rule->read('-5')?->number());
         self::assertSame(999999999999999999, $rule->read('999999999999999999')?->number());
@@ -177,7 +177,7 @@ final class AttributeRuleTest extends TestCase
 
     public function testNumberWithOnlyAMinimumAcceptsALargeValueAndRefusesBelowIt(): void
     {
-        $rule = AttributeRule::number($this->id(), 4, null);
+        $rule = AttributeRule::number($this->id(), 4, null, false);
 
         self::assertSame(1000000, $rule->read('1000000')?->number());
 
@@ -188,7 +188,7 @@ final class AttributeRuleTest extends TestCase
 
     public function testNumberWithOnlyAMaximumRefusesAboveItAndAcceptsBelowIt(): void
     {
-        $rule = AttributeRule::number($this->id(), null, 12);
+        $rule = AttributeRule::number($this->id(), null, 12, false);
 
         self::assertSame(-100, $rule->read('-100')?->number());
 
@@ -199,7 +199,7 @@ final class AttributeRuleTest extends TestCase
 
     public function testNumberBoundsAreInclusiveOnBothSides(): void
     {
-        $rule = AttributeRule::number($this->id(), 7, 7);
+        $rule = AttributeRule::number($this->id(), 7, 7, false);
 
         self::assertSame(7, $rule->read('7')?->number());
         $this->assertRefused($rule, '6', InvalidAttributeValueReason::OutOfRange);
@@ -210,7 +210,7 @@ final class AttributeRuleTest extends TestCase
 
     public function testBooleanReadsYesAndNo(): void
     {
-        $rule = AttributeRule::boolean($this->id());
+        $rule = AttributeRule::boolean($this->id(), false);
 
         $no = $rule->read('no');
 
@@ -235,14 +235,14 @@ final class AttributeRuleTest extends TestCase
     #[DataProvider('notYesOrNo')]
     public function testBooleanRefusesAnythingButLowercaseYesOrNo(string $raw): void
     {
-        $this->assertRefused(AttributeRule::boolean($this->id()), $raw, InvalidAttributeValueReason::NotYesOrNo);
+        $this->assertRefused(AttributeRule::boolean($this->id(), false), $raw, InvalidAttributeValueReason::NotYesOrNo);
     }
 
     // --- text
 
     public function testTextIsTrimmed(): void
     {
-        $value = AttributeRule::text($this->id())->read(' SN-123 ');
+        $value = AttributeRule::text($this->id(), false)->read(' SN-123 ');
 
         self::assertNotNull($value);
         self::assertSame('SN-123', $value->text());
@@ -253,7 +253,7 @@ final class AttributeRuleTest extends TestCase
     {
         $text = str_repeat('ї', 200);
 
-        self::assertSame($text, AttributeRule::text($this->id())->read($text)?->text());
+        self::assertSame($text, AttributeRule::text($this->id(), false)->read($text)?->text());
     }
 
     /**
@@ -273,6 +273,6 @@ final class AttributeRuleTest extends TestCase
     #[DataProvider('badTexts')]
     public function testTextThatIsTooLongMultiLineOrControlLadenIsRefused(string $raw): void
     {
-        $this->assertRefused(AttributeRule::text($this->id()), $raw, InvalidAttributeValueReason::BadText);
+        $this->assertRefused(AttributeRule::text($this->id(), false), $raw, InvalidAttributeValueReason::BadText);
     }
 }

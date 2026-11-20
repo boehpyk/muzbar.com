@@ -25,9 +25,9 @@ final class AttributeSchemaTest extends TestCase
     private function schema(): AttributeSchema
     {
         return AttributeSchema::of(
-            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER)]),
-            AttributeRule::number(AttributeId::fromString(self::STRINGS), 4, 12),
-            AttributeRule::text(AttributeId::fromString(self::SERIAL)),
+            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER)], false),
+            AttributeRule::number(AttributeId::fromString(self::STRINGS), 4, 12, false),
+            AttributeRule::text(AttributeId::fromString(self::SERIAL), false),
         );
     }
 
@@ -91,8 +91,8 @@ final class AttributeSchemaTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
 
         AttributeSchema::of(
-            AttributeRule::boolean(AttributeId::fromString(self::BRAND)),
-            AttributeRule::text(AttributeId::fromString(self::BRAND)),
+            AttributeRule::boolean(AttributeId::fromString(self::BRAND), false),
+            AttributeRule::text(AttributeId::fromString(self::BRAND), false),
         );
     }
 }

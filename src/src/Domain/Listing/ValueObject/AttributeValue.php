@@ -112,6 +112,22 @@ final readonly class AttributeValue
         return $this->text;
     }
 
+    /**
+     * The text a seller would submit for this value — option id, whole number, `yes`/`no`, or the
+     * text — exactly what the edit form posts and `AttributeRule::read()` accepts. The round trip
+     * (`read(toRaw())` equals this value) is the contract: it is how `Listing::publish()` re-reads
+     * stored values through the one parser (L-14), rather than a second definition of "fits".
+     */
+    public function toRaw(): string
+    {
+        return match ($this->kind) {
+            AttributeKind::Choice => (string) $this->optionId?->toString(),
+            AttributeKind::Number => (string) $this->number,
+            AttributeKind::Boolean => $this->boolean ? 'yes' : 'no',
+            AttributeKind::Text => (string) $this->text,
+        };
+    }
+
     public function equals(self $other): bool
     {
         return $this->attributeId->equals($other->attributeId)

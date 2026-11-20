@@ -187,23 +187,23 @@ final class ListingTest extends TestCase
 
     private function conditionRule(): AttributeRule
     {
-        return AttributeRule::choice(AttributeId::fromString(self::CONDITION), [AttributeOptionId::fromString(self::NEW), AttributeOptionId::fromString(self::USED)]);
+        return AttributeRule::choice(AttributeId::fromString(self::CONDITION), [AttributeOptionId::fromString(self::NEW), AttributeOptionId::fromString(self::USED)], false);
     }
 
     private function electricSchema(): AttributeSchema
     {
         return AttributeSchema::of(
             $this->conditionRule(),
-            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER), AttributeOptionId::fromString(self::GIBSON)]),
-            AttributeRule::number(AttributeId::fromString(self::STRINGS), 4, 12),
-            AttributeRule::boolean(AttributeId::fromString(self::HAS_CASE)),
-            AttributeRule::text(AttributeId::fromString(self::SERIAL)),
+            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER), AttributeOptionId::fromString(self::GIBSON)], false),
+            AttributeRule::number(AttributeId::fromString(self::STRINGS), 4, 12, false),
+            AttributeRule::boolean(AttributeId::fromString(self::HAS_CASE), false),
+            AttributeRule::text(AttributeId::fromString(self::SERIAL), false),
         );
     }
 
     private function bassSchema(): AttributeSchema
     {
-        return AttributeSchema::of($this->conditionRule(), AttributeRule::number(AttributeId::fromString(self::BASS_STRINGS), null, null));
+        return AttributeSchema::of($this->conditionRule(), AttributeRule::number(AttributeId::fromString(self::BASS_STRINGS), null, null, false));
     }
 
     /**
