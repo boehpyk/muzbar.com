@@ -384,7 +384,12 @@ worker.
 - **Tests:** Domain gets pure unit tests (no kernel boot); Application/Infrastructure get integration
   tests against a real database (DAMA transactional rollback). Tests run with `APP_ENV=test` against a
   **dedicated test database** (`muzbar_test`) — **never** the dev DB. Descriptive test names. No
-  assertions that cannot fail. Build aggregates via a Foundry factory that goes through the aggregate's
+  assertions that cannot fail. **Never put work inside `assert()`** — CI's PHP has
+  `zend.assertions=-1`, which skips the whole expression, so `\assert(1 === preg_match(…, $m))` never
+  fills `$m` there while the dev container (assertions on) stays green. It reached a PR once
+  (`SellTest::detailFieldIds()`). Use `if (…) { self::fail(…); }`, which also narrows for PHPStan
+  (`assertSame` does not). To reproduce CI locally: `php -d zend.assertions=-1 vendor/bin/phpunit`.
+  Build aggregates via a Foundry factory that goes through the aggregate's
   own named constructor (`instantiateWith()`), never around it.
   **DAMA rolls back Postgres, not Redis** — anything cached survives between tests and must be
   cleared in `setUp()` via the `ClearsRateLimiters` trait. The `cache.rate_limiter` pool now backs
