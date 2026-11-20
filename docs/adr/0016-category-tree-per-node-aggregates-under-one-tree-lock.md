@@ -209,3 +209,20 @@ Recorded by the `listing-draft` slice
 4. **Decision 5's watch item widens.** A Catalog write that can turn a leaf into a branch must read
    `hasListings()` under the lock, and a Listing write that files a listing must go through
    `holdSteady()`; `CategoryTreeLockTest` covers the doors that exist.
+
+## Amendment, 2026-11-18 — attribute and option deletes gain listing guards; C-27 joins the move; the shared mode also protects the schema fact
+
+Recorded by the `listing-attribute-values` slice
+([ADR-0020](./0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md), plan D6).
+
+1. **The attribute delete and the option remove accrete their first Listing guards.**
+   `DeleteAttributeHandler` checks **C-25** (an attribute in use cannot be deleted) after `get()`;
+   `RemoveAttributeOptionHandler` checks **C-26** (an option in use cannot be removed) **after**
+   C-18's `allowOptionRemoval()` — the aggregate's own rule first. Both read `AttributeUsage`
+   inside `exclusively()` and throw `AttributeInUse`.
+2. **The move accretion point gains C-27** — a category cannot be moved while any listing filed in
+   its subtree holds any value (`CategoryUsage::hasAttributeValues()`, `CategoryHasListings::cannotMove()`).
+   Order in `EditCategoryHandler`: **C-4 → C-5 → C-21 → C-24 → C-27**, only when the parent changes.
+3. **The shared mode now also makes the schema fact true.** A Listing revise reads
+   `Categories::schemaOf()` inside `holdSteady()`, so no attribute delete, option remove or move
+   commits between the read and the save.

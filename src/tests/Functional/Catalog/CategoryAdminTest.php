@@ -964,4 +964,42 @@ final class CategoryAdminTest extends WebTestCase
             '“Solid-body” has listings filed under it, so it cannot have subcategories.',
         );
     }
+
+    // ---------------------------------------------------------------- listing-attribute-values AC-24 (C-27)
+
+    public function testMovingACategoryWhoseListingsHoldDetailsIsRefusedOnTheParentFieldNamingTheMovedCategory(): void
+    {
+        $instruments = $this->category('instruments');
+        $electric = $this->category('electric', $instruments, 'Electric');
+        $bass = $this->category('bass', $instruments);
+        $serial = AttributeFactory::new()->inCategory($electric)->coded('serial')->text()->create();
+        ListingFactory::new()->inCategory($electric)->withValues([$serial->id()->toString() => 'SN-1'])->create();
+        $this->signInAsAdmin();
+        $values = $this->db->fetchAllAssociative('SELECT * FROM listing_attribute_value');
+
+        $this->assertRefusedOnField(
+            '/admin/categories/'.$electric->id()->toString().'/edit',
+            ['name' => 'Electric', 'slug' => 'electric', 'parent' => $bass->id()->toString()],
+            'parent',
+            'Listings under “Electric” have details filled in, so it cannot be moved yet.',
+        );
+
+        self::assertCount(1, $values);
+        self::assertSame($values, $this->db->fetchAllAssociative('SELECT * FROM listing_attribute_value'));
+    }
+
+    public function testRenamingACategoryWhoseListingsHoldDetailsIsStillAllowed(): void
+    {
+        $instruments = $this->category('instruments');
+        $electric = $this->category('electric', $instruments, 'Electric');
+        $serial = AttributeFactory::new()->inCategory($electric)->coded('serial')->text()->create();
+        ListingFactory::new()->inCategory($electric)->withValues([$serial->id()->toString() => 'SN-1'])->create();
+        $this->signInAsAdmin();
+
+        $this->submit('/admin/categories/'.$electric->id()->toString().'/edit', ['name' => 'Electric guitars', 'slug' => 'electric', 'parent' => $instruments->id()->toString()]);
+
+        self::assertResponseStatusCodeSame(303);
+        self::assertSame('Electric guitars', $this->db->fetchOne('SELECT name FROM catalog_category WHERE id = ?', [$electric->id()->toString()]));
+        $this->assertNothingReportedToSentry();
+    }
 }

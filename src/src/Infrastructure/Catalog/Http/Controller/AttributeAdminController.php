@@ -17,6 +17,7 @@ use App\Application\Catalog\Handler\EditAttributeHandler;
 use App\Application\Catalog\Handler\RelabelAttributeOptionHandler;
 use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
 use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
+use App\Domain\Catalog\Exception\AttributeInUse;
 use App\Domain\Catalog\Exception\AttributeNeedsAnOption;
 use App\Domain\Catalog\Exception\AttributeNotFound;
 use App\Domain\Catalog\Exception\AttributeOptionNotFound;
@@ -188,6 +189,11 @@ final class AttributeAdminController extends AbstractController
             $deleteAttribute(new DeleteAttribute($attribute['id']));
         } catch (AttributeNotFound) {
             throw $this->createNotFoundException();
+        } catch (AttributeInUse) {
+            // C-25: a user error, flashed and never logged (failure contract, AC-24/AC-27).
+            $this->addFlash('error', \sprintf('“%s” is used by listings, so it cannot be deleted.', $attribute['label']));
+
+            return $this->redirectToRoute('admin_attribute_index', ['id' => $attribute['categoryId']], Response::HTTP_SEE_OTHER);
         }
 
         $this->addFlash('success', \sprintf('Deleted “%s” and its options.', $attribute['label']));
@@ -233,10 +239,16 @@ final class AttributeAdminController extends AbstractController
     {
         $attribute = $this->attributeForOptionAction($id, $request);
 
-        $this->optionAction(
-            static fn () => $removeOption(new RemoveAttributeOption($attribute['id'], $optionId)),
-            'Removed the option.',
-        );
+        try {
+            $this->optionAction(
+                static fn () => $removeOption(new RemoveAttributeOption($attribute['id'], $optionId)),
+                'Removed the option.',
+            );
+        } catch (AttributeInUse) {
+            // C-26. The label is looked up only on this rare path; the option still exists (refused).
+            $label = array_column($this->schema->optionsOf($attribute['id']), 'label', 'id')[$optionId] ?? 'This option';
+            $this->addFlash('error', \sprintf('“%s” is used by listings, so it cannot be removed.', $label));
+        }
 
         return $this->redirectToRoute('admin_attribute_edit', ['id' => $attribute['id']], Response::HTTP_SEE_OTHER);
     }

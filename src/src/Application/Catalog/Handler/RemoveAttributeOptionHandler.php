@@ -7,6 +7,7 @@ namespace App\Application\Catalog\Handler;
 use App\Application\Catalog\Command\RemoveAttributeOption;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Entity\AttributeOption;
+use App\Domain\Catalog\Exception\AttributeInUse;
 use App\Domain\Catalog\Exception\AttributeNeedsAnOption;
 use App\Domain\Catalog\Exception\AttributeNotFound;
 use App\Domain\Catalog\Exception\AttributeOptionNotFound;
@@ -14,6 +15,7 @@ use App\Domain\Catalog\Exception\InvalidAttributeId;
 use App\Domain\Catalog\Exception\InvalidAttributeOptionId;
 use App\Domain\Catalog\Port\AttributeOptionRepository;
 use App\Domain\Catalog\Port\AttributeRepository;
+use App\Domain\Catalog\Port\AttributeUsage;
 use App\Domain\Catalog\Port\CategoryTreeLock;
 use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeOptionId;
@@ -25,8 +27,8 @@ use App\Domain\Catalog\ValueObject\AttributeOptionId;
  * (`allowOptionRemoval()`), on a count read here. That count is only true under the lock: without
  * it, two concurrent removes of the last two options would each count 2 and both succeed — write
  * skew, which no index can catch. The option's own removal is non-existence, so it has no method on
- * any aggregate (ADR-0012). The Listing slice adds its "option in use" guard here (ADR-0004
- * amendment, 2026-11-15).
+ * any aggregate (ADR-0012). C-26 (ADR-0020 decision 6) refuses an option a listing holds, checked
+ * after C-18 and under the same lock; `listing-schema-drift` replaces the refusal here.
  */
 final readonly class RemoveAttributeOptionHandler
 {
@@ -34,6 +36,7 @@ final readonly class RemoveAttributeOptionHandler
         private AttributeRepository $attributes,
         private AttributeOptionRepository $options,
         private CategoryTreeLock $lock,
+        private AttributeUsage $usage,
     ) {
     }
 
@@ -41,6 +44,7 @@ final readonly class RemoveAttributeOptionHandler
      * @throws AttributeNotFound                                        unknown or malformed attribute id
      * @throws AttributeOptionNotFound                                  unknown, malformed, or another attribute's option
      * @throws AttributeNeedsAnOption                                   the last option (C-18)
+     * @throws AttributeInUse                                           a listing holds it (C-26)
      * @throws \App\Domain\Catalog\Exception\AttributeRuleNotApplicable not a choice attribute (C-15)
      */
     public function __invoke(RemoveAttributeOption $command): void
@@ -50,6 +54,11 @@ final readonly class RemoveAttributeOptionHandler
             $option = $this->optionOf($attribute, $command->optionId);
 
             $attribute->allowOptionRemoval($this->options->countForAttribute($attribute->id()));
+
+            // C-26 after C-18: the attribute's own rule first (AC-13).
+            if ($this->usage->isOptionInUse($attribute->id(), $option->id())) {
+                throw AttributeInUse::cannotRemoveOption($option->id());
+            }
 
             $this->options->remove($option);
         });

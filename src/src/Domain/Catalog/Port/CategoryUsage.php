@@ -23,4 +23,12 @@ interface CategoryUsage
      * shared mode, so none can file a listing between this read and the caller's commit.
      */
     public function hasListings(CategoryId $id): bool;
+
+    /**
+     * Whether any listing filed under any of `$ids` holds any attribute value (C-27, ADR-0020
+     * decision 6). False for an empty list. Same lock contract as `hasListings()`.
+     *
+     * @param list<CategoryId> $ids
+     */
+    public function hasAttributeValues(array $ids): bool;
 }

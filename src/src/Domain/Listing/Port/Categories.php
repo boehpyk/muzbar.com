@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Listing\Port;
 
+use App\Domain\Listing\ValueObject\AttributeSchema;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\CategoryStatus;
 
@@ -38,4 +39,12 @@ interface Categories
      * `holdSteady()`**: read outside it, it is a guess.
      */
     public function statusOf(CategoryId $id): CategoryStatus;
+
+    /**
+     * Every attribute in force on `$id` — its own and every ancestor's (ADR-0018 C-22) — with each
+     * choice's option ids and each number's bounds; no labels (ADR-0020 decision 3). An unknown
+     * category has `AttributeSchema::none()`. **Only true inside `holdSteady()`**: read outside it,
+     * an admin can define, delete or narrow an attribute before the listing write commits.
+     */
+    public function schemaOf(CategoryId $id): AttributeSchema;
 }

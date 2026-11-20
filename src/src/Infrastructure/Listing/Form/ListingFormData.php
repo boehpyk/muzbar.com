@@ -28,4 +28,12 @@ final class ListingFormData
 
     /** A category id from the leaf choices. */
     public ?string $category = null;
+
+    /**
+     * The "Details" section (edit page only): attribute id → the seller's text, an option id, or
+     * `yes`/`no`; null for a field left empty. Read by the aggregate against the schema (L-9).
+     *
+     * @var array<string, ?string>
+     */
+    public array $attributes = [];
 }

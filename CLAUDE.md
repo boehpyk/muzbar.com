@@ -110,7 +110,21 @@ Docker Compose · Traefik · Nginx.
 > **integer minor units** parsed in the Domain (`(int)(1.15 * 100)` is 114). Someone else's draft is
 > the same 404 as a missing one. All eight AC-33 mutations bit; 1436 tests.
 > [ADR-0019](./docs/adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
-> + ADR-0007/0016 amendments. Next: `listing-attribute-values`.
+> + ADR-0007/0016 amendments.
+> `listing-attribute-values` (2026-11-18, **passed `/verify` 2026-11-20 first time** — 7 MINORs fixed
+> anyway, chiefly an explicit row lock under two concurrent saves of one draft) — Listing slice 2 of 4: a seller's
+> data now refers to Catalog's **schema**, not only its tree. Values are **parts** of `Listing`
+> (ADR-0017's test run again, opposite answer: nothing points at a value, a listing has dozens at
+> most), held as an immutable `AttributeValues` — **not** a Doctrine collection. The repository is
+> their only writer (delete-and-reinsert into the unmapped `listing_attribute_value`, one typed
+> column per kind, a `num_nonnulls` CHECK); a `postLoad` listener hydrates by reflection.
+> **Parsing that needs a fact:** `revise()` reads raw strings against `Categories::schemaOf()`
+> (L-6 → L-2 → L-10 drop-on-re-file → L-9 → assign; refuse, not drop, on an unchanged category).
+> Catalog refuses the three writes that would strand a value — C-25/C-26/C-27 — **by refusal now so
+> soft delete can come later** (`listing-schema-drift`). Blank = clear. All fourteen AC-28 mutations
+> bit; 1637 tests. [ADR-0020](./docs/adr/0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md)
+> + ADR-0004/0007/0016/0018/0019 amendments. Next: `listing-publish` (the public SCSS pipeline and
+> the UUID-trait refactor — eleven copies — are candidates before it).
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -267,8 +281,20 @@ established by `listing-draft`, inherited by every context:
   each other. **Watch item:** every new write that files a listing (an import, a bulk re-file, the
   wizard) goes through `holdSteady()`; every new Catalog write that can turn a leaf into a branch
   reads `CategoryUsage::hasListings()` under `exclusively()`, and gets a `CategoryTreeLockTest` case.
+- **`Categories::schemaOf()` is the effective schema in Listing's words** (ids, kinds, option ids,
+  bounds — no labels): a **fact, true only inside `holdSteady()`**, never stored. The edit *form* is
+  built from Catalog's admin read model (`effectiveFor()` + `optionsFor()`) instead — a UI crossing
+  like `DbalCategoryOutline`; the POST re-reads the fact under the lock and a drift only refuses.
+- **`AttributeUsage` is Catalog's second port into Listing** (`isInUse()`, `isOptionInUse()`, adapter
+  `ListingAttributeUsage`), beside `CategoryUsage::hasAttributeValues()`. They back C-25 (attribute
+  delete), C-26 (option remove, after C-18) and C-27 (any parent change while the subtree holds any
+  value — coarse on purpose). **Watch items:** values are written only inside `holdSteady()`, after
+  `schemaOf()`; any new Catalog write that deletes an attribute or option, or changes a parent, reads
+  the matching usage under `exclusively()` and gets a `CategoryTreeLockTest` case.
 - **`ListingFactory` bypasses L-2** — it hands `draft()` `CategoryStatus::Leaf`, and its default
   category does not exist. Build with `->inCategory($leaf)`, in an order that keeps it on a leaf.
+  **`withValues()` also skips L-9's "in force" half** — it builds the schema from the attributes it
+  is given, not the category's lineage, so a fixture can hold a value no seller could enter.
 - **Money is integer minor units, never a float** — `Price::fromDecimal(string, Currency)` parses
   with string and integer arithmetic; `PriceTest` scans the source for `float`. Never `MoneyType`.
 
@@ -623,6 +649,33 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   `CategoryName`'s `/\p{Cc}/u` is the rule; a paragraph field allows `\t\n\r` only. Found by `/verify`.
 - **The listing form carries no length constraints.** A Symfony `Length` would answer first, with its
   own wording, and override the failure contract; the value objects are the only bound.
+  **Exception: a Details choice/boolean is a `ChoiceType`**, which rejects a tampered option itself
+  (its `invalid_message` is the contract's wording) before the Domain sees it — so no HTTP test can
+  catch a Domain that accepts any UUID; `AttributeRuleTest`/`ListingTest` do.
+- **The repository is the only writer of attribute values.** `listing_attribute_value` is unmapped:
+  an EntityManager flush, a Foundry `create()` or any other save that skips
+  `DoctrineListingRepository::save()` persists **none**, silently. `ListingFactory::withValues()`
+  revises through the aggregate and saves through the repository; do likewise. Reads come from the
+  `postLoad` listener (`ListingAttributeValuesLoader`) — skip it and the property is uninitialised
+  (loud). That is **one SELECT per hydrated `Listing`**: list pages read through DBAL, never by
+  hydrating aggregates in bulk (N+1).
+- **Two saves of one listing share the tree lock, so `writeValues()` locks the listing row
+  (`FOR UPDATE`) before its delete-and-reinsert** — without it the second INSERT dies on 23505. Do
+  not drop it because the flush's `UPDATE` "already locks the row": that only happens because
+  `revise()` swaps VO instances, which Doctrine compares by identity.
+- **`ReviseListing::$attributes` has no default on purpose** — a revise replaces the whole set, so
+  `[]` clears every value; a caller must say so.
+- **`listing_attribute_value` is invisible to every Doctrine safety net** — unmapped *and* excluded by
+  `doctrine.dbal.schema_filter`, so `make migration.make` and `schema:validate` see nothing. AC-6's
+  `information_schema`/`pg_constraint` test is its **only** shape guard: any column change is a
+  hand-written migration **plus** an AC-6 update.
+- **PDO hands a PostgreSQL array back as a `{…}` string.** `schemaOf()` aggregates option ids with
+  `array_to_json(array_agg(…))` and decodes JSON; do the same for any new array column in a read.
+- **Blank Details fields are omitted from `ReviseListing`, and revise replaces the whole value set —
+  so blank = clear.** The edit page also drops stored values whose attribute is no longer on the form,
+  or the next save would be refused for an attribute the seller cannot see.
+- **The isolation scans strip PHP comments first** — a Domain docblock names `listing_attribute_value`.
+  A new scan that greps raw source flags documentation as a dependency.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):

@@ -224,7 +224,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         facts read under one tree-wide advisory lock; `ROLE_ADMIN` granted from the console.
         [ADR-0016](./adr/0016-category-tree-per-node-aggregates-under-one-tree-lock.md).
         Passed `/verify` 2026-11-15 in one iteration (reviewer PASS; its 4 MINOR + 1 STYLE fixed the same day).
-  - [x] `catalog-attribute-schema` (2026-11-15; **`/verify` pending**) — `Attribute` +
+  - [x] `catalog-attribute-schema` (2026-11-15; passed `/verify` 2026-11-15 in two iterations — int4 cast on 64-bit bounds, `mb_strtolower` lengthening "İ") — `Attribute` +
         `AttributeOption`: four types fixed at definition (choice, integer number with unit and
         bounds, boolean, text), admin CRUD under `/admin/categories/{id}/attributes`.
         [ADR-0017](./adr/0017-attribute-schema-attributes-and-options-as-separate-aggregates.md) +
@@ -244,7 +244,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         `(attribute_id, label_key)` index is replaced by the slice-1 **two-partial-index pair**
         (`… WHERE (parent_option_id IS NULL)` / `(attribute_id, parent_option_id, label_key) WHERE
         (parent_option_id IS NOT NULL)`) — one plain index would not do, because NULLs are distinct.
-  - [x] `catalog-schema-inheritance` (2026-11-16; **`/verify` pending**) — a category's **effective
+  - [x] `catalog-schema-inheritance` (2026-11-16; passed `/verify` 2026-11-16 in two iterations — AC-7's isolation scan was an empty file) — a category's **effective
         schema** is its own attributes plus every ancestor's, **derived at read time over the lineage,
         never stored** (C-22): relabelling on a parent writes one row, a move is still one row.
         **No overrides:** an attribute code appears at most once along any branch (C-21); sibling
@@ -275,7 +275,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
       **Too big for one cycle — sliced (2026-11-16).** Rule for every slice: **prod is consistent
       after each deploy on its own.** A slice that creates a new way for Catalog edits to strand
       listing data ships the guard for it too, failing closed (refuse) if the proper rule comes later.
-  - [x] `listing-draft` (2026-11-17; **`/verify` pending**) — the `Listing` aggregate with no attribute values: `ListingId`, seller
+  - [x] `listing-draft` (2026-11-17; passed `/verify` 2026-11-17 in two iterations — title/description accepted NUL and invalid UTF-8) — the `Listing` aggregate with no attribute values: `ListingId`, seller
         `UserId`, `CategoryId`, title, description, price; one status, `Draft`. Table
         `listing_listing`. "Sell Gear" link (ADR-0015 overlay-trigger shape) → `/sell` create, plus
         list/edit of the seller's own drafts. **First cross-context dependency:** Listing asks
@@ -296,9 +296,10 @@ Stand up the skeleton the SDLC assumes. No product features yet.
   - [ ] *Candidates before `listing-publish` (the first page anyone else sees):*
         **public SCSS pipeline** (ADR-0006; `listing-draft` plan Q7) — `sass-bundle`, `public.css`,
         tokens; the sell pages ship as unstyled semantic markup until then. **UUID id trait refactor**
-        (ADR-0009; plan Risk 4) — nine copies of the id value-object shape now exist, Listing's
-        `SellerId`/`CategoryId` included; one trait, touching Identity and Catalog, its own slice.
-  - [ ] `listing-attribute-values` — the value layer (ADR-0004 §2): `listing_attribute_value` with
+        (ADR-0009; plan Risk 4) — **eleven** copies of the id value-object shape now exist, Listing's
+        `SellerId`/`CategoryId`/`AttributeId`/`AttributeOptionId` included; one trait, touching
+        Identity, Catalog and Listing, its own slice — schedule it before `listing-publish` (ADR-0020).
+  - [x] `listing-attribute-values` (2026-11-18; **passed `/verify` 2026-11-20 first time**) — the value layer (ADR-0004 §2): `listing_attribute_value` with
         typed columns and the generic `(attribute_id, option_id)`-style indexes, values owned by the
         `Listing` aggregate. Catalog exposes **`EffectiveSchema`** (D11.4) to other contexts; Listing
         consumes it through its own port. The draft edit form gains a **server-rendered** attribute
@@ -308,6 +309,15 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         **Guards it must ship (fail closed):** delete-attribute and remove-option refused while in use
         by any listing (expires ADR-0004 amendment 1, by refusal rather than soft delete); a move
         refused when the subtree holds any listing values (D11.1, in `EditCategoryHandler` beside C-21).
+        **Shipped:** values are **parts** of `Listing` (ADR-0017's test, opposite answer), held as an
+        immutable `AttributeValues`; `DoctrineListingRepository::save()` is their only writer
+        (delete-and-reinsert into the unmapped `listing_attribute_value`), a `postLoad` listener
+        hydrates them. `Categories::schemaOf()` is the `EffectiveSchema` of D11.4, a fact true only
+        inside `holdSteady()`; `revise()` reads the raw input against it (L-6 → L-2 → L-10 → L-9 →
+        assign). C-25/C-26/C-27 through Catalog's new `AttributeUsage` port and
+        `CategoryUsage::hasAttributeValues()`, under `exclusively()`.
+        [ADR-0020](./adr/0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md)
+        + ADR-0004/0007/0016/0018/0019 amendments. All fourteen AC-28 mutations bit. 1436 → 1637 tests.
   - [ ] `listing-publish` — `Draft → Published` (+ `Withdrawn`). **D11.2 answered here: "required"
         and current number rules bite at publish and at every later edit, never retroactively** — so
         a new required attribute, or narrowed bounds, makes a listing incomplete only when its owner

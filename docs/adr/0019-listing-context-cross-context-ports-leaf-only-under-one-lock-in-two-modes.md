@@ -242,3 +242,23 @@ Small as it is, it is the first time the codebase has to answer three questions:
   currency. Until then, nothing sorts or filters on price.
 - **No domain events** (plan D9): a draft is private and nothing consumes `ListingDrafted`; the first
   real consumer (`listing-publish`) wants `ListingPublished` and designs its payload.
+
+## Amendment, 2026-11-18 — `Categories` gains `schemaOf()`; `AttributeUsage` is Catalog's second port into Listing; a fourth crossing
+
+Recorded by the `listing-attribute-values` slice
+([ADR-0020](./0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md), plan D3, D6, D11).
+
+1. **`Categories` gains `schemaOf(CategoryId): AttributeSchema`** — the category's effective schema
+   (ids, kinds, option ids, bounds; no labels), a fact true only inside `holdSteady()`. Same port,
+   same adapter (`CategoriesForListing`), no new seam.
+2. **`AttributeUsage` is Catalog's second port into Listing** (`isInUse()`, `isOptionInUse()`), and
+   `CategoryUsage` gains `hasAttributeValues()`. Both adapters live in
+   `Infrastructure/Listing/Integration/`, the only place `listing_attribute_value` is named.
+   Decision 2's local copies grow by `AttributeId`, `AttributeOptionId` and `AttributeKind`.
+3. **A fourth crossing:** the draft edit form reads Catalog's `DbalAttributeSchema` (labels, units,
+   `required`, options) as `/sell` already reads `DbalCategoryOutline`. The Domain decides on
+   `schemaOf()` read again under the lock, so a schema change between render and submit is a
+   refusal, never a stored stray value.
+4. **The watch item widens again.** A Listing write that changes values reads `schemaOf()` inside
+   `holdSteady()`; a Catalog write that deletes an attribute or option, or changes a parent, reads
+   the matching usage inside `exclusively()`.

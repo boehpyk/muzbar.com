@@ -34,12 +34,14 @@ use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeOptionRepos
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeRepository;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineCategoryRepository;
 use App\Infrastructure\Catalog\Persistence\Doctrine\PostgresCategoryTreeLock;
+use App\Infrastructure\Listing\Integration\ListingAttributeUsage;
 use App\Infrastructure\Listing\Integration\ListingCategoryUsage;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
 use App\Tests\Factory\ListingFactory;
 use App\Tests\Fixture\ObservedAttributeOptionRepository;
 use App\Tests\Fixture\ObservedAttributeRepository;
+use App\Tests\Fixture\ObservedAttributeUsage;
 use App\Tests\Fixture\ObservedCategories;
 use App\Tests\Fixture\ObservedCategoryRepository;
 use App\Tests\Fixture\ObservedCategoryTreeLock;
@@ -478,15 +480,98 @@ final class CategoryTreeLockTest extends KernelTestCase
         $listing = ListingFactory::new()->inCategory(CategoryFactory::createOne())->create();
         [$categories, , $revise] = $this->observeListingHandlers();
 
-        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $bass->id()->toString(), 'Changed title', '', '10', 'EUR'));
+        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $bass->id()->toString(), 'Changed title', '', '10', 'EUR', []));
 
         self::assertSame(1, $categories->entries());
         $methods = array_column($categories->calls(), 0);
         self::assertContains('get', $methods);
         self::assertContains('statusOf', $methods);
+        self::assertContains('schemaOf', $methods);
         self::assertContains('save', $methods);
         foreach ($categories->calls() as [$method, $held]) {
             self::assertTrue($held, \sprintf('%s() ran outside Categories::holdSteady().', $method));
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // listing-attribute-values: AC-16 (schemaOf() and save() inside holdSteady(); the usage reads of
+    // C-25, C-26 and C-27 inside exclusively()).
+    // ------------------------------------------------------------------------------------------
+
+    public function testReviseListingHandlerReadsTheSchemaThenSavesTheValuesBothInsideHoldSteady(): void
+    {
+        $category = CategoryFactory::createOne();
+        $serial = AttributeFactory::new()->inCategory($category)->coded('serial')->text()->create();
+        $listing = ListingFactory::new()->inCategory($category)->create();
+        [$categories, , $revise] = $this->observeListingHandlers();
+
+        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $category->id()->toString(), 'Changed title', '', '10', 'EUR', [$serial->id()->toString() => 'SN-1']));
+
+        self::assertSame(1, $categories->entries());
+        self::assertSame(
+            [['get', true], ['statusOf', true], ['schemaOf', true], ['save', true]],
+            $categories->calls(),
+            'The schema is a fact true only under the shared lock: read it and save the values there, in that order.',
+        );
+        self::assertSame(1, $this->db->fetchOne('SELECT count(*) FROM listing_attribute_value'), 'The revise did not reach its value write (a vacuous pass otherwise).');
+    }
+
+    /**
+     * The attribute-side swap plus the usage double, built on the same observed lock so "held" means
+     * the very `exclusively()` the handler took.
+     *
+     * @return array{ObservedCategoryTreeLock, ObservedAttributeUsage}
+     */
+    private function observeAttributeUsage(): array
+    {
+        [$lock] = $this->observeAttributes();
+        $usage = new ObservedAttributeUsage(new ListingAttributeUsage($this->db), $lock);
+        self::getContainer()->set(ListingAttributeUsage::class, $usage);
+
+        return [$lock, $usage];
+    }
+
+    public function testDeleteAttributeHandlerReadsUsageInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->text()->create();
+        [$lock, $usage] = $this->observeAttributeUsage();
+        $handler = self::getContainer()->get(DeleteAttributeHandler::class);
+        self::assertInstanceOf(DeleteAttributeHandler::class, $handler);
+
+        $handler(new DeleteAttribute($attribute->id()->toString()));
+
+        self::assertSame(1, $lock->entries());
+        self::assertSame([['isInUse', true]], $usage->calls());
+        self::assertSame(0, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute WHERE id = ?', [$attribute->id()->toString()]), 'The delete did not run (a vacuous pass otherwise).');
+    }
+
+    public function testRemoveAttributeOptionHandlerReadsOptionUsageInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->choice(['Left', 'Right'])->create();
+        $optionId = $this->optionIdOf($attribute->id()->toString());
+        [$lock, $usage] = $this->observeAttributeUsage();
+        $handler = self::getContainer()->get(RemoveAttributeOptionHandler::class);
+        self::assertInstanceOf(RemoveAttributeOptionHandler::class, $handler);
+
+        $handler(new RemoveAttributeOption($attribute->id()->toString(), $optionId));
+
+        self::assertSame(1, $lock->entries());
+        self::assertSame([['isOptionInUse', true]], $usage->calls());
+        self::assertSame(0, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute_option WHERE id = ?', [$optionId]), 'The removal did not run (a vacuous pass otherwise).');
+    }
+
+    public function testTheLastOptionIsRefusedBeforeUsageIsEvenRead(): void
+    {
+        $attribute = AttributeFactory::new()->choice(['Only'])->create();
+        [, $usage] = $this->observeAttributeUsage();
+        $handler = self::getContainer()->get(RemoveAttributeOptionHandler::class);
+        self::assertInstanceOf(RemoveAttributeOptionHandler::class, $handler);
+
+        try {
+            $handler(new RemoveAttributeOption($attribute->id()->toString(), $this->optionIdOf($attribute->id()->toString())));
+            self::fail('The last option was removed.');
+        } catch (\DomainException) {
+            self::assertSame([], $usage->calls(), 'C-18 must decide before C-26 reads anything.');
         }
     }
 
@@ -540,7 +625,8 @@ final class CategoryTreeLockTest extends KernelTestCase
         $handler(new EditCategory($moving->id()->toString(), $moving->name()->toString(), $moving->slug()->toString(), $newParent->id()->toString()));
 
         self::assertSame(1, $lock->entries());
-        self::assertSame([['hasListings', true]], $usage->calls());
+        // listing-attribute-values (C-27) adds the second read on purpose, after C-24's.
+        self::assertSame([['hasListings', true], ['hasAttributeValues', true]], $usage->calls());
     }
 
     public function testEditCategoryHandlerReadsNoListingsWhenTheParentIsUnchanged(): void

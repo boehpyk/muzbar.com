@@ -6,8 +6,15 @@ namespace App\Tests\Unit\Domain\Listing\Entity;
 
 use App\Domain\Listing\Entity\Listing;
 use App\Domain\Listing\Exception\CategoryIsNotALeaf;
+use App\Domain\Listing\Exception\InvalidAttributeValue;
+use App\Domain\Listing\Exception\InvalidAttributeValueReason;
 use App\Domain\Listing\Exception\NotTheSeller;
 use App\Domain\Listing\Exception\UnknownCategory;
+use App\Domain\Listing\ValueObject\AttributeId;
+use App\Domain\Listing\ValueObject\AttributeInput;
+use App\Domain\Listing\ValueObject\AttributeOptionId;
+use App\Domain\Listing\ValueObject\AttributeRule;
+use App\Domain\Listing\ValueObject\AttributeSchema;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\CategoryStatus;
 use App\Domain\Listing\ValueObject\Currency;
@@ -19,13 +26,23 @@ use App\Domain\Listing\ValueObject\Price;
 use App\Domain\Listing\ValueObject\SellerId;
 use PHPUnit\Framework\TestCase;
 
-/** AC-4, AC-5, AC-6. */
+/** AC-3, AC-4 (attribute values), plus listing-draft's AC-4, AC-5, AC-6. */
 final class ListingTest extends TestCase
 {
     private const string ANN = '018f5b2a-0000-7000-8000-0000000000a1';
     private const string BOB = '018f5b2a-0000-7000-8000-0000000000b2';
     private const string ELECTRIC = '018f5b2a-0000-7000-8000-0000000000e1';
     private const string BASS = '018f5b2a-0000-7000-8000-0000000000e2';
+    private const string CONDITION = '018f5b2a-0000-7000-8000-00000000a001';
+    private const string BRAND = '018f5b2a-0000-7000-8000-00000000a002';
+    private const string STRINGS = '018f5b2a-0000-7000-8000-00000000a003';
+    private const string HAS_CASE = '018f5b2a-0000-7000-8000-00000000a004';
+    private const string SERIAL = '018f5b2a-0000-7000-8000-00000000a005';
+    private const string BASS_STRINGS = '018f5b2a-0000-7000-8000-00000000a006';
+    private const string NEW = '018f5b2a-0000-7000-8000-00000000b001';
+    private const string USED = '018f5b2a-0000-7000-8000-00000000b002';
+    private const string FENDER = '018f5b2a-0000-7000-8000-00000000b003';
+    private const string GIBSON = '018f5b2a-0000-7000-8000-00000000b004';
 
     private function draftOnElectric(): Listing
     {
@@ -103,9 +120,11 @@ final class ListingTest extends TestCase
             SellerId::fromString($by),
             CategoryId::fromString($category),
             $status,
+            AttributeSchema::none(),
             ListingTitle::fromString('Changed title'),
             ListingDescription::fromString('Changed'),
             Price::fromMinorUnits(999, Currency::UAH),
+            AttributeInput::fromArray([]),
         );
     }
 
@@ -166,6 +185,193 @@ final class ListingTest extends TestCase
         }
     }
 
+    private function conditionRule(): AttributeRule
+    {
+        return AttributeRule::choice(AttributeId::fromString(self::CONDITION), [AttributeOptionId::fromString(self::NEW), AttributeOptionId::fromString(self::USED)]);
+    }
+
+    private function electricSchema(): AttributeSchema
+    {
+        return AttributeSchema::of(
+            $this->conditionRule(),
+            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER), AttributeOptionId::fromString(self::GIBSON)]),
+            AttributeRule::number(AttributeId::fromString(self::STRINGS), 4, 12),
+            AttributeRule::boolean(AttributeId::fromString(self::HAS_CASE)),
+            AttributeRule::text(AttributeId::fromString(self::SERIAL)),
+        );
+    }
+
+    private function bassSchema(): AttributeSchema
+    {
+        return AttributeSchema::of($this->conditionRule(), AttributeRule::number(AttributeId::fromString(self::BASS_STRINGS), null, null));
+    }
+
+    /**
+     * @param array<string, string> $input
+     */
+    private function reviseWith(Listing $listing, string $by, string $category, CategoryStatus $status, AttributeSchema $schema, array $input, string $title = 'Changed title', string $description = 'Changed', int $minorUnits = 999): void
+    {
+        $listing->revise(
+            SellerId::fromString($by),
+            CategoryId::fromString($category),
+            $status,
+            $schema,
+            ListingTitle::fromString($title),
+            ListingDescription::fromString($description),
+            Price::fromMinorUnits($minorUnits, Currency::UAH),
+            AttributeInput::fromArray($input),
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function allFiveElectricValues(): array
+    {
+        return [self::CONDITION => self::USED, self::BRAND => self::FENDER, self::STRINGS => '6', self::HAS_CASE => 'yes', self::SERIAL => 'SN-1'];
+    }
+
+    /**
+     * @return array<string, int|string|bool|null>
+     */
+    private function valuesAsScalars(Listing $listing): array
+    {
+        $out = [];
+        foreach ($listing->attributeValues()->toList() as $value) {
+            $out[$value->attributeId()->toString()] = $value->optionId()?->toString() ?? $value->number() ?? $value->boolean() ?? $value->text();
+        }
+
+        return $out;
+    }
+
+    public function testADraftStartsWithNoAttributeValues(): void
+    {
+        self::assertTrue($this->draftOnElectric()->attributeValues()->isEmpty());
+    }
+
+    public function testRevisingWithValidValuesForAllFiveStoresExactlyThem(): void
+    {
+        $listing = $this->draftOnElectric();
+
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), $this->allFiveElectricValues());
+
+        self::assertSame(
+            [self::CONDITION => self::USED, self::BRAND => self::FENDER, self::STRINGS => 6, self::HAS_CASE => true, self::SERIAL => 'SN-1'],
+            $this->valuesAsScalars($listing),
+        );
+    }
+
+    public function testRequiredAttributesLeftEmptyStillSave(): void
+    {
+        $listing = $this->draftOnElectric();
+
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), [self::CONDITION => '', self::BRAND => '']);
+
+        self::assertTrue($listing->attributeValues()->isEmpty());
+    }
+
+    public function testBlankInputClearsAValueThatWasStored(): void
+    {
+        $listing = $this->draftOnElectric();
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), $this->allFiveElectricValues());
+
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), [self::STRINGS => '8']);
+
+        self::assertSame([self::STRINGS => 8], $this->valuesAsScalars($listing));
+    }
+
+    public function testAnInvalidValueIsRefusedAndEveryReaderIncludingTheValuesIsUnchanged(): void
+    {
+        $listing = $this->draftOnElectric();
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), $this->allFiveElectricValues());
+        $before = [$this->snapshot($listing), $this->valuesAsScalars($listing)];
+
+        try {
+            // Title, description and price are all valid and different from what is held: they must not leak in.
+            $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), [self::STRINGS => '13'], 'Never saved', 'Never saved either', 1);
+            self::fail('An out-of-range value was accepted.');
+        } catch (InvalidAttributeValue $e) {
+            self::assertSame(InvalidAttributeValueReason::OutOfRange, $e->reason());
+            self::assertSame($before, [$this->snapshot($listing), $this->valuesAsScalars($listing)]);
+        }
+    }
+
+    public function testAnInvalidValueOnARefileLeavesTheCategoryUntouchedToo(): void
+    {
+        $listing = $this->draftOnElectric();
+        $before = [$this->snapshot($listing), $this->valuesAsScalars($listing)];
+
+        try {
+            $this->reviseWith($listing, self::ANN, self::BASS, CategoryStatus::Leaf, $this->bassSchema(), [self::CONDITION => self::FENDER]);
+            self::fail('A foreign option was accepted for condition.');
+        } catch (InvalidAttributeValue) {
+            self::assertSame($before, [$this->snapshot($listing), $this->valuesAsScalars($listing)]);
+        }
+    }
+
+    public function testTheSellerCheckComesBeforeAnyValueIsLookedAt(): void
+    {
+        $listing = $this->draftOnElectric();
+
+        $this->expectException(NotTheSeller::class);
+
+        $this->reviseWith($listing, self::BOB, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), [self::STRINGS => '13']);
+    }
+
+    public function testAnInputForAnAttributeNotInForceIsRefusedOnAnUnchangedCategory(): void
+    {
+        $listing = $this->draftOnElectric();
+        $before = $this->snapshot($listing);
+
+        try {
+            $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), [self::BASS_STRINGS => '4']);
+            self::fail('An attribute of another category was dropped instead of refused.');
+        } catch (InvalidAttributeValue $e) {
+            self::assertSame(InvalidAttributeValueReason::NotInForce, $e->reason());
+            self::assertSame(self::BASS_STRINGS, $e->attributeId()?->toString());
+            self::assertSame($before, $this->snapshot($listing));
+            self::assertTrue($listing->attributeValues()->isEmpty());
+        }
+    }
+
+    public function testRefilingKeepsSharedValuesAndDropsTheRestWithoutRefusing(): void
+    {
+        $listing = $this->draftOnElectric();
+
+        $this->reviseWith($listing, self::ANN, self::BASS, CategoryStatus::Leaf, $this->bassSchema(), [
+            self::CONDITION => self::NEW,
+            self::BRAND => self::FENDER,
+            self::STRINGS => '6',
+        ]);
+
+        self::assertSame(self::BASS, $listing->categoryId()->toString());
+        self::assertSame([self::CONDITION => self::NEW], $this->valuesAsScalars($listing));
+    }
+
+    public function testRefilingStillChecksTheValuesItKeeps(): void
+    {
+        $listing = $this->draftOnElectric();
+
+        $this->expectException(InvalidAttributeValue::class);
+
+        $this->reviseWith($listing, self::ANN, self::BASS, CategoryStatus::Leaf, $this->bassSchema(), [self::CONDITION => self::FENDER, self::BRAND => self::FENDER]);
+    }
+
+    public function testRefilingToABranchOrAMissingCategoryIsRefusedBeforeAnyValueIsLookedAt(): void
+    {
+        foreach ([[CategoryStatus::Branch, CategoryIsNotALeaf::class], [CategoryStatus::Missing, UnknownCategory::class]] as [$status, $expected]) {
+            $listing = $this->draftOnElectric();
+
+            try {
+                // The value is also invalid; the category refusal must win.
+                $this->reviseWith($listing, self::ANN, self::BASS, $status, $this->bassSchema(), [self::CONDITION => 'not-an-option']);
+                self::fail('Re-filed under '.$status->name);
+            } catch (\DomainException $e) {
+                self::assertInstanceOf($expected, $e);
+            }
+        }
+    }
+
     public function testListingRecordsNoDomainEvents(): void
     {
         self::assertSame([], class_uses(Listing::class));
@@ -181,7 +387,7 @@ final class ListingTest extends TestCase
         sort($methods);
 
         self::assertSame(
-            ['categoryId', 'description', 'draft', 'id', 'isSoldBy', 'price', 'revise', 'sellerId', 'status', 'title'],
+            ['attributeValues', 'categoryId', 'description', 'draft', 'id', 'isSoldBy', 'price', 'revise', 'sellerId', 'status', 'title'],
             $methods,
         );
     }

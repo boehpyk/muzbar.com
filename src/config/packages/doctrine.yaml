@@ -9,9 +9,14 @@ doctrine:
         profiling_collect_backtrace: '%kernel.debug%'
 
         # `prelaunch_signup` is written with raw DBAL and has no ORM mapping, so without this the
-        # schema diff would propose dropping it on every `make migration.make`. Remove this line in
-        # the same commit that drops the table.
-        schema_filter: '~^(?!prelaunch_signup$)~'
+        # schema diff would propose dropping it on every `make migration.make`. Remove it from the
+        # pattern in the same commit that drops the table.
+        #
+        # `listing_attribute_value` (ADR-0020) is unmapped on purpose: `DoctrineListingRepository`
+        # is its only writer and `ListingAttributeValuesLoader` its reader. Hiding it here means its
+        # hand-written CHECK can never re-diff — and also that no Doctrine safety net sees the table
+        # at all; its shape is guarded only by AC-6's catalogue test.
+        schema_filter: '~^(?!(prelaunch_signup|listing_attribute_value)$)~'
 
         # Custom DBAL types map Identity's value objects onto columns.
         #
