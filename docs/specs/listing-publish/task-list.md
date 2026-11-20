@@ -54,7 +54,7 @@
       `drafts.html.twig` becomes "Your listings" (done in T11).
 - [x] **T9:** `DbalSellerDrafts`: rows gain `status`, `publishedAt`; `findPublished()` (status filter in
       SQL, no `seller_id`, malformed id → null with no query; own `@phpstan-type PublicRow`).
-- [ ] **T10:** Public `ListingController` (`GET /listings/{id}`, `app_listing_show`, no route
+- [x] **T10:** Public `ListingController` (`GET /listings/{id}`, `app_listing_show`, no route
       requirements) + `listing/show.html.twig` (title, price, category path, "Listed on", escaped
       description with `nl2br`, Details `<dl>` in `effectiveFor()` order, no seller data — comment
       says why).
