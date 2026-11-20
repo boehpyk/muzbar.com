@@ -10,8 +10,8 @@ namespace App\Application\Listing\Command;
  * authenticated user), checked against the listing's seller (L-6).
  *
  * `$attributes` is the "Details" section: attribute id → the seller's raw text, read against the
- * category's schema by the aggregate (L-9). `[]` when the form has no Details section — which also
- * clears every stored value, since a revise replaces the whole set.
+ * category's schema by the aggregate (L-9). Required, with no default: a revise replaces the whole
+ * set, so `[]` clears every stored value — a caller must say so, never get it by omission.
  */
 final readonly class ReviseListing
 {
@@ -26,7 +26,7 @@ final readonly class ReviseListing
         public string $description,
         public string $price,
         public string $currency,
-        public array $attributes = [],
+        public array $attributes,
     ) {
     }
 }

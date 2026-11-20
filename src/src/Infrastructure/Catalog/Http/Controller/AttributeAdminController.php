@@ -246,7 +246,7 @@ final class AttributeAdminController extends AbstractController
             );
         } catch (AttributeInUse) {
             // C-26. The label is looked up only on this rare path; the option still exists (refused).
-            $label = array_column($this->schema->optionsOf($attribute['id']), 'label', 'id')[$optionId] ?? 'This option';
+            $label = array_column($this->schema->optionsOf($attribute['id']), 'label', 'id')[strtolower($optionId)] ?? 'This option';
             $this->addFlash('error', \sprintf('“%s” is used by listings, so it cannot be removed.', $label));
         }
 

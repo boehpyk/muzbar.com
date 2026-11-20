@@ -103,7 +103,7 @@ final class ListingHandlersTest extends KernelTestCase
 
     private function revision(ListingId $id, string $by, string $category, string $title = 'Changed title', string $price = '99', string $currency = 'UAH'): ReviseListing
     {
-        return new ReviseListing($id->toString(), $by, $category, $title, 'Changed', $price, $currency);
+        return new ReviseListing($id->toString(), $by, $category, $title, 'Changed', $price, $currency, []);
     }
 
     public function testDraftingPersistsExactlyOneRowWithEveryColumnSet(): void
@@ -215,7 +215,7 @@ final class ListingHandlersTest extends KernelTestCase
         $before = $this->table();
 
         try {
-            ($this->revise)(new ReviseListing(Uuid::v7()->toRfc4122(), $this->ann, $this->bass->id()->toString(), 'Changed title', '', '99', 'UAH'));
+            ($this->revise)(new ReviseListing(Uuid::v7()->toRfc4122(), $this->ann, $this->bass->id()->toString(), 'Changed title', '', '99', 'UAH', []));
             self::fail('Expected ListingNotFound.');
         } catch (ListingNotFound) {
             self::assertSame($before, $this->table());
@@ -226,7 +226,7 @@ final class ListingHandlersTest extends KernelTestCase
     {
         $this->expectException(ListingNotFound::class);
 
-        ($this->revise)(new ReviseListing('not-a-uuid', $this->ann, $this->bass->id()->toString(), 'Changed title', '', '99', 'UAH'));
+        ($this->revise)(new ReviseListing('not-a-uuid', $this->ann, $this->bass->id()->toString(), 'Changed title', '', '99', 'UAH', []));
     }
 
     public function testAnInvalidPriceOnReviseLeavesTheRowUnchanged(): void

@@ -480,7 +480,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         $listing = ListingFactory::new()->inCategory(CategoryFactory::createOne())->create();
         [$categories, , $revise] = $this->observeListingHandlers();
 
-        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $bass->id()->toString(), 'Changed title', '', '10', 'EUR'));
+        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $bass->id()->toString(), 'Changed title', '', '10', 'EUR', []));
 
         self::assertSame(1, $categories->entries());
         $methods = array_column($categories->calls(), 0);

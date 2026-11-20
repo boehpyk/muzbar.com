@@ -233,8 +233,10 @@ Electric.
       on Instruments both succeed and leave D's rows unchanged; Ann's next revise without them succeeds
       (L-11).
 - [x] **AC-11 (`Categories::schemaOf()`)** — for Electric: exactly the five attributes (inherited from
-      Instruments and Guitars included, Bass's excluded), each with its kind; condition's and brand's
-      option ids in id order; strings' bounds 4 and 12. For Bass: two. Unknown id → empty schema. A
+      Instruments and Guitars included, Bass's excluded), each read by its kind; condition's and
+      brand's own options only; strings' bounds 4 and 12. *(Amended at `/verify`, the test won:
+      `AttributeRule` keeps options as a keyed set with no accessor, so "in id order" was
+      unobservable and meaningless, and the kind is proved by how each rule reads, not by `kind()`.)* For Bass: two. Unknown id → empty schema. A
       legacy duplicate code on one branch (ADR-0018 d.7) yields both attributes without error.
 - [x] **AC-12 (C-25)** — with D holding a brand value: `DeleteAttribute(brand)` throws
       `AttributeInUse`; the attribute and both options remain. `DeleteAttribute(serial)` when no

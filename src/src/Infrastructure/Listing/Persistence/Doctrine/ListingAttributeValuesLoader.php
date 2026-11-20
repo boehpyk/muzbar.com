@@ -21,6 +21,10 @@ use Doctrine\ORM\Events;
  *
  * `postLoad` fires once per hydration: a second `get()` in one EntityManager is served from the
  * identity map and never clobbers unsaved values, while `refresh()` (Foundry's included) reloads them.
+ *
+ * ponytail: one SELECT per hydrated listing — N+1 for any DQL that loads many. Lists read through
+ * DBAL (`DbalSellerDrafts`), never by hydrating `Listing`s; batch by `listing_id IN (…)` if a
+ * use case ever must load aggregates in bulk.
  */
 #[AsEntityListener(event: Events::postLoad, method: 'postLoad', entity: Listing::class)]
 final class ListingAttributeValuesLoader

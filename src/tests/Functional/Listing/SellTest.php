@@ -6,12 +6,19 @@ namespace App\Tests\Functional\Listing;
 
 use App\Application\Catalog\Command\DefineAttribute;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
+use App\Application\Listing\Handler\ReviseListingHandler;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Entity\Category;
 use App\Domain\Catalog\ValueObject\NumberRules;
 use App\Domain\Identity\Entity\User;
 use App\Domain\Listing\Entity\Listing;
+use App\Domain\Listing\Port\Categories;
+use App\Domain\Listing\Port\ListingRepository;
+use App\Domain\Listing\ValueObject\AttributeSchema;
+use App\Domain\Listing\ValueObject\CategoryId;
+use App\Domain\Listing\ValueObject\CategoryStatus;
 use App\Domain\Listing\ValueObject\Currency;
+use App\Infrastructure\Catalog\Integration\CategoriesForListing;
 use App\Infrastructure\Listing\Form\ListingFormType;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
@@ -763,8 +770,7 @@ final class SellTest extends WebTestCase
     {
         [, $draft] = $this->annWithDraftD(filled: true);
         $before = $this->valueRows();
-        $this->client->request('GET', $this->detailsPath($draft));
-        self::assertCount(0, $this->client->getCrawler()->filter('#listing_form_attributes_fretboard'), 'Sanity: nothing called Fretboard yet.');
+        self::assertCount(5, $this->detailFieldIds($this->client->request('GET', $this->detailsPath($draft))), 'Sanity: five details before the define.');
 
         $container = self::getContainer();
         $handler = $container->get(DefineAttributeHandler::class);
@@ -969,6 +975,55 @@ final class SellTest extends WebTestCase
             self::assertGreaterThan(0, $page->filter('form li')->count(), 'The refusal must be visible on the form.');
         }
 
+        self::assertSame($values, $this->valueRows());
+        $this->assertNothingReportedToSentry();
+    }
+
+    /**
+     * `NotInForce` is reachable only in the window between building the form and taking the lock
+     * (an admin deleting the attribute meanwhile): the form is rebuilt from the schema on POST, so a
+     * stale key is an extra field before the Domain sees it. The window is opened here by handing
+     * the handler an adapter whose schema has gone empty. The handler is swapped, not the adapter:
+     * the adapter is already built by then, and the container refuses to replace a built service. The
+     * GET builds the handler too (it is a controller argument), so the swap comes before the token.
+     */
+    public function testADetailThatLeftTheSchemaUnderTheLockIsRefusedOnItsFieldAsNoLongerApplying(): void
+    {
+        [, $draft] = $this->annWithDraftD();
+        $path = $this->detailsPath($draft);
+        $real = self::getContainer()->get(CategoriesForListing::class);
+        self::assertInstanceOf(Categories::class, $real);
+        $repository = self::getContainer()->get(ListingRepository::class);
+        self::assertInstanceOf(ListingRepository::class, $repository);
+        self::getContainer()->set(ReviseListingHandler::class, new ReviseListingHandler($repository, new class($real) implements Categories {
+            public function __construct(private readonly Categories $inner)
+            {
+            }
+
+            public function holdSteady(\Closure $work): mixed
+            {
+                return $this->inner->holdSteady($work);
+            }
+
+            public function statusOf(CategoryId $id): CategoryStatus
+            {
+                return $this->inner->statusOf($id);
+            }
+
+            public function schemaOf(CategoryId $id): AttributeSchema
+            {
+                return AttributeSchema::none();
+            }
+        }));
+        $token = $this->token($path);
+        $listings = $this->listings();
+        $values = $this->valueRows();
+
+        $page = $this->post($path, ['title' => 'Never saved'] + $this->electricFields([$this->serial->id()->toString() => 'SN-9']), $token);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(['This detail no longer applies. Reload the page.'], $this->errorsOn($page, $this->field($this->serial)));
+        self::assertSame($listings, $this->listings());
         self::assertSame($values, $this->valueRows());
         $this->assertNothingReportedToSentry();
     }

@@ -69,6 +69,8 @@ final readonly class AttributeValue
         $length = mb_strlen($trimmed);
 
         // \p{Cc} covers "\n", "\t" and NUL: ListingTitle's rule, one line and nothing pdo_pgsql truncates.
+        // ponytail: \p{Cf} (zero-width, bidi overrides) and U+2028/U+2029 still pass, as in every
+        // free-text VO; widen all of them together to [\p{Cc}\p{Cf}\p{Zl}\p{Zp}], never this one alone.
         if ($length < 1 || $length > self::TEXT_MAX_LENGTH || 0 !== preg_match('/\p{Cc}/u', $trimmed)) {
             throw InvalidAttributeValue::badText($attributeId);
         }

@@ -204,7 +204,7 @@ final class ListingValueGuardsTest extends KernelTestCase
         self::assertSame($this->bass->id()->toString(), $this->parentOf($this->guitars));
     }
 
-    public function testRenamingAndReslugginAValueHoldingCategorySucceeds(): void
+    public function testRenamingAndResluggingAValueHoldingCategorySucceeds(): void
     {
         $this->draftHoldingBrand();
 

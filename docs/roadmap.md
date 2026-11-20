@@ -299,7 +299,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         (ADR-0009; plan Risk 4) — **eleven** copies of the id value-object shape now exist, Listing's
         `SellerId`/`CategoryId`/`AttributeId`/`AttributeOptionId` included; one trait, touching
         Identity, Catalog and Listing, its own slice — schedule it before `listing-publish` (ADR-0020).
-  - [x] `listing-attribute-values` (2026-11-18; **`/verify` pending**) — the value layer (ADR-0004 §2): `listing_attribute_value` with
+  - [x] `listing-attribute-values` (2026-11-18; **passed `/verify` 2026-11-20 first time**) — the value layer (ADR-0004 §2): `listing_attribute_value` with
         typed columns and the generic `(attribute_id, option_id)`-style indexes, values owned by the
         `Listing` aggregate. Catalog exposes **`EffectiveSchema`** (D11.4) to other contexts; Listing
         consumes it through its own port. The draft edit form gains a **server-rendered** attribute

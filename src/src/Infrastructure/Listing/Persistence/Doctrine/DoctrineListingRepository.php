@@ -62,6 +62,16 @@ final readonly class DoctrineListingRepository implements ListingRepository
         $connection = $this->entityManager->getConnection();
         $listingId = $listing->id()->toString();
 
+        // Two saves of one listing (a double-clicked Save) both hold the *shared* tree lock, so
+        // nothing else queues them: under READ COMMITTED the second DELETE misses the first's fresh
+        // rows and its INSERT dies on the primary key (23505 → 500). The row lock serialises them.
+        // Do not rely on the flush's UPDATE for this — it only happens because revise() swaps VO
+        // instances, which Doctrine compares by identity.
+        $connection->executeStatement(
+            'SELECT 1 FROM listing_listing WHERE id = :id FOR UPDATE',
+            ['id' => $listingId],
+        );
+
         $connection->executeStatement(
             'DELETE FROM listing_attribute_value WHERE listing_id = :id',
             ['id' => $listingId],

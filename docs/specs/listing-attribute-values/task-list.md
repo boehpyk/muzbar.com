@@ -130,3 +130,6 @@
       6. Sentry stays silent for every refusal.
 
       If a hand-check contradicts the green suite, suspect the runtime (opcache) before the code.
+
+      *2026-11-20: `/verify` PASS first iteration (reviewer, AC-1…AC-29, gates); MINORs 1–7 and
+      STYLE 8–9 fixed. Hand-checks 1–6 still to do.*

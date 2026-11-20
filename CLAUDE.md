@@ -111,7 +111,8 @@ Docker Compose · Traefik · Nginx.
 > the same 404 as a missing one. All eight AC-33 mutations bit; 1436 tests.
 > [ADR-0019](./docs/adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
 > + ADR-0007/0016 amendments.
-> `listing-attribute-values` (2026-11-18, **`/verify` pending**) — Listing slice 2 of 4: a seller's
+> `listing-attribute-values` (2026-11-18, **passed `/verify` 2026-11-20 first time** — 7 MINORs fixed
+> anyway, chiefly an explicit row lock under two concurrent saves of one draft) — Listing slice 2 of 4: a seller's
 > data now refers to Catalog's **schema**, not only its tree. Values are **parts** of `Listing`
 > (ADR-0017's test run again, opposite answer: nothing points at a value, a listing has dozens at
 > most), held as an immutable `AttributeValues` — **not** a Doctrine collection. The repository is
@@ -292,6 +293,8 @@ established by `listing-draft`, inherited by every context:
   the matching usage under `exclusively()` and gets a `CategoryTreeLockTest` case.
 - **`ListingFactory` bypasses L-2** — it hands `draft()` `CategoryStatus::Leaf`, and its default
   category does not exist. Build with `->inCategory($leaf)`, in an order that keeps it on a leaf.
+  **`withValues()` also skips L-9's "in force" half** — it builds the schema from the attributes it
+  is given, not the category's lineage, so a fixture can hold a value no seller could enter.
 - **Money is integer minor units, never a float** — `Price::fromDecimal(string, Currency)` parses
   with string and integer arithmetic; `PriceTest` scans the source for `float`. Never `MoneyType`.
 
@@ -654,7 +657,14 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   `DoctrineListingRepository::save()` persists **none**, silently. `ListingFactory::withValues()`
   revises through the aggregate and saves through the repository; do likewise. Reads come from the
   `postLoad` listener (`ListingAttributeValuesLoader`) — skip it and the property is uninitialised
-  (loud).
+  (loud). That is **one SELECT per hydrated `Listing`**: list pages read through DBAL, never by
+  hydrating aggregates in bulk (N+1).
+- **Two saves of one listing share the tree lock, so `writeValues()` locks the listing row
+  (`FOR UPDATE`) before its delete-and-reinsert** — without it the second INSERT dies on 23505. Do
+  not drop it because the flush's `UPDATE` "already locks the row": that only happens because
+  `revise()` swaps VO instances, which Doctrine compares by identity.
+- **`ReviseListing::$attributes` has no default on purpose** — a revise replaces the whole set, so
+  `[]` clears every value; a caller must say so.
 - **`listing_attribute_value` is invisible to every Doctrine safety net** — unmapped *and* excluded by
   `doctrine.dbal.schema_filter`, so `make migration.make` and `schema:validate` see nothing. AC-6's
   `information_schema`/`pg_constraint` test is its **only** shape guard: any column change is a
