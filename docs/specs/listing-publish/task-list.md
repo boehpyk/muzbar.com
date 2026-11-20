@@ -77,7 +77,7 @@
 - [x] **T17:** Integration: schema (AC-8), handlers with a recording dispatcher and fresh EM reads
       (AC-9, AC-10, AC-12, AC-13), `schemaOf()` required (AC-11), status-blind Catalog guards
       (AC-14).
-- [ ] **T18:** `CategoryTreeLockTest`: revise+publish reads and save inside `holdSteady()`, dispatch
+- [x] **T18:** `CategoryTreeLockTest`: revise+publish reads and save inside `holdSteady()`, dispatch
       outside it; withdraw inside it. (AC-15)
 - [ ] **T19:** Functional: `SellTest` (AC-16…AC-20, AC-26), new `PublicListingTest` (AC-21…AC-25 —
       content, privacy incl. the SQL capture, 404 parity across four cases × three viewers, query
