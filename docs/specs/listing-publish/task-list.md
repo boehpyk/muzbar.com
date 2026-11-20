@@ -52,7 +52,7 @@
 ## Infrastructure
 - [x] **T8:** ~~URL/read-model rename~~ — dropped (Q8, owner 2026-11-20). Only the heading of
       `drafts.html.twig` becomes "Your listings" (done in T11).
-- [ ] **T9:** `DbalSellerDrafts`: rows gain `status`, `publishedAt`; `findPublished()` (status filter in
+- [x] **T9:** `DbalSellerDrafts`: rows gain `status`, `publishedAt`; `findPublished()` (status filter in
       SQL, no `seller_id`, malformed id → null with no query; own `@phpstan-type PublicRow`).
 - [ ] **T10:** Public `ListingController` (`GET /listings/{id}`, `app_listing_show`, no route
       requirements) + `listing/show.html.twig` (title, price, category path, "Listed on", escaped
