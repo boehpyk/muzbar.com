@@ -43,7 +43,7 @@
       `DomainEventDispatcher`, publishes inside `holdSteady()` when asked, returns released events
       from the closure, dispatches after (call-site comment, D5). Controller passes `publish: false`
       until T13.
-- [ ] **T6:** `WithdrawListing` + `WithdrawListingHandler` (inside `holdSteady()`, malformed id →
+- [x] **T6:** `WithdrawListing` + `WithdrawListingHandler` (inside `holdSteady()`, malformed id →
       `ListingNotFound`).
 
 ## Infrastructure — read side
