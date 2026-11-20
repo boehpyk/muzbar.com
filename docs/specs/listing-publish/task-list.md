@@ -69,7 +69,7 @@
       `ListingNotPublished` → error flash, 303).
 
 ## Tests (qa)
-- [ ] **T15:** Domain unit: `ListingTest` (AC-1…AC-4, AC-6 allow-list and the `RecordsEvents`
+- [x] **T15:** Domain unit: `ListingTest` (AC-1…AC-4, AC-6 allow-list and the `RecordsEvents`
       assertion changed **on purpose**), `AttributeSchemaTest::missingFrom`, `AttributeValueTest`
       round trip (AC-5); `ListingIsolationTest`/`CatalogIsolationTest` green (AC-7).
 - [ ] **T16:** `ListingFactory::published()` / `->withdrawn()` (through the aggregate and

@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Domain\Listing\Entity;
 
 use App\Domain\Listing\Entity\Listing;
+use App\Domain\Listing\Event\ListingPublished;
 use App\Domain\Listing\Exception\CategoryIsNotALeaf;
 use App\Domain\Listing\Exception\InvalidAttributeValue;
 use App\Domain\Listing\Exception\InvalidAttributeValueReason;
+use App\Domain\Listing\Exception\ListingIncomplete;
+use App\Domain\Listing\Exception\ListingNotPublished;
 use App\Domain\Listing\Exception\NotTheSeller;
+use App\Domain\Listing\Exception\PublishedListingCannotBeRefiled;
 use App\Domain\Listing\Exception\UnknownCategory;
 use App\Domain\Listing\ValueObject\AttributeId;
 use App\Domain\Listing\ValueObject\AttributeInput;
@@ -27,7 +31,7 @@ use App\Domain\Listing\ValueObject\SellerId;
 use App\Domain\Shared\Event\RecordsEvents;
 use PHPUnit\Framework\TestCase;
 
-/** AC-3, AC-4 (attribute values), plus listing-draft's AC-4, AC-5, AC-6. */
+/** listing-publish AC-1…AC-4 and AC-6, listing-attribute-values AC-3/AC-4, plus listing-draft's AC-4, AC-5, AC-6. */
 final class ListingTest extends TestCase
 {
     private const string ANN = '018f5b2a-0000-7000-8000-0000000000a1';
@@ -371,6 +375,361 @@ final class ListingTest extends TestCase
                 self::assertInstanceOf($expected, $e);
             }
         }
+    }
+
+    private const string NEW_REQUIRED = '018f5b2a-0000-7000-8000-00000000a0f0';
+
+    private function at(int $plusSeconds = 0): \DateTimeImmutable
+    {
+        return new \DateTimeImmutable('2026-11-20 10:00:00', new \DateTimeZone('UTC'))->modify(\sprintf('+%d seconds', $plusSeconds));
+    }
+
+    /** Electric's schema with condition and brand **required** — the spec's fixture schema. */
+    private function requiredElectricSchema(?int $stringsMin = 4, ?int $stringsMax = 12): AttributeSchema
+    {
+        return AttributeSchema::of(
+            AttributeRule::choice(AttributeId::fromString(self::CONDITION), [AttributeOptionId::fromString(self::NEW), AttributeOptionId::fromString(self::USED)], true),
+            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER), AttributeOptionId::fromString(self::GIBSON)], true),
+            AttributeRule::number(AttributeId::fromString(self::STRINGS), $stringsMin, $stringsMax, false),
+            AttributeRule::boolean(AttributeId::fromString(self::HAS_CASE), false),
+            AttributeRule::text(AttributeId::fromString(self::SERIAL), false),
+        );
+    }
+
+    private function requiredBassSchema(): AttributeSchema
+    {
+        return AttributeSchema::of(
+            AttributeRule::choice(AttributeId::fromString(self::CONDITION), [AttributeOptionId::fromString(self::NEW), AttributeOptionId::fromString(self::USED)], true),
+            AttributeRule::number(AttributeId::fromString(self::BASS_STRINGS), null, null, false),
+        );
+    }
+
+    /** "Complete D": condition = Used, brand = Fender, on Electric, still a draft. */
+    private function completeDraft(): Listing
+    {
+        $listing = $this->draftOnElectric();
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->requiredElectricSchema(), [self::CONDITION => self::USED, self::BRAND => self::FENDER]);
+
+        return $listing;
+    }
+
+    private function publishedD(): Listing
+    {
+        $listing = $this->completeDraft();
+        $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->requiredElectricSchema(), $this->at());
+        $listing->releaseEvents();
+
+        return $listing;
+    }
+
+    private function withdrawnD(): Listing
+    {
+        $listing = $this->publishedD();
+        $listing->withdraw(SellerId::fromString(self::ANN));
+
+        return $listing;
+    }
+
+    /**
+     * @return array{ListingStatus, ?string, list<string>, array<string, int|string|bool|null>, array{string, string, string, int, Currency}}
+     */
+    private function everything(Listing $listing): array
+    {
+        return [
+            $listing->status(),
+            $listing->publishedAt()?->format('c'),
+            array_map(static fn (object $e): string => $e::class, $listing->releaseEvents()),
+            $this->valuesAsScalars($listing),
+            $this->snapshot($listing),
+        ];
+    }
+
+    public function testPublishingACompleteDraftMakesItPublicStampsTheClockAndRecordsOneEvent(): void
+    {
+        $listing = $this->completeDraft();
+
+        $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->requiredElectricSchema(), $this->at());
+
+        self::assertSame(ListingStatus::Published, $listing->status());
+        self::assertEquals($this->at(), $listing->publishedAt());
+
+        $events = $listing->releaseEvents();
+        self::assertCount(1, $events);
+        self::assertInstanceOf(ListingPublished::class, $events[0]);
+        self::assertSame('018f5b2a-0000-7000-8000-000000000001', $events[0]->listingId()->toString());
+        self::assertSame(self::ANN, $events[0]->sellerId()->toString());
+        self::assertSame(self::ELECTRIC, $events[0]->categoryId()->toString());
+        self::assertEquals($this->at(), $events[0]->publishedAt());
+        self::assertEquals($this->at(), $events[0]->occurredAt());
+    }
+
+    public function testAFreshDraftHasNoPublishedAtAndRecordsNoEvent(): void
+    {
+        $listing = $this->draftOnElectric();
+
+        self::assertNull($listing->publishedAt());
+        self::assertSame([], $listing->releaseEvents());
+    }
+
+    public function testListingPublishedHoldsOnlyValueObjectsAndAnInstant(): void
+    {
+        $allowed = [ListingId::class, SellerId::class, CategoryId::class, \DateTimeImmutable::class];
+        $types = array_map(
+            static fn (\ReflectionProperty $p): string => (string) $p->getType(),
+            (new \ReflectionClass(ListingPublished::class))->getProperties(),
+        );
+        sort($types);
+        sort($allowed);
+
+        self::assertSame($allowed, $types);
+    }
+
+    public function testAnotherSellerCannotPublishEvenWhenTheListingIsAlsoIncomplete(): void
+    {
+        $listing = $this->draftOnElectric();
+        $before = $this->everything($listing);
+
+        try {
+            $listing->publish(SellerId::fromString(self::BOB), CategoryStatus::Branch, $this->requiredElectricSchema(), $this->at());
+            self::fail('Bob published Ann\'s listing.');
+        } catch (NotTheSeller) {
+            self::assertSame($before, $this->everything($listing));
+        }
+    }
+
+    public function testPublishingOnABranchOrAMissingCategoryIsRefusedEvenThoughTheCategoryIsUnchanged(): void
+    {
+        foreach ([[CategoryStatus::Branch, CategoryIsNotALeaf::class], [CategoryStatus::Missing, UnknownCategory::class]] as [$status, $expected]) {
+            $listing = $this->completeDraft();
+            $before = $this->everything($listing);
+
+            try {
+                $listing->publish(SellerId::fromString(self::ANN), $status, $this->requiredElectricSchema(), $this->at());
+                self::fail('Published under '.$status->name);
+            } catch (\DomainException $e) {
+                self::assertInstanceOf($expected, $e);
+                self::assertSame($before, $this->everything($listing));
+            }
+        }
+    }
+
+    public function testPublishingReReadsAStoredValueAgainstTheCurrentBounds(): void
+    {
+        $listing = $this->completeDraft();
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->requiredElectricSchema(), [self::CONDITION => self::USED, self::BRAND => self::FENDER, self::STRINGS => '6']);
+        $before = $this->everything($listing);
+
+        try {
+            // The schema has since been narrowed to 7…12; the stored 6 now does not fit.
+            $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->requiredElectricSchema(7, 12), $this->at());
+            self::fail('A stored value outside the current bounds was published.');
+        } catch (InvalidAttributeValue $e) {
+            self::assertSame(InvalidAttributeValueReason::OutOfRange, $e->reason());
+            self::assertSame(self::STRINGS, $e->attributeId()?->toString());
+            self::assertSame(7, $e->min());
+            self::assertSame(12, $e->max());
+            self::assertSame($before, $this->everything($listing));
+        }
+    }
+
+    public function testPublishingAnIncompleteDraftNamesEveryMissingAttributeInOneException(): void
+    {
+        $listing = $this->draftOnElectric();
+        $before = $this->everything($listing);
+
+        try {
+            $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->requiredElectricSchema(), $this->at());
+            self::fail('An incomplete listing was published.');
+        } catch (ListingIncomplete $e) {
+            self::assertSame([self::CONDITION, self::BRAND], array_map(static fn (AttributeId $id): string => $id->toString(), $e->attributeIds()));
+            self::assertSame($before, $this->everything($listing));
+        }
+    }
+
+    public function testPublishRefusalsAreOrderedSellerThenCategoryThenValuesThenCompleteness(): void
+    {
+        // A draft on a Branch with an empty brand: the category refusal wins over L-13.
+        $listing = $this->draftOnElectric();
+
+        $this->expectException(CategoryIsNotALeaf::class);
+
+        $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Branch, $this->requiredElectricSchema(), $this->at());
+    }
+
+    public function testAnInvalidStoredValueIsReportedBeforeAMissingRequiredOne(): void
+    {
+        $listing = $this->draftOnElectric();
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), [self::STRINGS => '6']);
+
+        // brand and condition are empty (L-13) *and* strings = 6 is out of 7…12 (L-9): L-9 first.
+        $this->expectException(InvalidAttributeValue::class);
+
+        $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->requiredElectricSchema(7, 12), $this->at());
+    }
+
+    public function testPublishingAPublishedListingChangesNothingKeepsPublishedAtAndRecordsNothing(): void
+    {
+        $listing = $this->publishedD();
+        $before = $this->everything($listing);
+
+        $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->requiredElectricSchema(), $this->at(60));
+
+        self::assertSame($before, $this->everything($listing));
+        self::assertEquals($this->at(), $listing->publishedAt());
+    }
+
+    public function testWithdrawingAPublishedListingKeepsPublishedAtAndRecordsNoEvent(): void
+    {
+        $listing = $this->publishedD();
+
+        $listing->withdraw(SellerId::fromString(self::ANN));
+
+        self::assertSame(ListingStatus::Withdrawn, $listing->status());
+        self::assertEquals($this->at(), $listing->publishedAt());
+        self::assertSame([], $listing->releaseEvents());
+    }
+
+    public function testWithdrawingAWithdrawnListingChangesNothing(): void
+    {
+        $listing = $this->withdrawnD();
+        $before = $this->everything($listing);
+
+        $listing->withdraw(SellerId::fromString(self::ANN));
+
+        self::assertSame($before, $this->everything($listing));
+    }
+
+    public function testWithdrawingADraftIsRefused(): void
+    {
+        $listing = $this->completeDraft();
+
+        try {
+            $listing->withdraw(SellerId::fromString(self::ANN));
+            self::fail('A draft was withdrawn.');
+        } catch (ListingNotPublished) {
+            self::assertSame(ListingStatus::Draft, $listing->status());
+        }
+    }
+
+    public function testAnotherSellerCannotWithdraw(): void
+    {
+        $listing = $this->publishedD();
+
+        try {
+            $listing->withdraw(SellerId::fromString(self::BOB));
+            self::fail('Bob withdrew Ann\'s listing.');
+        } catch (NotTheSeller) {
+            self::assertSame(ListingStatus::Published, $listing->status());
+        }
+    }
+
+    public function testWithdrawByAnotherSellerIsRefusedAsNotTheSellerEvenForADraft(): void
+    {
+        $this->expectException(NotTheSeller::class);
+
+        $this->completeDraft()->withdraw(SellerId::fromString(self::BOB));
+    }
+
+    public function testPublishingAgainAfterAWithdrawMovesPublishedAtForwardAndRecordsOneEvent(): void
+    {
+        $listing = $this->withdrawnD();
+
+        $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->requiredElectricSchema(), $this->at(60));
+
+        self::assertSame(ListingStatus::Published, $listing->status());
+        self::assertEquals($this->at(60), $listing->publishedAt());
+        $events = $listing->releaseEvents();
+        self::assertCount(1, $events);
+        self::assertInstanceOf(ListingPublished::class, $events[0]);
+        self::assertEquals($this->at(60), $events[0]->publishedAt());
+    }
+
+    public function testADraftAndAWithdrawnListingSaveWithRequiredDetailsEmpty(): void
+    {
+        foreach ([$this->draftOnElectric(), $this->withdrawnD()] as $listing) {
+            $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->requiredElectricSchema(), [self::CONDITION => '', self::BRAND => '']);
+
+            self::assertTrue($listing->attributeValues()->isEmpty(), $listing->status()->name);
+        }
+    }
+
+    public function testRevisingAPublishedListingThatKeepsItsRequiredDetailsSucceedsAndStaysPublished(): void
+    {
+        $listing = $this->publishedD();
+
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->requiredElectricSchema(), [self::CONDITION => self::NEW, self::BRAND => self::GIBSON], 'New title');
+
+        self::assertSame(ListingStatus::Published, $listing->status());
+        self::assertSame('New title', $listing->title()->toString());
+        self::assertSame([self::CONDITION => self::NEW, self::BRAND => self::GIBSON], $this->valuesAsScalars($listing));
+        self::assertSame([], $listing->releaseEvents());
+    }
+
+    public function testRevisingAPublishedListingByClearingARequiredDetailIsRefusedAndNothingChanges(): void
+    {
+        $listing = $this->publishedD();
+        $before = $this->everything($listing);
+
+        try {
+            $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->requiredElectricSchema(), [self::CONDITION => self::USED, self::BRAND => ''], 'Never saved');
+            self::fail('A published listing lost a required detail.');
+        } catch (ListingIncomplete $e) {
+            self::assertSame([self::BRAND], array_map(static fn (AttributeId $id): string => $id->toString(), $e->attributeIds()));
+            self::assertSame($before, $this->everything($listing));
+        }
+    }
+
+    public function testRevisingAPublishedListingAgainstASchemaWithANewRequiredAttributeNamesIt(): void
+    {
+        $listing = $this->publishedD();
+        $before = $this->everything($listing);
+        $schema = AttributeSchema::of(
+            AttributeRule::choice(AttributeId::fromString(self::CONDITION), [AttributeOptionId::fromString(self::NEW), AttributeOptionId::fromString(self::USED)], true),
+            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER), AttributeOptionId::fromString(self::GIBSON)], true),
+            AttributeRule::text(AttributeId::fromString(self::NEW_REQUIRED), true),
+        );
+
+        try {
+            // The input has no field for the new attribute — absent, not blank.
+            $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $schema, [self::CONDITION => self::USED, self::BRAND => self::FENDER]);
+            self::fail('A new required attribute was ignored.');
+        } catch (ListingIncomplete $e) {
+            self::assertSame([self::NEW_REQUIRED], array_map(static fn (AttributeId $id): string => $id->toString(), $e->attributeIds()));
+            self::assertSame($before, $this->everything($listing));
+        }
+    }
+
+    public function testAPublishedListingCannotBeRefiledEvenToALeaf(): void
+    {
+        $listing = $this->publishedD();
+        $before = $this->everything($listing);
+
+        try {
+            $this->reviseWith($listing, self::ANN, self::BASS, CategoryStatus::Leaf, $this->requiredBassSchema(), [self::CONDITION => self::USED]);
+            self::fail('A published listing was re-filed.');
+        } catch (PublishedListingCannotBeRefiled) {
+            self::assertSame($before, $this->everything($listing));
+        }
+    }
+
+    public function testTheRefileRefusalComesBeforeTheCategoryCheckEvenWhenTheTargetIsMissing(): void
+    {
+        $listing = $this->publishedD();
+
+        $this->expectException(PublishedListingCannotBeRefiled::class);
+
+        $this->reviseWith($listing, self::ANN, self::BASS, CategoryStatus::Missing, $this->requiredBassSchema(), [self::CONDITION => self::USED]);
+    }
+
+    public function testAWithdrawnListingCanBeRefiledAndLosesWhatDoesNotFollow(): void
+    {
+        $listing = $this->withdrawnD();
+
+        $this->reviseWith($listing, self::ANN, self::BASS, CategoryStatus::Leaf, $this->requiredBassSchema(), [self::CONDITION => self::USED, self::BRAND => self::FENDER]);
+
+        self::assertSame(self::BASS, $listing->categoryId()->toString());
+        self::assertSame(ListingStatus::Withdrawn, $listing->status());
+        self::assertSame([self::CONDITION => self::USED], $this->valuesAsScalars($listing));
     }
 
     public function testListingRecordsDomainEvents(): void
