@@ -27,7 +27,7 @@
       `CategoriesForListing::schemaOf()` (select `a.is_required`) and `ListingFactory`'s rule
       builder **in the same commit** — the constructors change signature, so nothing compiles
       otherwise.
-- [ ] **T2:** `ListingStatus::Published`, `::Withdrawn`; exceptions `ListingIncomplete`,
+- [x] **T2:** `ListingStatus::Published`, `::Withdrawn`; exceptions `ListingIncomplete`,
       `ListingNotPublished`, `PublishedListingCannotBeRefiled`.
 - [ ] **T3:** Event `ListingPublished` (ids + `publishedAt`, docblock: no snapshot, no secret,
       dispatched after commit).
