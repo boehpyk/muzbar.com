@@ -118,7 +118,7 @@
         parsing that needs a fact, and refusing now so the real rule can come later.
 
 ## Verify
-- [ ] **T22:** `/verify` → reviewer PASS, AC-1…AC-29 checked, empty `make migration.make`, both
+- [x] **T22:** `/verify` → reviewer PASS, AC-1…AC-29 checked, empty `make migration.make`, both
       isolation scans green. Then by hand on the dev stack:
       1. Create a draft on a leaf → land on its edit page with the Details section.
       2. Fill every kind; save; reopen — prefilled. Enter "7,5" for a number, a 201-char text: 422s.
@@ -132,4 +132,6 @@
       If a hand-check contradicts the green suite, suspect the runtime (opcache) before the code.
 
       *2026-11-20: `/verify` PASS first iteration (reviewer, AC-1…AC-29, gates); MINORs 1–7 and
-      STYLE 8–9 fixed. Hand-checks 1–6 still to do.*
+      STYLE 8–9 fixed. Hand-checks 1–6 passed in Chromium on the dev stack the same day. The
+      reviewer's uppercase-option-id note was unreachable — `Requirement::UUID` is lowercase-only, so
+      the route 404s first — and its fix was reverted as dead code.*

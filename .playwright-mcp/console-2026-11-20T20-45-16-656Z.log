@@ -1,0 +1,7 @@
+[     261ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/register:1
+[     262ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8080/register:1
+[  101179ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Content) @ http://localhost:8080/sell/drafts/01a1fab6-379c-7c5f-a71d-2bcf6dc4ae14/edit:1
+[  101436ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Content) @ http://localhost:8080/sell/drafts/01a1fab6-379c-7c5f-a71d-2bcf6dc4ae14/edit:1
+[  131980ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Content) @ http://localhost:8080/admin/categories/01a1fab5-dc66-751c-b0c4-dcc40abdb09f/edit:1
+[  155699ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/admin/attributes/01a1fab6-115e-78b3-81b8-896152bf68f6/options/01A1FAB6-115E-79DF-81B8-89615327B6CE/delete:1
+[  156203ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Content) @ http://localhost:8080/sell/drafts/01a1fab6-379c-7c5f-a71d-2bcf6dc4ae14/edit:1
