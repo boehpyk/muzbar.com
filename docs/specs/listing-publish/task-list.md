@@ -47,7 +47,7 @@
       `ListingNotFound`).
 
 ## Infrastructure — read side
-- [ ] **T7:** `DbalAttributeSchema::optionLabels()` (one query by id; `[]` without a query).
+- [x] **T7:** `DbalAttributeSchema::optionLabels()` (one query by id; `[]` without a query).
 
 ## Infrastructure
 - [x] **T8:** ~~URL/read-model rename~~ — dropped (Q8, owner 2026-11-20). Only the heading of
