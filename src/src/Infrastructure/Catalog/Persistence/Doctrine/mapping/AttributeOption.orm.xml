@@ -57,6 +57,9 @@
         <!-- `key()` uses simple case mapping (one code point per code point), so 100 suffices. -->
         <field name="labelKey" column="label_key" type="string" length="100" nullable="false"/>
 
+        <!-- C-28: null while active. Archived labels stay in the unique index on purpose (C-29). -->
+        <field name="archivedAt" column="archived_at" type="datetimetz_immutable" nullable="true"/>
+
     </entity>
 
 </doctrine-mapping>

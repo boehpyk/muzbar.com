@@ -49,13 +49,21 @@ use App\Domain\Catalog\ValueObject\NumberRules;
  * on are read by the handler, and they are only true while `CategoryTreeLock` is held — every
  * attribute and option write runs inside `exclusively()`.
  *
- * No `delete()` (ADR-0012), no setters for the id, the category or the type (C-14), no domain
- * events (plan D10). Every check precedes every assignment, so a refused call mutates nothing.
+ * C-28, archiving is a reversible **state**: `archive()` / `restore()` (ADR-0022). An archived
+ * attribute is in no active schema, but its row — and every listing value naming its id — stays.
+ *
+ * No `delete()` (ADR-0012: hard delete is non-existence, the handler's and the port's business, and
+ * archive is the transition this aggregate governs instead), no setters for the id, the category or
+ * the type (C-14), no domain events (plan D10). Every check precedes every assignment, so a refused
+ * call mutates nothing.
  *
  * Properties are plain `private`, not `readonly` (ADR-0007): Doctrine hydrates them.
  */
 final class Attribute
 {
+    /** Null while active (C-28); set to the first archive instant, whole seconds (Clock, ADR-0007). */
+    private ?\DateTimeImmutable $archivedAt = null;
+
     private function __construct(
         private AttributeId $id,
         private CategoryId $categoryId,
@@ -213,30 +221,59 @@ final class Attribute
     }
 
     /**
-     * Decides whether one of this attribute's options may be removed (C-18), on the current option
-     * count the handler read **under `CategoryTreeLock`** — without the lock, two concurrent removes
-     * of the last two options would each count 2 and both pass (write skew).
+     * Decides whether an **active** option may leave the active set — archived or deleted (C-18,
+     * counting active options since listing-schema-drift, ADR-0022) — on the active option count the
+     * handler read **under `CategoryTreeLock`** (`countActiveForAttribute()`). Without the lock, two
+     * concurrent removals of the last two active options would each count 2 and both pass (write
+     * skew). An already-archived option leaving costs the active set nothing, so the handler does not
+     * ask.
      *
-     * A guard with no state change, deliberately: "at least one option" is this attribute's
-     * invariant, so it decides; the option's removal is non-existence, which ADR-0012 keeps off every
-     * aggregate.
+     * A guard with no state change, deliberately: "at least one option sellers can pick" is this
+     * attribute's invariant, so it decides; the option's removal is non-existence (ADR-0012) and its
+     * archive is the option's own transition.
      *
      * @throws AttributeRuleNotApplicable this is not a choice attribute
      * @throws AttributeNeedsAnOption     the option is the last one
      */
-    public function allowOptionRemoval(int $optionCount): void
+    public function allowOptionRemoval(int $activeOptionCount): void
     {
         if (AttributeType::Choice !== $this->type) {
             throw AttributeRuleNotApplicable::options($this->type);
         }
 
-        if ($optionCount < 1) {
-            throw new \InvalidArgumentException(\sprintf('An option is being removed, so the attribute has at least 1; got %d.', $optionCount));
+        if ($activeOptionCount < 1) {
+            throw new \InvalidArgumentException(\sprintf('An active option is being removed, so the attribute has at least 1; got %d.', $activeOptionCount));
         }
 
-        if (1 === $optionCount) {
+        if (1 === $activeOptionCount) {
             throw AttributeNeedsAnOption::cannotRemoveLast($this->id);
         }
+    }
+
+    /**
+     * C-28: takes this attribute out of every active schema — its listing values go dormant (L-17),
+     * nothing is deleted. On an archived attribute a no-op that **keeps the first instant**.
+     *
+     * @param \DateTimeImmutable $now the `Clock` port's now (whole seconds, ADR-0007)
+     */
+    public function archive(\DateTimeImmutable $now): void
+    {
+        if (null !== $this->archivedAt) {
+            return;
+        }
+
+        $this->archivedAt = $now;
+    }
+
+    /**
+     * C-28, and C-29 is why this takes no facts and is never refused: an archived attribute's code
+     * **stays reserved** — `codesDefinedOn()` reads archived rows, so no other attribute on the branch
+     * can have taken it meanwhile. Restore is therefore not a fourth door to C-21. Free archived codes
+     * and this method needs the branch codes under the lock (ADR-0022). On an active attribute a no-op.
+     */
+    public function restore(): void
+    {
+        $this->archivedAt = null;
     }
 
     /**
@@ -284,5 +321,15 @@ final class Attribute
     public function numberRules(): ?NumberRules
     {
         return $this->numberRules;
+    }
+
+    public function archivedAt(): ?\DateTimeImmutable
+    {
+        return $this->archivedAt;
+    }
+
+    public function isArchived(): bool
+    {
+        return null !== $this->archivedAt;
     }
 }

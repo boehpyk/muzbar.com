@@ -181,6 +181,8 @@ final class DoctrineAttributeOptionRepositoryTest extends KernelTestCase
             'attribute_id' => 'uuid::NO',
             'label' => 'character varying:100:NO',
             'label_key' => 'character varying:100:NO',
+            // listing-schema-drift (C-28): null while active.
+            'archived_at' => 'timestamp with time zone::YES',
         ], $columns);
         self::assertSame(0, $this->db->fetchOne("SELECT count(*) FROM pg_constraint WHERE conrelid = 'catalog_attribute_option'::regclass AND contype = 'f'"));
     }

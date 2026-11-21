@@ -383,9 +383,9 @@ final class AttributeTest extends TestCase
         sort($methods);
 
         $allowed = [
-            'allowOptionRemoval', 'categoryId', 'changeNumberRules', 'changeRequired', 'code', 'defineBoolean',
-            'defineChoice', 'defineNumber', 'defineText', 'id', 'isRequired', 'label', 'newOption', 'numberRules',
-            'recode', 'relabel', 'type',
+            'allowOptionRemoval', 'archive', 'archivedAt', 'categoryId', 'changeNumberRules', 'changeRequired',
+            'code', 'defineBoolean', 'defineChoice', 'defineNumber', 'defineText', 'id', 'isArchived', 'isRequired',
+            'label', 'newOption', 'numberRules', 'recode', 'relabel', 'restore', 'type',
         ];
 
         self::assertSame($allowed, $methods);

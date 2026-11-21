@@ -59,7 +59,10 @@ final class AttributeOptionTest extends TestCase
         );
         sort($methods);
 
-        self::assertSame(['attributeId', 'create', 'id', 'label', 'labelKey', 'relabel'], $methods);
+        self::assertSame([
+            'archive', 'archivedAt', 'attributeId', 'create', 'id', 'isArchived', 'label', 'labelKey', 'relabel',
+            'restore',
+        ], $methods);
     }
 
     public function testDoesNotRecordDomainEvents(): void

@@ -54,6 +54,9 @@
         <field name="required" column="is_required" type="boolean" nullable="false"/>
         <field name="numberRules" column="number_rules" type="catalog_attribute_number_rules" nullable="true"/>
 
+        <!-- C-28: null while active. No index (ADR-0022 D8): a filter on rows already found. -->
+        <field name="archivedAt" column="archived_at" type="datetimetz_immutable" nullable="true"/>
+
     </entity>
 
 </doctrine-mapping>

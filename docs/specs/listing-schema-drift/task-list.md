@@ -24,7 +24,7 @@
       (plan Risk 7). No code.
 
 ## Domain — `Catalog`
-- [ ] **T1:** `Attribute` and `AttributeOption`: `archivedAt` property (null in every constructor),
+- [x] **T1:** `Attribute` and `AttributeOption`: `archivedAt` property (null in every constructor),
       `archive()` (no-op keeps the first instant), `restore()`, `archivedAt()`, `isArchived()`;
       `<field>` in both `.orm.xml`; the generated migration — **one commit** (a mapped property without
       its column fails every load). Prove `make migration.make` is empty afterwards. Docblocks: C-28,

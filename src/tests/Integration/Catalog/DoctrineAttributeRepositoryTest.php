@@ -196,6 +196,8 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
             'type' => 'character varying:16:NO',
             'is_required' => 'boolean::NO',
             'number_rules' => 'jsonb::YES',
+            // listing-schema-drift (C-28): null while active.
+            'archived_at' => 'timestamp with time zone::YES',
         ], $columns);
         self::assertSame(0, $this->db->fetchOne("SELECT count(*) FROM pg_constraint WHERE conrelid = 'catalog_attribute'::regclass AND contype = 'f'"));
         self::assertSame('id', $this->db->fetchOne("SELECT a.attname FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey) WHERE i.indrelid = 'catalog_attribute'::regclass AND i.indisprimary"));
