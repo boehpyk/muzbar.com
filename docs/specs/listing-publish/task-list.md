@@ -103,7 +103,7 @@
         commit", and privacy as a column you never select.
 
 ## Verify
-- [ ] **T22:** `/verify` → reviewer PASS, AC-1…AC-29 checked, empty `make migration.make`, both
+- [x] **T22:** `/verify` → reviewer PASS, AC-1…AC-29 checked, empty `make migration.make`, both
       isolation scans green. Then by hand on the dev stack (Chromium):
       1. Draft with required details empty → "Save and publish" → 422 with every missing field
          marked; fill them → lands on `/listings/{id}`, shows path, price, details, "Listed on".
