@@ -31,7 +31,7 @@
     three-column index would not do, because NULLs are distinct (the C-3 lesson). No
     `parent_option_id` exists yet, on purpose.
 
-    The index's leading column also serves `countForAttribute()`, `removeAllForAttribute()` and the
+    The index's leading column also serves `countActiveForAttribute()`, `removeAllForAttribute()` and the
     per-attribute option list.
 -->
 <doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"

@@ -18,7 +18,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * The fact reads (`isLabelTaken`, `countForAttribute`) and the sweep are plain DBAL on the
+ * The fact reads (`isLabelTaken`, `countActiveForAttribute`) and the sweep are plain DBAL on the
  * EntityManager's own connection, so inside `CategoryTreeLock::exclusively()` they run in the lock's
  * transaction (ADR-0017 decision 3).
  *
@@ -63,10 +63,10 @@ final readonly class DoctrineAttributeOptionRepository implements AttributeOptio
         );
     }
 
-    public function countForAttribute(AttributeId $attributeId): int
+    public function countActiveForAttribute(AttributeId $attributeId): int
     {
         $count = $this->entityManager->getConnection()->fetchOne(
-            'SELECT count(*) FROM catalog_attribute_option WHERE attribute_id = :attribute',
+            'SELECT count(*) FROM catalog_attribute_option WHERE attribute_id = :attribute AND archived_at IS NULL',
             ['attribute' => $attributeId],
             ['attribute' => AttributeIdType::NAME],
         );

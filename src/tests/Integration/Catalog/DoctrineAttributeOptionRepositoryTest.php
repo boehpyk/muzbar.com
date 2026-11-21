@@ -104,12 +104,12 @@ final class DoctrineAttributeOptionRepositoryTest extends KernelTestCase
         self::assertFalse($this->options->isLabelTaken($other->id(), AttributeLabel::fromString('Right'), null));
     }
 
-    public function testCountForAttributeCountsOnlyItsOwnOptions(): void
+    public function testCountActiveForAttributeCountsOnlyItsOwnOptions(): void
     {
         $three = AttributeFactory::new()->choice(['A', 'B', 'C'])->create();
         AttributeFactory::new()->choice(['X'])->create();
 
-        self::assertSame(3, $this->options->countForAttribute($three->id()));
+        self::assertSame(3, $this->options->countActiveForAttribute($three->id()));
     }
 
     public function testGetOfAnUnknownIdIsOptionNotFound(): void
@@ -129,7 +129,7 @@ final class DoctrineAttributeOptionRepositoryTest extends KernelTestCase
 
         $this->options->save(...$batch);
 
-        self::assertSame(4, $this->options->countForAttribute($attribute->id()));
+        self::assertSame(4, $this->options->countActiveForAttribute($attribute->id()));
     }
 
     // ---------------------------------------------------------------- AC-13 order

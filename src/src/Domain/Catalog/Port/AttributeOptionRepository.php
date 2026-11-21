@@ -14,7 +14,7 @@ use App\Domain\Catalog\ValueObject\AttributeOptionId;
 /**
  * The collection of AttributeOptions, plus the facts the option set-rules are decided on.
  *
- * `isLabelTaken()` (C-17) and `countForAttribute()` (C-18) are only true inside
+ * `isLabelTaken()` (C-17) and `countActiveForAttribute()` (C-18) are only true inside
  * `CategoryTreeLock::exclusively()`. C-18 has no index behind it at all, so a count read outside the
  * lock is a write-skew bug that no test of a single request can see (ADR-0017).
  */
@@ -35,11 +35,18 @@ interface AttributeOptionRepository
      * Whether an option of `$attributeId` other than `$except` has the same `AttributeLabel::key()`
      * as `$label`. The C-17 pre-check, for the message; the unique index `(attribute_id, label_key)`
      * is the guarantee. Dependent options will widen it with a parent-option argument (plan D14).
+     *
+     * Archived options included, on purpose (C-29, ADR-0022): an archived label stays reserved, so
+     * restoring an option needs no C-17 check.
      */
     public function isLabelTaken(AttributeId $attributeId, AttributeLabel $label, ?AttributeOptionId $except): bool;
 
-    /** How many options `$attributeId` has — the fact `Attribute::allowOptionRemoval()` decides on. */
-    public function countForAttribute(AttributeId $attributeId): int;
+    /**
+     * How many **active** (not archived) options `$attributeId` has — the fact
+     * `Attribute::allowOptionRemoval()` decides on (C-18 counts options sellers can pick, ADR-0022).
+     * Renamed from `countForAttribute()` when its meaning narrowed, so no old caller keeps the old one.
+     */
+    public function countActiveForAttribute(AttributeId $attributeId): int;
 
     /**
      * Persists one or many options, new or changed, in one flush (a defining brand list may hold

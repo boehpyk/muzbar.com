@@ -14,8 +14,9 @@ use App\Domain\Catalog\ValueObject\AttributeOptionId;
  * with the data's owner, in `Infrastructure/Listing`.
  *
  * It backs C-25 (an attribute in use cannot be deleted) and C-26 (an option in use cannot be
- * removed): the refusals that keep a stored value from pointing at nothing until
- * `listing-schema-drift` brings soft delete.
+ * removed): the guards of **hard** delete, which keep a stored value from pointing at nothing. An
+ * attribute or option in use is archived instead (C-28, ADR-0022). Both count **dormant** values
+ * too — they are real rows naming real ids, and a restore or a move back wakes them.
  *
  * Both answers are **only true inside `CategoryTreeLock::exclusively()`**: Listing writes hold the
  * same lock in shared mode, so none can store a value between this read and the caller's commit.

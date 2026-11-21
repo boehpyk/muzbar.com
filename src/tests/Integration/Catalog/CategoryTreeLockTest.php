@@ -324,7 +324,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         self::assertSame(1, $lock->entries());
         $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'get');
         $this->assertEveryCallWasUnderTheLock($options->calls(), 'remove');
-        self::assertContains('countForAttribute', array_column($options->calls(), 0), 'The last-option count was not read.');
+        self::assertContains('countActiveForAttribute', array_column($options->calls(), 0), 'The last-option count was not read.');
     }
 
     public function testDeleteAttributeHandlerRemovesAndSweepsInsideTheLock(): void

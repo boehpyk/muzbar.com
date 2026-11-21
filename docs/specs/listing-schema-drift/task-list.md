@@ -29,7 +29,7 @@
       `<field>` in both `.orm.xml`; the generated migration — **one commit** (a mapped property without
       its column fails every load). Prove `make migration.make` is empty afterwards. Docblocks: C-28,
       C-29 at `restore()`.
-- [ ] **T2:** `countForAttribute()` → `countActiveForAttribute()` on the port + adapter (`AND
+- [x] **T2:** `countForAttribute()` → `countActiveForAttribute()` on the port + adapter (`AND
       archived_at IS NULL`) + test doubles (`ObservedAttributeOptionRepository`,
       `RacingAttributeOptionRepository`); `allowOptionRemoval(int $activeOptionCount)` docblock;
       `RemoveAttributeOptionHandler` checks C-18 only for an active option. Docblocks "archived rows

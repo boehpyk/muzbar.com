@@ -34,11 +34,17 @@ interface AttributeRepository
      * subtree. De-duplicated, because a set may lawfully hold one code twice (sibling branches) and
      * legacy data may too. An empty list is `AttributeCodes::none()` without asking anything.
      *
+     * Archived attributes included, on purpose (C-29, ADR-0022): an archived code stays reserved on
+     * its branch, so restore is not a fourth door to C-21.
+     *
      * @param list<CategoryId> $categories
      */
     public function codesDefinedOn(array $categories): AttributeCodes;
 
-    /** Whether `$categoryId` defines any attribute — the C-13 delete guard's fact. */
+    /**
+     * Whether `$categoryId` defines any attribute — the C-13 delete guard's fact. Archived attributes
+     * included, on purpose (C-13): an archived row is still a row that names the category.
+     */
     public function existsForCategory(CategoryId $categoryId): bool;
 
     /**
