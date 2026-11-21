@@ -732,6 +732,130 @@ final class ListingTest extends TestCase
         self::assertSame([self::CONDITION => self::USED], $this->valuesAsScalars($listing));
     }
 
+    // listing-schema-drift AC-3…AC-5 (L-17, L-14 narrowed). Brand is "archived" = absent from the schema.
+
+    /** Electric's required schema with brand gone — what `schemaOf()` returns once brand is archived. */
+    private function electricSchemaWithoutBrand(?int $stringsMin = 4, ?int $stringsMax = 12): AttributeSchema
+    {
+        return AttributeSchema::of(
+            AttributeRule::choice(AttributeId::fromString(self::CONDITION), [AttributeOptionId::fromString(self::NEW), AttributeOptionId::fromString(self::USED)], true),
+            AttributeRule::number(AttributeId::fromString(self::STRINGS), $stringsMin, $stringsMax, false),
+            AttributeRule::boolean(AttributeId::fromString(self::HAS_CASE), false),
+            AttributeRule::text(AttributeId::fromString(self::SERIAL), false),
+        );
+    }
+
+    /** Brand rule offers Gibson only — Fender archived while brand stays in force. */
+    private function electricSchemaWithGibsonOnly(): AttributeSchema
+    {
+        return AttributeSchema::of(
+            AttributeRule::choice(AttributeId::fromString(self::CONDITION), [AttributeOptionId::fromString(self::NEW), AttributeOptionId::fromString(self::USED)], true),
+            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::GIBSON)], true),
+        );
+    }
+
+    public function testReviseKeepingTheCategoryCarriesADormantValueOver(): void
+    {
+        $listing = $this->completeDraft();
+        $brand = $listing->attributeValues()->for(AttributeId::fromString(self::BRAND));
+        self::assertNotNull($brand);
+
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchemaWithoutBrand(), [self::CONDITION => self::NEW, self::STRINGS => '8']);
+
+        self::assertSame([self::CONDITION => self::NEW, self::BRAND => self::FENDER, self::STRINGS => 8], $this->sorted($this->valuesAsScalars($listing)));
+        self::assertTrue($brand->equals($listing->attributeValues()->for(AttributeId::fromString(self::BRAND)) ?? $this->fail('brand was dropped')));
+    }
+
+    public function testReviseClearingEveryInForceInputLeavesOnlyTheDormantValue(): void
+    {
+        $listing = $this->completeDraft();
+
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchemaWithoutBrand(), []);
+
+        self::assertSame([self::BRAND => self::FENDER], $this->valuesAsScalars($listing));
+    }
+
+    public function testAnInputForADormantAttributeIsStillRefusedAndNothingChanges(): void
+    {
+        $listing = $this->completeDraft();
+        $before = $this->everything($listing);
+
+        try {
+            $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchemaWithoutBrand(), [self::CONDITION => self::NEW, self::BRAND => self::GIBSON]);
+            self::fail('An input for a dormant attribute was accepted.');
+        } catch (InvalidAttributeValue $e) {
+            self::assertSame(InvalidAttributeValueReason::NotInForce, $e->reason());
+            self::assertSame(self::BRAND, $e->attributeId()?->toString());
+            self::assertSame($before, $this->everything($listing));
+        }
+    }
+
+    public function testRevisingAPublishedListingKeepsADormantRequiredValueAndDoesNotCountItAsMissing(): void
+    {
+        $listing = $this->publishedD();
+
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchemaWithoutBrand(), [self::CONDITION => self::USED]);
+
+        self::assertSame(ListingStatus::Published, $listing->status());
+        self::assertSame(self::FENDER, $this->valuesAsScalars($listing)[self::BRAND] ?? null);
+    }
+
+    public function testRefilingDropsADormantValueAlongWithEverythingTheNewCategoryDoesNotAsk(): void
+    {
+        $listing = $this->withdrawnD();
+
+        $this->reviseWith($listing, self::ANN, self::BASS, CategoryStatus::Leaf, $this->requiredBassSchema(), [self::CONDITION => self::NEW]);
+
+        self::assertSame([self::CONDITION => self::NEW], $this->valuesAsScalars($listing));
+    }
+
+    public function testPublishIgnoresADormantValueNoSchemaAsksFor(): void
+    {
+        $listing = $this->completeDraft();
+
+        $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->electricSchemaWithoutBrand(), $this->at());
+
+        self::assertSame(ListingStatus::Published, $listing->status());
+        self::assertSame(self::FENDER, $this->valuesAsScalars($listing)[self::BRAND] ?? null);
+    }
+
+    public function testPublishRefusesAStaleValueWhoseOptionIsNoLongerOffered(): void
+    {
+        $listing = $this->completeDraft();
+        $before = $this->everything($listing);
+
+        try {
+            $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->electricSchemaWithGibsonOnly(), $this->at());
+            self::fail('A stale archived option was published.');
+        } catch (InvalidAttributeValue $e) {
+            self::assertSame(InvalidAttributeValueReason::NotAnOption, $e->reason());
+            self::assertSame(self::BRAND, $e->attributeId()?->toString());
+            self::assertSame($before, $this->everything($listing));
+        }
+    }
+
+    public function testPublishDoesNotReportAnArchivedRequiredAttributeAsMissing(): void
+    {
+        $listing = $this->draftOnElectric();
+        $this->reviseWith($listing, self::ANN, self::ELECTRIC, CategoryStatus::Leaf, $this->electricSchema(), [self::CONDITION => self::USED]);
+
+        $listing->publish(SellerId::fromString(self::ANN), CategoryStatus::Leaf, $this->electricSchemaWithoutBrand(), $this->at());
+
+        self::assertSame(ListingStatus::Published, $listing->status());
+    }
+
+    /**
+     * @param array<string, int|string|bool|null> $values
+     *
+     * @return array<string, int|string|bool|null>
+     */
+    private function sorted(array $values): array
+    {
+        ksort($values);
+
+        return $values;
+    }
+
     public function testListingRecordsDomainEvents(): void
     {
         // Inverted on purpose by listing-publish (AC-6): `publish()` records `ListingPublished`.

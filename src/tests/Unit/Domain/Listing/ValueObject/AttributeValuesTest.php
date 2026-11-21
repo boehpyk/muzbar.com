@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Domain\Listing\ValueObject;
 
 use App\Domain\Listing\ValueObject\AttributeId;
+use App\Domain\Listing\ValueObject\AttributeRule;
+use App\Domain\Listing\ValueObject\AttributeSchema;
 use App\Domain\Listing\ValueObject\AttributeValue;
 use App\Domain\Listing\ValueObject\AttributeValues;
 use PHPUnit\Framework\TestCase;
 
-/** AC-2 (the L-8 half). */
+/** listing-attribute-values AC-2 (the L-8 half); listing-schema-drift AC-6 (the fact helpers). */
 final class AttributeValuesTest extends TestCase
 {
     private const string A = '018f5b2a-0000-7000-8000-00000000a001';
@@ -75,5 +77,50 @@ final class AttributeValuesTest extends TestCase
         self::assertFalse($base->equals(AttributeValues::none()));
         self::assertFalse(AttributeValues::none()->equals($base));
         self::assertTrue(AttributeValues::none()->equals(AttributeValues::none()));
+    }
+
+    private function schemaOfAAndB(): AttributeSchema
+    {
+        return AttributeSchema::of(
+            AttributeRule::number(AttributeId::fromString(self::A), null, null, false),
+            AttributeRule::number(AttributeId::fromString(self::B), null, null, false),
+        );
+    }
+
+    public function testOnlyForKeepsTheInForceValuesAndNotInKeepsTheRest(): void
+    {
+        $values = AttributeValues::of($this->number(self::A, 1), $this->number(self::B, 2), $this->number(self::C, 3));
+        $schema = $this->schemaOfAAndB();
+
+        self::assertSame([1, 2], array_map(static fn (AttributeValue $v): ?int => $v->number(), $values->onlyFor($schema)->toList()));
+        self::assertSame([3], array_map(static fn (AttributeValue $v): ?int => $v->number(), $values->notIn($schema)->toList()));
+    }
+
+    public function testOnlyForAndNotInPartitionTheOriginalSet(): void
+    {
+        $values = AttributeValues::of($this->number(self::A, 1), $this->number(self::B, 2), $this->number(self::C, 3));
+        $schema = $this->schemaOfAAndB();
+        $in = $values->onlyFor($schema);
+        $out = $values->notIn($schema);
+
+        self::assertTrue($values->equals(AttributeValues::of(...$in->toList(), ...$out->toList())));
+
+        foreach ($in->toList() as $value) {
+            self::assertNull($out->for($value->attributeId()));
+        }
+    }
+
+    public function testBothHelpersOnNoneAreNone(): void
+    {
+        self::assertTrue(AttributeValues::none()->onlyFor($this->schemaOfAAndB())->isEmpty());
+        self::assertTrue(AttributeValues::none()->notIn($this->schemaOfAAndB())->isEmpty());
+    }
+
+    public function testAnEmptySchemaMakesEveryValueDormant(): void
+    {
+        $values = AttributeValues::of($this->number(self::A, 1));
+
+        self::assertTrue($values->onlyFor(AttributeSchema::of())->isEmpty());
+        self::assertTrue($values->notIn(AttributeSchema::of())->equals($values));
     }
 }

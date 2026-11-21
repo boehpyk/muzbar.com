@@ -71,7 +71,7 @@
       another."* refusal.
 
 ## Tests (qa)
-- [ ] **T13:** Domain unit: `AttributeTest`, `AttributeOptionTest` (AC-1, AC-2, allow-lists AC-7),
+- [x] **T13:** Domain unit: `AttributeTest`, `AttributeOptionTest` (AC-1, AC-2, allow-lists AC-7),
       `AttributeValuesTest` (AC-6), `ListingTest` (AC-3…AC-5); isolation scans green (AC-7).
 - [ ] **T14:** Factories: `AttributeFactory->archived()`, `AttributeOptionFactory->archived()`, through
       `archive()`. No factory may build a dormant value — tests make one through the handlers.
