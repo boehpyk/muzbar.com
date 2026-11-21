@@ -4,10 +4,18 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Listing;
 
+use App\Application\Catalog\Command\ArchiveAttribute;
+use App\Application\Catalog\Command\ArchiveAttributeOption;
 use App\Application\Catalog\Command\DefineAttribute;
 use App\Application\Catalog\Command\EditAttribute;
+use App\Application\Catalog\Command\EditCategory;
+use App\Application\Catalog\Command\RestoreAttribute;
+use App\Application\Catalog\Handler\ArchiveAttributeHandler;
+use App\Application\Catalog\Handler\ArchiveAttributeOptionHandler;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
 use App\Application\Catalog\Handler\EditAttributeHandler;
+use App\Application\Catalog\Handler\EditCategoryHandler;
+use App\Application\Catalog\Handler\RestoreAttributeHandler;
 use App\Domain\Catalog\Entity\Category;
 use App\Domain\Identity\Entity\User;
 use App\Domain\Listing\Entity\Listing;
@@ -414,6 +422,96 @@ final class PublicListingTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(200);
         self::assertSame($before, $after->filter('article.listing')->outerHtml(), 'Never retroactive: the page shows what was stored, 6 pcs included.');
+    }
+
+    // ---------------------------------------------------------------- listing-schema-drift AC-21
+
+    /**
+     * @return list<string> the labels of the Details list
+     */
+    private function detailLabels(Listing $listing): array
+    {
+        $page = $this->client->request('GET', $this->url($listing));
+        self::assertResponseStatusCodeSame(200);
+
+        return array_map(static fn (array $pair): string => $pair[0], $this->details($page));
+    }
+
+    private function moveElectricUnder(Category $parent): void
+    {
+        ($this->service(EditCategoryHandler::class))(new EditCategory($this->electric->id()->toString(), $this->electric->name()->toString(), $this->electric->slug()->toString(), $parent->id()->toString()));
+    }
+
+    public function testWithBrandArchivedThePageHidesBrandAndRestoreBringsItBack(): void
+    {
+        $listing = $this->publishedD();
+
+        ($this->service(ArchiveAttributeHandler::class))(new ArchiveAttribute($this->brand->id()->toString()));
+
+        self::assertSame(['Condition', 'Has case', 'Serial', 'Strings'], $this->detailLabels($listing));
+
+        ($this->service(RestoreAttributeHandler::class))(new RestoreAttribute($this->brand->id()->toString()));
+
+        $page = $this->client->request('GET', $this->url($listing));
+        self::assertContains(['Brand', 'Fender'], $this->details($page));
+    }
+
+    public function testWithOnlyFenderArchivedThePageStillShowsBrandFenderAsStored(): void
+    {
+        $listing = $this->publishedD();
+
+        ($this->service(ArchiveAttributeOptionHandler::class))(new ArchiveAttributeOption($this->brand->id()->toString(), $this->optionIdOf($this->brand, 'Fender')));
+
+        $page = $this->client->request('GET', $this->url($listing));
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame(
+            [['Condition', 'Used'], ['Brand', 'Fender'], ['Has case', 'Yes'], ['Serial', 'SN-1'], ['Strings', '6 pcs']],
+            $this->details($page),
+            'A stale value is shown as stored (Q5): the option was archived, not the attribute.',
+        );
+    }
+
+    public function testAfterElectricMovesUnderAnotherRootConditionAndBrandAreHiddenAndMovingBackShowsThem(): void
+    {
+        $listing = $this->publishedD();
+        $vintage = CategoryFactory::createOne();
+
+        $this->moveElectricUnder($vintage);
+
+        self::assertSame(['Has case', 'Serial', 'Strings'], $this->detailLabels($listing));
+
+        $this->moveElectricUnder($this->guitars);
+
+        self::assertSame(['Condition', 'Brand', 'Has case', 'Serial', 'Strings'], $this->detailLabels($listing));
+    }
+
+    public function testThePageKeepsItsFiveQueryBudgetWithAnArchivedAttributeAnArchivedOptionAndAMove(): void
+    {
+        $listing = $this->publishedD();
+        ($this->service(ArchiveAttributeHandler::class))(new ArchiveAttribute($this->serial->id()->toString()));
+        ($this->service(ArchiveAttributeOptionHandler::class))(new ArchiveAttributeOption($this->brand->id()->toString(), $this->optionIdOf($this->brand, 'Fender')));
+        $this->moveElectricUnder(CategoryFactory::createOne());
+
+        $sql = $this->budgetOf($listing);
+
+        self::assertGreaterThanOrEqual(4, \count($sql), 'Control: the page really read its data.');
+    }
+
+    public function testTheThreePagesChangeNoTableOnGetOverArchivedAndMovedData(): void
+    {
+        $listing = $this->publishedD();
+        ($this->service(ArchiveAttributeHandler::class))(new ArchiveAttribute($this->brand->id()->toString()));
+        ($this->service(ArchiveAttributeOptionHandler::class))(new ArchiveAttributeOption($this->condition->id()->toString(), $this->optionIdOf($this->condition, 'New')));
+        $this->moveElectricUnder(CategoryFactory::createOne());
+        $this->signInAs('ann@example.com');
+        $before = $this->everything();
+
+        foreach ([$this->url($listing), '/sell/drafts', '/sell/drafts/'.$listing->id()->toString().'/edit'] as $path) {
+            $this->client->request('GET', $path);
+            self::assertResponseStatusCodeSame(200, $path);
+        }
+
+        self::assertSame($before, $this->everything());
     }
 
     /**

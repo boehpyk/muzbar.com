@@ -80,7 +80,7 @@
       AC-13).
 - [x] **T16:** `CategoryTreeLockTest` (four new handlers; `EditCategoryHandler` asks nothing about
       values) and `NoDdlTest` (four new handlers). (AC-15)
-- [ ] **T17:** Functional: admin pages and actions (AC-16…AC-19), `SellTest` (AC-20 incl. the
+- [x] **T17:** Functional: admin pages and actions (AC-16…AC-19), `SellTest` (AC-20 incl. the
       five-query budget), `PublicListingTest` (AC-21), GET-no-write + Sentry silence (AC-22).
 - [ ] **T18:** Bite proof: AC-23 mutations (a)…(o) one at a time; each fails a named test. Revert,
       record in the commit message, run `make test` twice and once with `zend.assertions=-1`. (AC-23,
