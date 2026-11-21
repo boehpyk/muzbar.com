@@ -139,7 +139,13 @@ Docker Compose · Traefik · Nginx.
 > as a column never read; one 404 for draft/withdrawn/unknown/malformed, for everyone. All fifteen
 > AC-28 mutations bit; 1746 tests.
 > [ADR-0021](./docs/adr/0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md)
-> + ADR-0008/0018/0019/0020 amendments. Next: `uuid-id-trait` (eleven copies);
+> + ADR-0008/0018/0019/0020 amendments.
+> `uuid-id-trait` (2026-11-21) — a refactor: the eleven copies of the UUID id shape became **one trait**,
+> `Shared\ValueObject\UuidIdShape`, **shared code without a shared type** — `self` in a trait is
+> the using class, so a cross-type `equals()` is still a `TypeError` (`UuidIdShapeTest`'s ring).
+> Each id keeps its own exception via a `malformed()` hook. One deliberate behaviour change: the two
+> challenge ids had drifted (no `D`) and now refuse `"<uuid>\n"`. The nine DBAL id types are deferred
+> (trigger: a fix made nine times). ADR-0009 amendment. Next:
 > `public-styles` before Phase 2's public search UI; seller contact channels before launch.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
@@ -337,6 +343,12 @@ vs not, the GET mutating vs burning, and the save order. Any guess a base class 
 be right for one subclass and a latent security bug in the other. **Every one of the four carries a
 comment at its call site saying *why* it is inverted**, and that rule generalises: when a new file
 deliberately contradicts an existing one, the contradiction is the thing that needs the comment.
+
+**Shared code is a trait; a shared type is a decision** (ADR-0009, 2026-11-21 amendment). A new id
+value object is `final readonly class XId { use UuidIdShape; private static function
+malformed(string $value): InvalidXId { return InvalidXId::malformed($value); } }`, with its own
+exception in its own context — **never a copy, never a base class** (a base's `self` is the base, so
+`XId::equals(UserId)` would quietly return `false`). Add it to `UuidIdShapeTest`'s ring.
 
 **Domain events** ([ADR-0008](./docs/adr/0008-domain-events-recorded-on-the-aggregate.md)): the
 aggregate `recordThat()`s via the `RecordsEvents` trait and never dispatches; the Application handler
@@ -662,6 +674,9 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   $code` (the int), so a promoted `private readonly AttributeCode $code` is a compile-time fatal (access level and
   type both clash).
   Store it as `$attributeCode` and expose `code(): AttributeCode` (`AttributeCodeAlreadyTaken`).
+- **A `readonly class` cannot use a trait whose property is not declared `readonly`** — a fatal
+  error at class load, not a lint. `UuidIdShape`'s promoted property says `private readonly` for
+  that reason; keep it.
 - **phpstan cannot intersect array shapes**, so a read model that adds columns gets its **own**
   `@phpstan-type` rather than widening a shared one: `effectiveFor()` returns `EffectiveRow`, and
   `AttributeRow` stays as `find()` returns it (which has no lineage to report).

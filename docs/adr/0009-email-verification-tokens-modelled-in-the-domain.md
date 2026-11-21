@@ -240,3 +240,41 @@ the base class, not to extraction as such.
 `EmailVerificationRequestId`, `PasswordResetRequestId`) from inside a `Catalog` slice. That is scope
 creep into the context holding the credentials. It is **proposed as its own small refactor**, whose
 test is that every cross-type `equals()` is still a `TypeError`.
+
+## Amendment, 2026-11-21 — the trait is extracted
+
+The 2026-11-14 amendment proposed the refactor; `uuid-id-trait` carried it out. All eleven id value
+objects (`Identity`'s three, `Catalog`'s three, `Listing`'s five) now `use`
+`App\Domain\Shared\ValueObject\UuidIdShape`, and the shape — the format, the lower-casing,
+`fromString`/`equals`/`toString`/`__toString`, the private constructor — exists once.
+
+**Why a trait meets the 2026-07-29 criterion.** The criterion was *"only if the extraction can
+preserve cross-type comparison as a compile-time error"*. Inside a trait `self` resolves to the
+*using* class, so `CategoryId::equals(self $other)` still refuses a `UserId` with a `TypeError`. The
+proof the 2026-11-14 amendment asked for is `UuidIdShapeTest`: a ring of eleven cross-type `equals()`
+calls, each a `TypeError`, including the three same-named pairs across `Catalog` and `Listing`.
+Each context still owns its **class** (ADR-0019 decision 2); only the code is shared, which is why
+the shared kernel can hold it without becoming a "shared id type".
+
+**Each id keeps its own exception** through an abstract private static hook,
+`malformed(string): \DomainException`, which each class implements in one line with the narrowed
+return type (`InvalidUserId`, …). No exception class changed, and no caller catches anything new.
+
+**One behaviour change, deliberately.** `EmailVerificationRequestId` and `PasswordResetRequestId`
+had drifted: their regex lacked the `D` modifier the other nine carry, so a bare `$` matched before
+a trailing `"\n"` and `"<uuid>\n"` was accepted and stored with the newline. One trait means one
+`FORMAT`; both now refuse it. Unobservable in production — ids come only from `nextIdentity()` and
+from `uuid` columns — and pinned by a `'trailing newline'` case in each test. The drift is itself
+the argument for the extraction: two copies that nobody edits still diverge.
+
+**Deferred, not scheduled: the nine DBAL id types** (`UserIdType` … Listing's `CategoryIdType`).
+They are duplicated too, but extracting them is a design, not a move: an abstract `GuidType`
+subclass needs a `class-string<T>` template, a dynamic `$class::fromString()`, and either a wider
+`catch (\DomainException)` or a second template for the exception — PHPStan-max generics in
+Infrastructure, for code nothing is changing. **Trigger:** the first fix that would have to be made
+nine times.
+
+**Discharged by reference** (their text is not edited): ADR-0019's "A `Shared/` id kernel"
+alternative, deferred there as "its own slice" — this is that slice, and it shares *code*, not a
+type, so decision 2 (each context its own id classes) stands; and ADR-0020's and ADR-0021's "eleven
+copies" consequences.
