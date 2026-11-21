@@ -115,54 +115,55 @@ twelfth ~45-line copy. **No id type may be able to compare equal to another.**
 
 ## Acceptance criteria (the Definition of Done checklist)
 
-- [ ] **AC-1: one trait.** `src/src/Domain/Shared/ValueObject/UuidIdShape.php` is a `trait` holding
+- [x] **AC-1: one trait.** `src/src/Domain/Shared/ValueObject/UuidIdShape.php` is a `trait` holding
   `FORMAT` (`'/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iD'`), the private
   constructor (`private readonly string $value`), `fromString`, `equals(self)`, `toString`,
   `__toString` and `abstract private static function malformed(string $value): \DomainException`. It
   imports nothing.
-- [ ] **AC-2: eleven users, zero copies.** `grep -rl 'use UuidIdShape;' src/src/Domain | wc -l` is
+- [x] **AC-2: eleven users, zero copies.** `grep -rl 'use UuidIdShape;' src/src/Domain | wc -l` is
   **11**, and the list is exactly the table above. `grep -rlE 'function (fromString|equals|toString|__toString)|const string FORMAT|preg_match' <the eleven files>`
   prints **nothing**. ~~`grep -rl "preg_match(self::FORMAT" src/src/Domain` prints only the trait.~~ *Amended
   2026-11-21 at T5 — the grep was wrong, not the code:* it also matches `AttributeCode`,
   `CategorySlug`, `VerificationToken` and `ResetToken`, which have their own non-UUID formats. The
   intended check is that the UUID regex exists once: `grep -rlF '[0-9a-f]{8}-[0-9a-f]{4}' src/src/Domain`
   prints only the trait.
-- [ ] **AC-3: public API unchanged.** Each of the eleven is still `final readonly class` with the
+- [x] **AC-3: public API unchanged.** Each of the eleven is still `final readonly class` with the
   same FQCN. It exposes `fromString(string): self`, `equals(self): bool`, `toString(): string` and
   `__toString(): string`. Its constructor is private. It has no `generate()`. No caller outside the
   eleven files and the tests listed in the task list changes: `git diff main --stat` shows no file
   under `src/src/Application`, `src/src/Infrastructure`, `src/config`, `src/migrations` or
   `src/templates`.
-- [ ] **AC-4: each id throws its own exception, with an unchanged message.** For every one of the
+- [x] **AC-4: each id throws its own exception, with an unchanged message.** For every one of the
   eleven, `fromString('not-a-uuid')` throws exactly `Invalid<Name>Id` from **its own context**, with
   message `"not-a-uuid" is not a valid <noun> id.`. `git diff main -- 'src/src/Domain/*/Exception/'`
-  is empty. Pinned by the existing Identity and Catalog per-id tests and by the tightened Listing
-  grouped tests (T7).
-- [ ] **AC-5: cross-type comparison is still a `TypeError`, for all eleven.** A ring test calls
+  is empty. The **class** is pinned by the existing Identity and Catalog per-id tests and by the
+  tightened Listing grouped tests (T7). *Amended at `/verify`:* no test asserts the **message**; it is
+  unchanged only because the exception diff is empty, which is the check.
+- [x] **AC-5: cross-type comparison is still a `TypeError`, for all eleven.** A ring test calls
   `A::fromString(U)->equals(B::fromString(U))` over the eleven classes in a fixed cycle (each id
   against the next, so 11 cases), with the same `U`, and expects `\TypeError` every time. That
   includes the same-named pairs `Catalog\CategoryId` vs `Listing\CategoryId`, `AttributeId` and
   `AttributeOptionId`. The existing `CategoryIdTest`/`AttributeIdTest`/`AttributeOptionIdTest`
   `TypeError` tests and `PasswordResetRequestIdTest`'s reflection test (`'self' === getName()`) pass
   unchanged.
-- [ ] **AC-6: the one behaviour change.** `EmailVerificationRequestId::fromString("<uuid>\n")` and
+- [x] **AC-6: the one behaviour change.** `EmailVerificationRequestId::fromString("<uuid>\n")` and
   `PasswordResetRequestId::fromString("<uuid>\n")` now throw their own exceptions, as the other nine
   already do. This is unobservable in production: the only non-test callers are `nextIdentity()`
   (`Uuid::v7()->toRfc4122()`) and the DBAL types reading a PostgreSQL `uuid` column, and neither can
   produce a newline. Pinned by one new `'trailing newline'` provider case in each of the two tests.
-- [ ] **AC-7: normalisation and equality unchanged.** Upper-case input is stored lower-case, two ids
+- [x] **AC-7: normalisation and equality unchanged.** Upper-case input is stored lower-case, two ids
   that differ only in hex case are `equals()`, and two different ids are not. Covered by the existing
   per-id tests, which pass unchanged.
-- [ ] **AC-8: context isolation holds.** `CatalogIsolationTest`'s pattern becomes
+- [x] **AC-8: context isolation holds.** `CatalogIsolationTest`'s pattern becomes
   `(?!Catalog\\\\|Shared\\\\)`, the same as `ListingIsolationTest`'s, and both pass. No Domain or
   Application file in any context imports another context. `Shared` is the only namespace admitted.
-- [ ] **AC-9: suite count.** The full suite is green. The test count is the **T0 baseline + 13**
+- [x] **AC-9: suite count.** The full suite is green. The test count is the **T0 baseline + 13**
   exactly: +2 newline cases (AC-6) and +11 ring cases (AC-5). No existing test method or provider case
   is deleted. Tightened assertions (T7) do not change the count.
-- [ ] **AC-10: gates.** `make check` is green (php-cs-fixer, PHPStan max, Deptrac
+- [x] **AC-10: gates.** `make check` is green (php-cs-fixer, PHPStan max, Deptrac
   `--fail-on-uncovered`, PHPUnit). The CI reproduction `php -d zend.assertions=-1 vendor/bin/phpunit`
   is also green. Run `make test` twice in a row, and both runs pass.
-- [ ] **AC-11: the tests bite.** Each mutation is applied to the trait or one class, the suite is run
+- [x] **AC-11: the tests bite.** Each mutation is applied to the trait or one class, the suite is run
   and fails as stated, the mutation is reverted, and the result is recorded in the PR description:
   - **(a)** Drop `D` from the trait's `FORMAT`. The `'trailing newline'`/`"\n"` cases fail in
     **all three contexts** (UserIdTest, the three Catalog tests, both Listing grouped tests, and the
@@ -172,7 +173,7 @@ twelfth ~45-line copy. **No id type may be able to compare equal to another.**
   - **(c)** Make `Listing\SellerId::malformed()` return `InvalidListingId::malformed($value)`. The
     tightened `ListingIdValueObjectsTest` fails, which shows T7 pins every id's own exception and not
     just `\DomainException`.
-- [ ] **AC-12: docs.** The ADR-0009 amendment is dated the day it is written and says the trait is extracted,
+- [x] **AC-12: docs.** The ADR-0009 amendment is dated the day it is written and says the trait is extracted,
   why a trait, and that the DBAL types are deferred. CLAUDE.md's status no longer says "Next:
   `uuid-id-trait` (eleven copies)", and its conventions gain the "new id = trait + hook" line and the
   readonly-trait footgun. The roadmap item is ticked. FORboehpyk.md has a story entry.

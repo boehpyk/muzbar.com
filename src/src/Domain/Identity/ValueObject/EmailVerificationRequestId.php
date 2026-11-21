@@ -8,7 +8,7 @@ use App\Domain\Identity\Exception\InvalidEmailVerificationRequestId;
 use App\Domain\Shared\ValueObject\UuidIdShape;
 
 /**
- * The identity of a EmailVerificationRequest, as a value. The shape (format, no `generate()`, why a
+ * The identity of an EmailVerificationRequest, as a value. The shape (format, no `generate()`, why a
  * trait) is documented once, on {@see UuidIdShape}.
  */
 final readonly class EmailVerificationRequestId
