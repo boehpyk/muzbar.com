@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Domain\Listing\ValueObject;
 
+use App\Domain\Listing\Exception\InvalidCategoryId;
+use App\Domain\Listing\Exception\InvalidListingId;
+use App\Domain\Listing\Exception\InvalidSellerId;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\ListingId;
 use App\Domain\Listing\ValueObject\SellerId;
@@ -26,6 +29,16 @@ final class ListingIdValueObjectsTest extends TestCase
     }
 
     /**
+     * @return iterable<string, array{class-string<ListingId|SellerId|CategoryId>, class-string<\DomainException>}>
+     */
+    public static function idClassesWithException(): iterable
+    {
+        yield 'ListingId' => [ListingId::class, InvalidListingId::class];
+        yield 'SellerId' => [SellerId::class, InvalidSellerId::class];
+        yield 'CategoryId' => [CategoryId::class, InvalidCategoryId::class];
+    }
+
+    /**
      * @param class-string<ListingId|SellerId|CategoryId> $class
      */
     #[DataProvider('idClasses')]
@@ -37,16 +50,17 @@ final class ListingIdValueObjectsTest extends TestCase
 
     /**
      * @param class-string<ListingId|SellerId|CategoryId> $class
+     * @param class-string<\DomainException>              $exceptionClass
      */
-    #[DataProvider('idClasses')]
-    public function testRejectsMalformedValues(string $class): void
+    #[DataProvider('idClassesWithException')]
+    public function testRejectsMalformedValues(string $class, string $exceptionClass): void
     {
         foreach (['', 'not-a-uuid', '018f5b2a000070008000000000000000', self::UUID.'x', self::UUID."\n"] as $bad) {
             try {
                 $class::fromString($bad);
                 self::fail(\sprintf('%s accepted %s', $class, var_export($bad, true)));
-            } catch (\DomainException) {
-                $this->addToAssertionCount(1);
+            } catch (\DomainException $e) {
+                self::assertSame($exceptionClass, $e::class);
             }
         }
     }
