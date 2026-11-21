@@ -5,19 +5,27 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Catalog;
 
 use App\Application\Catalog\Command\AddAttributeOption;
+use App\Application\Catalog\Command\ArchiveAttribute;
+use App\Application\Catalog\Command\ArchiveAttributeOption;
 use App\Application\Catalog\Command\DefineAttribute;
 use App\Application\Catalog\Command\DeleteAttribute;
 use App\Application\Catalog\Command\EditAttribute;
 use App\Application\Catalog\Command\EditCategory;
 use App\Application\Catalog\Command\RelabelAttributeOption;
 use App\Application\Catalog\Command\RemoveAttributeOption;
+use App\Application\Catalog\Command\RestoreAttribute;
+use App\Application\Catalog\Command\RestoreAttributeOption;
 use App\Application\Catalog\Handler\AddAttributeOptionHandler;
+use App\Application\Catalog\Handler\ArchiveAttributeHandler;
+use App\Application\Catalog\Handler\ArchiveAttributeOptionHandler;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
 use App\Application\Catalog\Handler\DeleteAttributeHandler;
 use App\Application\Catalog\Handler\EditAttributeHandler;
 use App\Application\Catalog\Handler\EditCategoryHandler;
 use App\Application\Catalog\Handler\RelabelAttributeOptionHandler;
 use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
+use App\Application\Catalog\Handler\RestoreAttributeHandler;
+use App\Application\Catalog\Handler\RestoreAttributeOptionHandler;
 use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
 use App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode;
 use App\Tests\Factory\AttributeFactory;
@@ -92,6 +100,26 @@ final class NoDdlTest extends KernelTestCase
         ($this->service(DeleteAttributeHandler::class))(new DeleteAttribute($number->toString()));
 
         self::assertSame(2, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute'), 'Control: the handlers really ran.');
+        self::assertSame($before, $this->catalogs());
+    }
+
+    /** listing-schema-drift AC-15: the four archive/restore handlers add a column value, never a column. */
+    public function testArchivingAndRestoringAnAttributeAndAnOptionRunNoDdl(): void
+    {
+        $category = CategoryFactory::createOne()->id()->toString();
+        $define = $this->service(DefineAttributeHandler::class);
+        $choice = $define(new DefineAttribute($category, 'choice', 'Orientation', 'orientation', true, optionLabels: ['Left', 'Right']));
+        $optionId = $this->db->fetchOne('SELECT id FROM catalog_attribute_option WHERE attribute_id = ? ORDER BY id LIMIT 1', [$choice->toString()]);
+        self::assertIsString($optionId);
+        $before = $this->catalogs();
+
+        ($this->service(ArchiveAttributeOptionHandler::class))(new ArchiveAttributeOption($choice->toString(), $optionId));
+        ($this->service(RestoreAttributeOptionHandler::class))(new RestoreAttributeOption($choice->toString(), $optionId));
+        ($this->service(ArchiveAttributeHandler::class))(new ArchiveAttribute($choice->toString()));
+        self::assertSame(1, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute WHERE archived_at IS NOT NULL'), 'Control: the archive really ran.');
+        ($this->service(RestoreAttributeHandler::class))(new RestoreAttribute($choice->toString()));
+
+        self::assertSame(0, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute WHERE archived_at IS NOT NULL'));
         self::assertSame($before, $this->catalogs());
     }
 

@@ -78,7 +78,7 @@
 - [x] **T15:** Integration: schema shape (AC-8); new `SchemaDriftTest` (AC-9, AC-10, AC-14 — fresh
       repository before every read-back, raw-row snapshots); Catalog handler tests (AC-11, AC-12,
       AC-13).
-- [ ] **T16:** `CategoryTreeLockTest` (four new handlers; `EditCategoryHandler` asks nothing about
+- [x] **T16:** `CategoryTreeLockTest` (four new handlers; `EditCategoryHandler` asks nothing about
       values) and `NoDdlTest` (four new handlers). (AC-15)
 - [ ] **T17:** Functional: admin pages and actions (AC-16…AC-19), `SellTest` (AC-20 incl. the
       five-query budget), `PublicListingTest` (AC-21), GET-no-write + Sentry silence (AC-22).
