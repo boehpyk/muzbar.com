@@ -56,7 +56,7 @@
 
 ## Infrastructure — read side
 - [x] **T8:** `CategoriesForListing::schemaOf()`: archived filters **in the join conditions** (D4).
-- [ ] **T9:** `DbalAttributeSchema`: `effectiveFor()` active only + active `option_count`;
+- [x] **T9:** `DbalAttributeSchema`: `effectiveFor()` active only + active `option_count`;
       `archivedDefinedOn()`; `archivedAt` on `find()` / `optionsOf()` (own phpstan types);
       `optionsFor(…, keep)` with `archived` per row. `optionLabels()` unchanged.
 
