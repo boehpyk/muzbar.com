@@ -411,6 +411,19 @@ already `varchar(16)`): every pre-existing row is a draft, and `published_at IS 
 right for a listing never published (L-16). When checking the column by hand, its introspected
 default reads `NULL::timestamp with time zone`, not a literal `NULL` — both mean "no default".
 
+**`listing-schema-drift` reopens it for two columns, and this time on both sides**
+([ADR-0022](./adr/0022-schema-drift-archive-reserved-names-dormant-values.md)). Until `migrate` adds
+`archived_at` to `catalog_attribute` and `catalog_attribute_option` (migration
+`Version20261121224833`), every Doctrine load of an `Attribute` or `AttributeOption` and every query
+naming the column — `schemaOf()`, `effectiveFor()`, `archivedDefinedOn()`, `optionsFor()` — answers
+**500** (each reaches Sentry): the admin attribute pages and their POSTs, the seller's edit page and
+its POSTs (save and publish), and the public listing page. `/sell` create and "Your listings" are
+not in it: neither reads an attribute. Same verdict and same cure: accepted, seconds
+long, ends when `migrate` completes. Two nullable `timestamptz(0)` `ADD COLUMN`s — no backfill (every
+existing row is active, `NULL`), no index, no pre-deploy query: no value is dormant before the first
+archive or move, so prod is consistent after this deploy on its own. Retiring C-27 needs no data
+change.
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker

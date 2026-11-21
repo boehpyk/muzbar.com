@@ -145,7 +145,19 @@ Docker Compose · Traefik · Nginx.
 > the using class, so a cross-type `equals()` is still a `TypeError` (`UuidIdShapeTest`'s ring).
 > Each id keeps its own exception via a `malformed()` hook. One deliberate behaviour change: the two
 > challenge ids had drifted (no `D`) and now refuse `"<uuid>\n"`. The nine DBAL id types are deferred
-> (trigger: a fix made nine times). ADR-0009 amendment. Next:
+> (trigger: a fix made nine times). ADR-0009 amendment.
+> `listing-schema-drift` (2026-11-21, **not yet through `/verify`**) — Listing slice 4 of 4, and the
+> first slice that **weakens an invariant on purpose**: "every stored value is in force" is no longer
+> kept by refusal. `Attribute`/`AttributeOption` gain **archive/restore** (C-28; nullable
+> `archived_at`, a transition — hard delete stays non-existence, for unused rows only). An archived
+> name **stays reserved** (C-29), so restore takes no facts and is never refused. A value whose
+> attribute is not in the active schema is **dormant** (L-17): kept by a revise, dropped by a re-file,
+> read by no rule, shown nowhere, never stored as a flag. A value naming an archived option is
+> **stale**, not dormant: shown, refused at the next write and at publish (L-14 narrowed to in-force
+> values). C-18 counts **active** options. **C-27 is retired** — a move with values is allowed; what
+> leaves the lineage goes dormant and wakes if the move is undone. All fifteen AC-23 mutations bit;
+> 1883 tests. [ADR-0022](./docs/adr/0022-schema-drift-archive-reserved-names-dormant-values.md)
+> + ADR-0004/0016/0017/0018/0020/0021 amendments. Next: `phase1-gate`;
 > `public-styles` before Phase 2's public search UI; seller contact channels before launch.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
@@ -275,8 +287,9 @@ established by `catalog-category-tree`, inherited by every context:
   attribute code or a category's parent** (an import, a "merge categories" tool) must read the branch
   codes (`lineageOf()->ids()` + `descendantsOf()` → `codesDefinedOn()`) **under the lock** and hand
   them to the aggregate, and get a `CategoryTreeLockTest` case. Nothing else will catch a fourth door.
-  The move is also the **second accretion point** (after `DeleteCategoryHandler`): the Listing slice's
-  move guard goes in `EditCategoryHandler`, beside C-21.
+  The move is also the **second accretion point** (after `DeleteCategoryHandler`): Listing's move
+  guard (C-24) sits in `EditCategoryHandler`, beside C-21. **Restore is not a fourth door only because
+  archived names stay reserved** (C-29) — see the archive footguns.
 - **The effective schema is derived, never stored** (C-22). Its only computation today is
   `DbalAttributeSchema::effectiveFor()` (one bounded recursive query). No schema cache, no
   `category_attribute` table, no `jsonb` copy: a define on a parent and a move each stay one row.
@@ -308,11 +321,13 @@ established by `listing-draft`, inherited by every context:
   built from Catalog's admin read model (`effectiveFor()` + `optionsFor()`) instead — a UI crossing
   like `DbalCategoryOutline`; the POST re-reads the fact under the lock and a drift only refuses.
 - **`AttributeUsage` is Catalog's second port into Listing** (`isInUse()`, `isOptionInUse()`, adapter
-  `ListingAttributeUsage`), beside `CategoryUsage::hasAttributeValues()`. They back C-25 (attribute
-  delete), C-26 (option remove, after C-18) and C-27 (any parent change while the subtree holds any
-  value — coarse on purpose). **Watch items:** values are written only inside `holdSteady()`, after
-  `schemaOf()`; any new Catalog write that deletes an attribute or option, or changes a parent, reads
-  the matching usage under `exclusively()` and gets a `CategoryTreeLockTest` case.
+  `ListingAttributeUsage`). It backs C-25 (attribute delete) and C-26 (option remove, after C-18) —
+  which now guard **hard** delete only (Archive is the in-use path, ADR-0022) and count **every**
+  stored value, dormant included: the rule is "every value names a row that exists". **C-27 is
+  retired** with `CategoryUsage::hasAttributeValues()` (deleted): a move with values is allowed, and
+  the move order is C-4 → C-5 → C-21 → C-24. **Watch items:** values are written only inside
+  `holdSteady()`, after `schemaOf()`; any new Catalog write that hard-deletes an attribute or option
+  reads the matching usage under `exclusively()` and gets a `CategoryTreeLockTest` case.
 - **`ListingFactory` bypasses L-2** — it hands `draft()` `CategoryStatus::Leaf`, and its default
   category does not exist. Build with `->inCategory($leaf)`, in an order that keeps it on a leaf.
   **`withValues()` also skips L-9's "in force" half** — it builds the schema from the attributes it
@@ -322,7 +337,7 @@ established by `listing-draft`, inherited by every context:
   through the repository **and release the events** — nobody dispatches them, so a leftover would
   surface later as a phantom. L-13 applies: give `withValues()` every required attribute, or the
   fixture throws. L-2 is still bypassed (`publish()` is handed `Leaf`).
-- **Catalog's guards are status-blind, on purpose** (ADR-0021 d.9): C-23…C-27 count listings of
+- **Catalog's guards are status-blind, on purpose** (ADR-0021 d.9): C-23…C-26 count listings of
   **every** status. A withdrawn listing can be published again and a draft can be published, so both
   must stay on a leaf with values that mean something. **Never add a `status` filter to
   `ListingCategoryUsage`/`ListingAttributeUsage`** — mutation (m) and `StatusBlindGuardsTest` bite.
@@ -725,7 +740,8 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   `array_to_json(array_agg(…))` and decodes JSON; do the same for any new array column in a read.
 - **Blank Details fields are omitted from `ReviseListing`, and revise replaces the whole value set —
   so blank = clear.** The edit page also drops stored values whose attribute is no longer on the form,
-  or the next save would be refused for an attribute the seller cannot see.
+  or the next save would be refused for an attribute the seller cannot see — the dormant ones survive
+  anyway, because `revise()` carries them over itself (L-17).
 - **The isolation scans strip PHP comments first** — a Domain docblock names `listing_attribute_value`.
   A new scan that greps raw source flags documentation as a dependency.
 
@@ -757,6 +773,30 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   the withdraw form landed with the withdraw route, not with the edit page that shows it.
 - **`published_at`'s introspected default is `NULL::timestamp with time zone`**, not a literal
   `NULL`; a shape test accepts both.
+
+- **Dormant values are kept by revise and dropped by re-file — never "clean them up"** (L-17,
+  ADR-0022). A value whose attribute is archived or left the lineage is what makes restore and an
+  undone move lossless. A sweep, a "drop on save" or a `dormant` flag column is a new owner decision
+  (retroactive, C-22), not a tidy-up. They block hard delete of their attribute (C-25 counts them).
+- **Archived names stay reserved, so restore takes no facts.** `codesDefinedOn()`, `isLabelTaken()`,
+  `existsForCategory()` and both unique indexes read archived rows **on purpose** (C-29). Freeing a
+  name (a filter there, a partial index) turns restore into a fourth door to C-21 and C-17: it must
+  then read the branch under the lock and get a `CategoryTreeLockTest` case.
+- **Active-only is the default read; `optionLabels()` deliberately is not.** `schemaOf()` and
+  `effectiveFor()` drop archived attributes and options — `schemaOf()` in its **JOIN** conditions, so
+  a choice whose options are all archived is an empty rule, not a vanished one. `optionLabels()`
+  labels any stored id, so a **stale** "Brand: Fender" stays on the public page. Archived rows are
+  read only by name: `archivedDefinedOn()`, `find()`/`optionsOf()`' `archivedAt`, `optionsFor(…, keep)`.
+- **C-18 counts active options: `countActiveForAttribute()`** (renamed from `countForAttribute()` —
+  a port method whose meaning narrows changes its name). Asked whenever an *active* option leaves the
+  active set, by archive or delete; deleting an archived option never meets it.
+- **`keep` takes uuid-shaped stored values only.** The seller edit page passes stored values to
+  `optionsFor(…, keep)` so a stale option renders selected; a text value in `id IN (…)` is a uuid
+  cast error → 500. `SellController` filters with `Uuid::isValid()` — keep it.
+- **Every facet/search query must filter archived rows** (plan Risk 3). A naive `GROUP BY option_id`
+  over `listing_attribute_value` counts dormant and stale values and archived attributes. Scope to the
+  subtree + `status = 'published'`, active-schema attributes only, join options
+  `AND archived_at IS NULL` — and take the `EXPLAIN` on **that** query.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):

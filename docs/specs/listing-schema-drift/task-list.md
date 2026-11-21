@@ -87,7 +87,7 @@
       AC-24)
 
 ## Docs
-- [ ] **T19:** Update the docs:
+- [x] **T19:** Update the docs:
       - **`docs/roadmap.md`:** tick `listing-schema-drift`; add to the `phase1-gate` line that the
         facet-count query must scope to the subtree + `published`, offer only active attributes, and
         join active options (plan Risk 3) — the `EXPLAIN` is taken on **that** query.
