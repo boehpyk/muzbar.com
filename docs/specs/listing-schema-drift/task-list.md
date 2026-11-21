@@ -38,7 +38,7 @@
 
 ## Domain — `Listing`
 - [x] **T3:** `AttributeValues::onlyFor()` / `::notIn()`.
-- [ ] **T4:** `Listing::revise()` carries dormant values over when the category is unchanged (L-17);
+- [x] **T4:** `Listing::revise()` carries dormant values over when the category is unchanged (L-17);
       `publish()` re-reads `onlyFor($schema)` only (L-14 narrowed). Docblock: L-17, stale vs dormant.
 
 ## Application — `Catalog`
