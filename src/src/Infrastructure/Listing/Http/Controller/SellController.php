@@ -39,6 +39,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * A seller's private listing surface: draft, list, edit, publish, withdraw (plan D13, listing-publish). Unstyled semantic markup (Q7).
@@ -62,6 +63,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_USER')]
 final class SellController extends AbstractController
 {
+    private const string NO_LONGER_OFFERED = '%s is no longer offered. Choose another.';
+    private const string NO_LONGER_OFFERED_LABEL = '%s (no longer offered)';
     private const string SAVED = 'Draft saved.';
     private const string NOT_A_LEAF = 'That category now has subcategories. Choose a more specific one.';
     private const string ADD_DETAILS = 'Draft saved. Add the details below.';
@@ -160,14 +163,17 @@ final class SellController extends AbstractController
         $data->category = $draft['categoryId'];
 
         // The page's data is five queries however many choice attributes there are (AC-25): the
-        // draft, the outline, the effective schema, every option of every choice, the stored values.
-        $schema = $this->detailsSchema($draft['categoryId']);
-        // Only values for fields on the form: a stray key (a legacy row for an attribute no longer in
-        // force) would be submitted back and refused as "no longer applies".
-        $data->attributes = [] === $schema ? [] : array_intersect_key(
-            $this->drafts->valuesOf($draft['id']),
-            array_flip(array_column($schema, 'id')),
-        );
+        // draft, the outline, the stored values, the effective schema, every option of every choice.
+        // The values come first so a stored choice whose option was archived is still among the
+        // options (`keep`, ADR-0022 D10): it renders selected as "… (no longer offered)" instead of
+        // an empty select that "blank = clear" would silently drop on save. Only uuid-shaped values
+        // can be option ids, and `id IN (…)` would 500 on any other string.
+        $stored = $this->drafts->valuesOf($draft['id']);
+        [$schema, $noLongerOffered] = $this->detailsSchema($draft['categoryId'], array_values(array_filter($stored, static fn (string $value): bool => Uuid::isValid($value))));
+        // Only values for fields on the form: a dormant value (its attribute archived, or moved out
+        // of the lineage) would be submitted back and refused as "no longer applies". It is not lost:
+        // revise carries it over while the category is unchanged (L-17).
+        $data->attributes = array_intersect_key($stored, array_flip(array_column($schema, 'id')));
 
         $form = $this->createForm(ListingFormType::class, $data, [
             'category_choices' => $choices,
@@ -228,7 +234,7 @@ final class SellController extends AbstractController
             } catch (InvalidListingTitle|InvalidListingDescription|InvalidPrice|UnknownCategory|CategoryIsNotALeaf $e) {
                 $this->addRefusal($form, $e, $data);
             } catch (InvalidAttributeValue $e) {
-                $this->addDetailRefusal($form, $e);
+                $this->addDetailRefusal($form, $e, $data->attributes, $noLongerOffered);
             } catch (ListingIncomplete $e) {
                 $this->addIncompleteRefusal($form, $e);
             } catch (PublishedListingCannotBeRefiled) {
@@ -267,26 +273,48 @@ final class SellController extends AbstractController
 
     /**
      * The Details sub-form's rows: the effective schema (root first, then label) with each choice
-     * attribute's options, fetched for all of them in one query.
+     * attribute's active options plus the archived ones in `$keep`, fetched for all of them in one
+     * query. An archived option is labelled "… (no longer offered)"; the second element maps each
+     * such option id to its plain label, for the refusal.
      *
-     * @return list<array{id: string, label: string, type: string, required: bool, unit: ?string, options: list<array{id: string, label: string}>}>
+     * @param list<string> $keep the stored values that may be option ids
+     *
+     * @return array{list<array{id: string, label: string, type: string, required: bool, unit: ?string, options: list<array{id: string, label: string}>}>, array<string, string>}
      */
-    private function detailsSchema(string $categoryId): array
+    private function detailsSchema(string $categoryId, array $keep): array
     {
         $rows = $this->schema->effectiveFor($categoryId);
         $options = $this->schema->optionsFor(array_column(
             array_filter($rows, static fn (array $row): bool => 'choice' === $row['type']),
             'id',
-        ));
+        ), $keep);
 
-        return array_map(static fn (array $row): array => [
+        $noLongerOffered = [];
+
+        foreach ($options as $attributeOptions) {
+            foreach ($attributeOptions as $option) {
+                if ($option['archived']) {
+                    $noLongerOffered[$option['id']] = $option['label'];
+                }
+            }
+        }
+
+        $schema = array_map(static fn (array $row): array => [
             'id' => $row['id'],
             'label' => $row['label'],
             'type' => $row['type'],
             'required' => $row['required'],
             'unit' => $row['unit'],
-            'options' => $options[$row['id']] ?? [],
+            'options' => array_map(
+                static fn (array $option): array => [
+                    'id' => $option['id'],
+                    'label' => $option['archived'] ? \sprintf(self::NO_LONGER_OFFERED_LABEL, $option['label']) : $option['label'],
+                ],
+                $options[$row['id']] ?? [],
+            ),
         ], $rows);
+
+        return [$schema, $noLongerOffered];
     }
 
     /**
@@ -301,12 +329,21 @@ final class SellController extends AbstractController
      * L-9's refusals, on the attribute's field in the failure contract's words. A key with no field
      * (a tampered or since-deleted attribute) lands on the form itself.
      *
+     * `NotAnOption` on an archived option the page itself rendered (a stale stored choice) gets its
+     * own wording; the Domain cannot tell "archived" from "never existed" and need not (ADR-0022 D10).
+     *
      * @param FormInterface<ListingFormData> $form
+     * @param array<string, ?string>         $submitted       the Details values, by attribute id
+     * @param array<string, string>          $noLongerOffered archived option id => label, as rendered
      */
-    private function addDetailRefusal(FormInterface $form, InvalidAttributeValue $refusal): void
+    private function addDetailRefusal(FormInterface $form, InvalidAttributeValue $refusal, array $submitted, array $noLongerOffered): void
     {
+        $value = $submitted[$refusal->attributeKey()] ?? null;
+
         $message = match ($refusal->reason()) {
-            InvalidAttributeValueReason::NotAnOption => ListingFormType::NOT_AN_OPTION,
+            InvalidAttributeValueReason::NotAnOption => null !== $value && isset($noLongerOffered[$value])
+                ? \sprintf(self::NO_LONGER_OFFERED, $noLongerOffered[$value])
+                : ListingFormType::NOT_AN_OPTION,
             InvalidAttributeValueReason::NotAWholeNumber => 'Enter a whole number, like 6.',
             InvalidAttributeValueReason::OutOfRange => match (true) {
                 null !== $refusal->min() && null !== $refusal->max() => \sprintf('Enter a whole number from %d to %d.', $refusal->min(), $refusal->max()),
