@@ -73,7 +73,7 @@
 ## Tests (qa)
 - [x] **T13:** Domain unit: `AttributeTest`, `AttributeOptionTest` (AC-1, AC-2, allow-lists AC-7),
       `AttributeValuesTest` (AC-6), `ListingTest` (AC-3…AC-5); isolation scans green (AC-7).
-- [ ] **T14:** Factories: `AttributeFactory->archived()`, `AttributeOptionFactory->archived()`, through
+- [x] **T14:** Factories: `AttributeFactory->archived()`, `AttributeOptionFactory->archived()`, through
       `archive()`. No factory may build a dormant value — tests make one through the handlers.
 - [ ] **T15:** Integration: schema shape (AC-8); new `SchemaDriftTest` (AC-9, AC-10, AC-14 — fresh
       repository before every read-back, raw-row snapshots); Catalog handler tests (AC-11, AC-12,

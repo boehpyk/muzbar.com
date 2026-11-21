@@ -279,4 +279,20 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
     {
         self::assertNull((new DbalAttributeSchema($this->db))->find(Uuid::v7()->toRfc4122()));
     }
+
+    // listing-schema-drift: the factory builds an archived row through archive(), and the column carries it.
+    public function testAnArchivedFactoryAttributeStoresItsArchiveInstantAndReloadsArchived(): void
+    {
+        $at = new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC'));
+        $attribute = AttributeFactory::new()->archived($at)->create();
+        $active = AttributeFactory::createOne();
+
+        self::assertSame('2026-11-21 10:00:00+00', $this->db->fetchOne('SELECT archived_at FROM catalog_attribute WHERE id = ?', [$attribute->id()->toString()]));
+        self::assertNull($this->db->fetchOne('SELECT archived_at FROM catalog_attribute WHERE id = ?', [$active->id()->toString()]));
+
+        $this->em->clear();
+        $reloaded = $this->attributes->get($attribute->id());
+        self::assertTrue($reloaded->isArchived());
+        self::assertSame($at->getTimestamp(), $reloaded->archivedAt()?->getTimestamp());
+    }
 }

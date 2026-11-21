@@ -207,4 +207,15 @@ final class DoctrineAttributeOptionRepositoryTest extends KernelTestCase
             $this->db->fetchFirstColumn('SELECT label_key FROM catalog_attribute_option WHERE attribute_id = ? ORDER BY id', [$attribute->id()->toString()]),
         );
     }
+
+    // listing-schema-drift: the factory builds an archived option through archive(), and the column carries it.
+    public function testAnArchivedFactoryOptionStoresItsArchiveInstantAndReloadsArchived(): void
+    {
+        $at = new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC'));
+        $attribute = AttributeFactory::new()->choice(['Keep'])->create();
+        $option = AttributeOptionFactory::new()->forAttribute($attribute)->labelled('Gone')->archived($at)->create();
+
+        self::assertSame('2026-11-21 10:00:00+00', $this->db->fetchOne('SELECT archived_at FROM catalog_attribute_option WHERE id = ?', [$option->id()->toString()]));
+        self::assertSame(1, $this->options->countActiveForAttribute($attribute->id()));
+    }
 }
