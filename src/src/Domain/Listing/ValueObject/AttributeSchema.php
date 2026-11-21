@@ -13,8 +13,9 @@ use App\Domain\Listing\Exception\InvalidAttributeValue;
  *
  * A **fact**, like `CategoryStatus`: **only true inside `Categories::holdSteady()`**. An admin may
  * delete an attribute, remove an option or move the category a moment after it is read; the shared
- * lock is what keeps the catalog still until the listing's values are saved, and C-25/C-26/C-27
- * are what stop Catalog from stranding them afterwards. Never stored on the Listing side.
+ * lock is what keeps the catalog still until the listing's values are saved, and C-25/C-26 are what
+ * stop Catalog's hard deletes from stranding them afterwards (an archive or a move only makes a
+ * value dormant, L-17). Never stored on the Listing side.
  */
 final readonly class AttributeSchema
 {

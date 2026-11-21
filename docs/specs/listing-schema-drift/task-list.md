@@ -47,7 +47,7 @@
 - [x] **T6:** `ArchiveAttributeOption` + `RestoreAttributeOption` and handlers (option-of-attribute
       rule as in `RemoveAttributeOptionHandler`; archive: C-18 on `countActiveForAttribute()` when the
       option is active).
-- [ ] **T7:** Retire C-27: remove the block from `EditCategoryHandler` (rewrite the accretion-point
+- [x] **T7:** Retire C-27: remove the block from `EditCategoryHandler` (rewrite the accretion-point
       comment), delete `CategoryUsage::hasAttributeValues()`, `ListingCategoryUsage::
       hasAttributeValues()`, `CategoryHasListings::cannotMove()`/`isMove()`, the
       `CategoryAdminController` message arm and `ObservedCategoryUsage`'s recording — and **invert**

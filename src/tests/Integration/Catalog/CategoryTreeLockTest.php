@@ -576,7 +576,7 @@ final class CategoryTreeLockTest extends KernelTestCase
 
     // ------------------------------------------------------------------------------------------
     // listing-attribute-values: AC-16 (schemaOf() and save() inside holdSteady(); the usage reads of
-    // C-25, C-26 and C-27 inside exclusively()).
+    // C-25 and C-26 inside exclusively(); C-27's was retired by listing-schema-drift).
     // ------------------------------------------------------------------------------------------
 
     public function testReviseListingHandlerReadsTheSchemaThenSavesTheValuesBothInsideHoldSteady(): void
@@ -706,8 +706,8 @@ final class CategoryTreeLockTest extends KernelTestCase
         $handler(new EditCategory($moving->id()->toString(), $moving->name()->toString(), $moving->slug()->toString(), $newParent->id()->toString()));
 
         self::assertSame(1, $lock->entries());
-        // listing-attribute-values (C-27) adds the second read on purpose, after C-24's.
-        self::assertSame([['hasListings', true], ['hasAttributeValues', true]], $usage->calls());
+        // listing-schema-drift retired C-27, so C-24's is the only read: a move asks nothing about values.
+        self::assertSame([['hasListings', true]], $usage->calls());
     }
 
     public function testEditCategoryHandlerReadsNoListingsWhenTheParentIsUnchanged(): void
