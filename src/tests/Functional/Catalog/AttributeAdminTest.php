@@ -464,7 +464,9 @@ final class AttributeAdminTest extends WebTestCase
         }
 
         self::assertResponseStatusCodeSame(200);
-        $touching = array_filter($sql, static fn (string $q): bool => str_contains($q, 'catalog_attribute'));
+        // listing-schema-drift (D9): the "Archived" section is its own query, `archivedDefinedOn()`,
+        // and not part of the effective schema this test counts.
+        $touching = array_filter($sql, static fn (string $q): bool => str_contains($q, 'catalog_attribute') && !str_contains($q, 'archived_at IS NOT NULL'));
         self::assertCount(1, $touching, "Queries on the attribute tables:\n".implode("\n", $touching));
         self::assertNotSame([], $sql, 'The recorder saw nothing, so the count above proves nothing.');
     }
@@ -1414,7 +1416,9 @@ final class AttributeAdminTest extends WebTestCase
         }
 
         self::assertResponseStatusCodeSame(200);
-        $touching = array_filter($sql, static fn (string $q): bool => str_contains($q, 'catalog_attribute'));
+        // listing-schema-drift (D9): the "Archived" section is its own query, `archivedDefinedOn()`,
+        // and not part of the effective schema this test counts.
+        $touching = array_filter($sql, static fn (string $q): bool => str_contains($q, 'catalog_attribute') && !str_contains($q, 'archived_at IS NOT NULL'));
         self::assertCount(1, $touching, "Queries on the attribute tables:\n".implode("\n", $touching));
         self::assertNotSame([], $sql, 'The recorder saw nothing, so the count above proves nothing.');
     }

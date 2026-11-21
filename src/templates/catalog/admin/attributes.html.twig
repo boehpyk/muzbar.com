@@ -36,6 +36,41 @@
                         <td>
                             <a href="{{ path('admin_attribute_edit', {id: attribute.id}) }}">Edit</a>
                             {# A form, never a link: no GET may change state (ADR-0015). #}
+                            <form method="post" action="{{ path('admin_attribute_archive', {id: attribute.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('archive-attribute-' ~ attribute.id) }}">
+                                <button type="submit">Archive</button>
+                            </form>
+                            <form method="post" action="{{ path('admin_attribute_delete', {id: attribute.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('delete-attribute-' ~ attribute.id) }}">
+                                <button type="submit">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    {# Archived rows show only on their defining category (ADR-0022, AC-16): `effectiveFor()` is
+       active-only, `archivedDefinedOn()` reads this category's own archived attributes. Their codes
+       stay reserved (C-29), which is why Restore needs no check. #}
+    {% if archived is not empty %}
+        <h2>Archived</h2>
+        <table class="archived-attributes">
+            <thead>
+                <tr><th>Label</th><th>Code</th><th>Type</th><th>Required</th><th>Details</th><th>Archived</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for attribute in archived %}
+                    <tr>
+                        {{ _self.cells(attribute, typeNames) }}
+                        <td>Archived on {{ attribute.archivedAt|date('j M Y') }}</td>
+                        <td>
+                            <a href="{{ path('admin_attribute_edit', {id: attribute.id}) }}">Edit</a>
+                            <form method="post" action="{{ path('admin_attribute_restore', {id: attribute.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('restore-attribute-' ~ attribute.id) }}">
+                                <button type="submit">Restore</button>
+                            </form>
                             <form method="post" action="{{ path('admin_attribute_delete', {id: attribute.id}) }}">
                                 <input type="hidden" name="_token" value="{{ csrf_token('delete-attribute-' ~ attribute.id) }}">
                                 <button type="submit">Delete</button>
@@ -77,7 +112,7 @@
             {% if attribute.unit is not null %}unit: {{ attribute.unit }}{% endif %}
             {% if attribute.minimum is not null %}min: {{ attribute.minimum }}{% endif %}
             {% if attribute.maximum is not null %}max: {{ attribute.maximum }}{% endif %}
-        {% elseif attribute.type == 'choice' %}
+        {% elseif attribute.type == 'choice' and attribute.archivedAt is not defined %}
             {{ attribute.optionCount }} {{ attribute.optionCount == 1 ? 'option' : 'options' }}
         {% endif %}
     </td>

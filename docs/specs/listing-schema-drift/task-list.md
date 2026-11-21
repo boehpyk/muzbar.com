@@ -63,7 +63,7 @@
 ## Infrastructure — UI
 - [x] **T10:** `AttributeAdminController`: the four POST routes (CSRF → 403 first, 303 + flash,
       `AttributeNeedsAnOption` → error flash); C-25/C-26 flashes point at Archive.
-- [ ] **T11:** Admin templates: Archive per active attribute and option; "Archived" section on the
+- [x] **T11:** Admin templates: Archive per active attribute and option; "Archived" section on the
       defining category's list (with "Archived on …", Restore, Delete); "Archived options" on the edit
       page; the archived-attribute banner with Restore.
 - [ ] **T12:** `SellController::edit()`: values before schema (still five queries); `keep` = stored

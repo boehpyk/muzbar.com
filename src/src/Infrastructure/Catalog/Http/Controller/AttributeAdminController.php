@@ -87,6 +87,7 @@ final class AttributeAdminController extends AbstractController
         return $this->render('catalog/admin/attributes.html.twig', [
             'category' => $category,
             'attributes' => $this->schema->effectiveFor($category['id']),
+            'archived' => $this->schema->archivedDefinedOn($category['id']),
             'types' => AttributeType::cases(),
         ]);
     }

@@ -7,6 +7,17 @@
 {% block body %}
     <h1>Edit “{{ attribute.label }}”</h1>
 
+    {# An archived attribute stays editable (ADR-0022 Q6) — recoding it frees its reserved code. #}
+    {% if attribute.archivedAt is not null %}
+        <div class="archived-banner">
+            <p>Archived on {{ attribute.archivedAt|date('j M Y') }} — sellers don't see it.</p>
+            <form method="post" action="{{ path('admin_attribute_restore', {id: attribute.id}) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('restore-attribute-' ~ attribute.id) }}">
+                <button type="submit">Restore</button>
+            </form>
+        </div>
+    {% endif %}
+
     {# The type never changes (C-14), so it is text, not a field. #}
     <p>Type: {{ typeNames[type.value] }}</p>
 
@@ -27,13 +38,17 @@
         {# In insertion order (`ORDER BY id`, C-19), unpaginated (owner, Q10). One token per attribute
            serves every option form (plan D11). Each action answers 303 back here with a flash. #}
         {% set optionsToken = csrf_token('attribute-options-' ~ attribute.id) %}
-        <ul>
-            {% for option in options %}
+        <ul class="active-options">
+            {% for option in options|filter(o => o.archivedAt is null) %}
                 <li>
                     <form method="post" action="{{ path('admin_attribute_option_relabel', {id: attribute.id, optionId: option.id}) }}">
                         <input type="hidden" name="_token" value="{{ optionsToken }}">
                         <input type="text" name="label" value="{{ option.label }}" aria-label="Option label" required>
                         <button type="submit">Rename</button>
+                    </form>
+                    <form method="post" action="{{ path('admin_attribute_option_archive', {id: attribute.id, optionId: option.id}) }}">
+                        <input type="hidden" name="_token" value="{{ optionsToken }}">
+                        <button type="submit">Archive</button>
                     </form>
                     <form method="post" action="{{ path('admin_attribute_option_remove', {id: attribute.id, optionId: option.id}) }}">
                         <input type="hidden" name="_token" value="{{ optionsToken }}">
@@ -42,6 +57,27 @@
                 </li>
             {% endfor %}
         </ul>
+
+        {# Archived labels stay reserved (C-29): adding one again is refused, restoring it is not. #}
+        {% set archivedOptions = options|filter(o => o.archivedAt is not null) %}
+        {% if archivedOptions is not empty %}
+            <h2>Archived options</h2>
+            <ul class="archived-options">
+                {% for option in archivedOptions %}
+                    <li>
+                        {{ option.label }} — archived on {{ option.archivedAt|date('j M Y') }}
+                        <form method="post" action="{{ path('admin_attribute_option_restore', {id: attribute.id, optionId: option.id}) }}">
+                            <input type="hidden" name="_token" value="{{ optionsToken }}">
+                            <button type="submit">Restore</button>
+                        </form>
+                        <form method="post" action="{{ path('admin_attribute_option_remove', {id: attribute.id, optionId: option.id}) }}">
+                            <input type="hidden" name="_token" value="{{ optionsToken }}">
+                            <button type="submit">Delete</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
 
         <form method="post" action="{{ path('admin_attribute_option_add', {id: attribute.id}) }}">
             <input type="hidden" name="_token" value="{{ optionsToken }}">
