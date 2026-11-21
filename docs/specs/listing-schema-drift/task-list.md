@@ -82,7 +82,7 @@
       values) and `NoDdlTest` (four new handlers). (AC-15)
 - [x] **T17:** Functional: admin pages and actions (AC-16…AC-19), `SellTest` (AC-20 incl. the
       five-query budget), `PublicListingTest` (AC-21), GET-no-write + Sentry silence (AC-22).
-- [ ] **T18:** Bite proof: AC-23 mutations (a)…(o) one at a time; each fails a named test. Revert,
+- [x] **T18:** Bite proof: AC-23 mutations (a)…(o) one at a time; each fails a named test. Revert,
       record in the commit message, run `make test` twice and once with `zend.assertions=-1`. (AC-23,
       AC-24)
 
