@@ -42,7 +42,7 @@
       `publish()` re-reads `onlyFor($schema)` only (L-14 narrowed). Docblock: L-17, stale vs dormant.
 
 ## Application — `Catalog`
-- [ ] **T5:** `ArchiveAttribute` + `RestoreAttribute` and handlers (`exclusively()`, `Clock` for
+- [x] **T5:** `ArchiveAttribute` + `RestoreAttribute` and handlers (`exclusively()`, `Clock` for
       archive, malformed id → `AttributeNotFound`).
 - [ ] **T6:** `ArchiveAttributeOption` + `RestoreAttributeOption` and handlers (option-of-attribute
       rule as in `RemoveAttributeOptionHandler`; archive: C-18 on `countActiveForAttribute()` when the
