@@ -55,7 +55,7 @@
       `ListingCategoryUsageTest` (comment naming this slice). One commit, so the suite is green at it.
 
 ## Infrastructure — read side
-- [ ] **T8:** `CategoriesForListing::schemaOf()`: archived filters **in the join conditions** (D4).
+- [x] **T8:** `CategoriesForListing::schemaOf()`: archived filters **in the join conditions** (D4).
 - [ ] **T9:** `DbalAttributeSchema`: `effectiveFor()` active only + active `option_count`;
       `archivedDefinedOn()`; `archivedAt` on `find()` / `optionsOf()` (own phpstan types);
       `optionsFor(…, keep)` with `archived` per row. `optionLabels()` unchanged.

@@ -64,6 +64,10 @@ final readonly class CategoriesForListing implements Categories
      * unknown one is a `\LogicException`, failing closed. A legacy duplicate code along a branch
      * (pre-C-21 data) is two attribute ids, so it yields two rules without error.
      *
+     * Active only (ADR-0022 D4): archived attributes and archived options are filtered **in the join
+     * conditions**, not the `WHERE` — a choice whose options are all archived still yields a rule
+     * (with no options) rather than vanishing, so the read model keeps its shape on bad data.
+     *
      * ponytail: every option id of every choice attribute in force, on every save — a 5 000-brand
      * list is 5 000 ids. Upgrade: load only the option ids the input mentions (plan D5).
      */
@@ -81,8 +85,8 @@ final readonly class CategoriesForListing implements Categories
                 (a.number_rules->>'min')::bigint AS minimum, (a.number_rules->>'max')::bigint AS maximum,
                 array_to_json(array_agg(o.id ORDER BY o.id) FILTER (WHERE o.id IS NOT NULL)) AS option_ids
             FROM up
-            JOIN catalog_attribute a ON a.category_id = up.id
-            LEFT JOIN catalog_attribute_option o ON o.attribute_id = a.id
+            JOIN catalog_attribute a ON a.category_id = up.id AND a.archived_at IS NULL
+            LEFT JOIN catalog_attribute_option o ON o.attribute_id = a.id AND o.archived_at IS NULL
             GROUP BY a.id
             ORDER BY a.id",
             ['category' => $id->toString(), 'bound' => Category::MAX_DEPTH],
