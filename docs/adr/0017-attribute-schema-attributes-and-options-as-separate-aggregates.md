@@ -172,3 +172,20 @@ Recorded by the `catalog-schema-inheritance` slice
    unchanged.
 3. **`AttributeRepository::isCodeTaken()` is removed**, with its tests: once the aggregate decides,
    the handler pre-check has no caller. Its replacement fact is `codesDefinedOn(list<CategoryId>)`.
+
+## Amendment, 2026-11-21 — C-18 counts active options; archived labels still count for C-17; options gain a lifecycle
+
+Recorded by the `listing-schema-drift` slice
+([ADR-0022](./0022-schema-drift-archive-reserved-names-dormant-values.md), plan D1–D3).
+
+1. **C-18 counts active options:** a choice attribute always has at least one **active** option.
+   `AttributeOptionRepository::countForAttribute()` is renamed **`countActiveForAttribute()`**
+   (`… AND archived_at IS NULL`) — a port method whose meaning changes changes its name.
+   `Attribute::allowOptionRemoval(int $activeOptionCount)` is called whenever an active option
+   leaves the active set (archived or deleted); deleting an already-archived option never meets C-18.
+2. **An archived option's label still counts for C-17** (C-29). `isLabelTaken()` and the
+   `(attribute_id, label_key)` index read every row, unchanged — on purpose, so restore needs no
+   facts and cannot be refused.
+3. **Options gain a lifecycle — `archive(now)` / `restore()` (C-28) — but still no `delete()`.**
+   Hard delete stays a handler and a port (ADR-0012); `Attribute::newOption()` is still the only
+   factory. Attributes gain the same two methods.

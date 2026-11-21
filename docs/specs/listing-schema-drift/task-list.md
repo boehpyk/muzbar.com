@@ -19,7 +19,7 @@
 - No GET writes. Every new admin action is POST-only with its own CSRF token (403 before lookup).
 
 ## Decisions & prerequisites
-- [ ] **T0:** `/adr` → **ADR-0022** (plan D1–D10, Q1–Q5 with rejected alternatives and consequences)
+- [x] **T0:** `/adr` → **ADR-0022** (plan D1–D10, Q1–Q5 with rejected alternatives and consequences)
       and the dated amendments to **ADR-0004, ADR-0016, ADR-0017, ADR-0018, ADR-0020, ADR-0021**
       (plan Risk 7). No code.
 

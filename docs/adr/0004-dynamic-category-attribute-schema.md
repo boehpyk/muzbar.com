@@ -97,3 +97,19 @@ Recorded by the `listing-attribute-values` slice
 3. **Only `(attribute_id, option_id)` is indexed now.** Number-range, boolean and text indexes are
    one migration each when a Phase 2 query needs them. The no-runtime-DDL invariant is unchanged:
    defining an attribute writes rows, never a column.
+
+## Amendment, 2026-11-21 — the soft-delete clause is implemented, as *archive*; hard delete survives for unused rows
+
+Recorded by the `listing-schema-drift` slice
+([ADR-0022](./0022-schema-drift-archive-reserved-names-dormant-values.md), plan Q1, D1).
+
+1. **The decision's soft-delete clause is implemented — as a separate act called *archive*.**
+   `catalog_attribute` and `catalog_attribute_option` gain `archived_at timestamptz(0) NULL`. An
+   archived attribute is hidden from the seller's form, the public page and (Phase 2) the facets;
+   every value that names it is retained and wakes on **restore**. An archived option is hidden from
+   new choices; values on it are retained and shown as stored.
+2. **Hard delete survives, for rows no listing uses** (C-25/C-26 unchanged; their refusal now points
+   at Archive). "Deleting soft-deletes" therefore reads as *two buttons*: Delete for unused rows,
+   Archive for any row.
+3. **The value layer is untouched** — no column, index or row of `listing_attribute_value` changes.
+   The no-runtime-DDL invariant is unchanged: archiving is an `UPDATE` of one row.

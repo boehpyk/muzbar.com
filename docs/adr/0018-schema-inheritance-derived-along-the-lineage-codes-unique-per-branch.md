@@ -191,3 +191,20 @@ never checked (L-11, narrowed). Nothing re-checks published listings, so a new r
 (or narrowed number bounds) makes a listing incomplete only when its seller next touches it. The
 schema fact (`Categories::schemaOf()`) now carries `required`; Catalog's Domain and Application
 are unchanged. All four points of decision 8 are now answered.
+
+## Amendment, 2026-11-21 — archived codes still count for C-21; restore is not a fourth door; the derivation is over active attributes
+
+Recorded by the `listing-schema-drift` slice
+([ADR-0022](./0022-schema-drift-archive-reserved-names-dormant-values.md), plan Q2, D2, D4, D9).
+
+1. **C-21 counts archived codes (C-29).** `codesDefinedOn()` reads archived rows, on every door —
+   define, recode, move. A new attribute with an archived attribute's code on its branch is still a
+   conflict: it would be the override this ADR rejected, splitting one facet in two.
+2. **Restore is therefore not a fourth door to C-21.** It takes no facts and is never refused. A
+   change that freed archived codes would make it one (and need a lock read and a
+   `CategoryTreeLockTest` case).
+3. **C-22's derivation is over active attributes for every consumer** — `schemaOf()` (Listing),
+   `effectiveFor()` (the admin list, the seller form, the public page) — **except** the admin's own
+   archived list (`DbalAttributeSchema::archivedDefinedOn()`). Still derived, never stored.
+4. **The 2026-11-18 amendment's point 1 is superseded:** the move is no longer refused for values
+   (C-27 retired); values that leave the lineage go dormant (L-17).
