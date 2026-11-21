@@ -37,7 +37,7 @@
       `AttributeUsage` re-scoped to hard delete.
 
 ## Domain — `Listing`
-- [ ] **T3:** `AttributeValues::onlyFor()` / `::notIn()`.
+- [x] **T3:** `AttributeValues::onlyFor()` / `::notIn()`.
 - [ ] **T4:** `Listing::revise()` carries dormant values over when the category is unchanged (L-17);
       `publish()` re-reads `onlyFor($schema)` only (L-14 narrowed). Docblock: L-17, stale vs dormant.
 
