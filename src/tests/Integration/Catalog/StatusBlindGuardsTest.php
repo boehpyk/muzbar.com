@@ -65,17 +65,18 @@ final class StatusBlindGuardsTest extends KernelTestCase
         return (int) $n;
     }
 
-    /** The values tree with exactly one listing on Electric — published, holding brand = Fender — and no draft anywhere. */
-    private function treeWithOnlyAPublishedListing(): void
+    /** The values tree with exactly one listing on Electric — of `$status`, holding brand = Fender — and no draft anywhere. */
+    private function treeWithOnlyAListingOfStatus(string $status): void
     {
         $this->buildTheValuesTree();
-        ListingFactory::new()->inCategory($this->electric)->withValues([
+        $factory = ListingFactory::new()->inCategory($this->electric)->withValues([
             $this->condition->id()->toString() => $this->optionIdOf($this->condition, 'Used'),
             $this->brand->id()->toString() => $this->optionIdOf($this->brand, 'Fender'),
-        ])->published()->create();
+        ]);
+        ('published' === $status ? $factory->published() : $factory->withdrawn())->create();
 
         self::assertSame(1, $this->rows('listing_listing'));
-        self::assertSame(1, $this->rows('listing_listing', "status = 'published'"));
+        self::assertSame(1, $this->rows('listing_listing', \sprintf("status = '%s'", $status)));
     }
 
     /**
@@ -119,41 +120,44 @@ final class StatusBlindGuardsTest extends KernelTestCase
         }
     }
 
-    /** C-25 — deleting an attribute some published listing holds a value for. */
-    public function testDeletingAnAttributeThatOnlyAPublishedListingHoldsIsRefused(): void
+    /** C-25 — deleting an attribute some listing of that status holds a value for. */
+    #[DataProvider('nonDraftStatuses')]
+    public function testDeletingAnAttributeThatOnlyAListingOfThatStatusHoldsIsRefused(string $status): void
     {
-        $this->treeWithOnlyAPublishedListing();
+        $this->treeWithOnlyAListingOfStatus($status);
 
         try {
             ($this->service(DeleteAttributeHandler::class))(new DeleteAttribute($this->brand->id()->toString()));
-            self::fail('A brand in use by a published listing was deleted.');
+            self::fail('A brand in use by a '.$status.' listing was deleted.');
         } catch (AttributeInUse) {
             self::assertSame(1, $this->rows('catalog_attribute', \sprintf("id = '%s'", $this->brand->id()->toString())));
         }
     }
 
-    /** C-26 — removing an option a published listing holds. */
-    public function testRemovingAnOptionThatOnlyAPublishedListingHoldsIsRefused(): void
+    /** C-26 — removing an option a listing of that status holds. */
+    #[DataProvider('nonDraftStatuses')]
+    public function testRemovingAnOptionThatOnlyAListingOfThatStatusHoldsIsRefused(string $status): void
     {
-        $this->treeWithOnlyAPublishedListing();
+        $this->treeWithOnlyAListingOfStatus($status);
         $fender = $this->optionIdOf($this->brand, 'Fender');
 
         try {
             ($this->service(RemoveAttributeOptionHandler::class))(new RemoveAttributeOption($this->brand->id()->toString(), $fender));
-            self::fail('An option in use by a published listing was removed.');
+            self::fail('An option in use by a '.$status.' listing was removed.');
         } catch (AttributeInUse) {
             self::assertSame(1, $this->rows('catalog_attribute_option', \sprintf("id = '%s'", $fender)));
         }
     }
 
-    /** C-27 — moving a category whose subtree a published listing holds values in. */
-    public function testMovingACategoryWhoseSubtreeOnlyAPublishedListingHoldsValuesInIsRefused(): void
+    /** C-27 — moving a category whose subtree a listing of that status holds values in. */
+    #[DataProvider('nonDraftStatuses')]
+    public function testMovingACategoryWhoseSubtreeOnlyAListingOfThatStatusHoldsValuesInIsRefused(string $status): void
     {
-        $this->treeWithOnlyAPublishedListing();
+        $this->treeWithOnlyAListingOfStatus($status);
 
         try {
             ($this->service(EditCategoryHandler::class))(new EditCategory($this->electric->id()->toString(), 'Electric', 'electric', $this->instruments->id()->toString()));
-            self::fail('Electric was moved while a published listing holds values.');
+            self::fail('Electric was moved while a '.$status.' listing holds values.');
         } catch (CategoryHasListings $e) {
             self::assertTrue($e->isMove());
             self::assertSame($this->guitars->id()->toString(), $this->db->fetchOne('SELECT parent_id FROM catalog_category WHERE id = ?', [$this->electric->id()->toString()]));

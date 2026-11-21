@@ -166,12 +166,12 @@ D with condition = Used, brand = Fender. The Clock in tests is a fixed whole-sec
 
 ### Aggregate (Domain unit tests, no kernel)
 
-- [ ] **AC-1 (publish, happy path, L-12/L-16)** — complete D, `publish(Ann, Leaf, schema, T)`:
+- [x] **AC-1 (publish, happy path, L-12/L-16)** — complete D, `publish(Ann, Leaf, schema, T)`:
       `status()` = `Published`, `publishedAt()` = T, `releaseEvents()` = exactly one
       `ListingPublished` carrying D's `ListingId`, Ann's `SellerId`, Electric's `CategoryId` and T —
       and nothing else (no title, price or values). A fresh draft has `publishedAt()` = null and
       records no event.
-- [ ] **AC-2 (publish refusals, order, check-before-assign)** — each refusal leaves `status()`,
+- [x] **AC-2 (publish refusals, order, check-before-assign)** — each refusal leaves `status()`,
       `publishedAt()` unchanged and records no event:
       - by Bob → `NotTheSeller`, even when D is also incomplete (L-6 first);
       - status `Branch` → `CategoryIsNotALeaf`; `Missing` → `UnknownCategory` (L-14, even though D's
@@ -182,43 +182,47 @@ D with condition = Used, brand = Fender. The Clock in tests is a fixed whole-sec
         exception (L-13);
       - order: L-6 → L-14 (L-2) → L-14 (L-9) → L-13 — a D on a `Branch` with an empty brand reports
         `CategoryIsNotALeaf`.
-- [ ] **AC-3 (no-ops and withdraw, L-12)** — `publish()` on a published D (by Ann) changes nothing,
+- [x] **AC-3 (no-ops and withdraw, L-12)** — `publish()` on a published D (by Ann) changes nothing,
       keeps `publishedAt()` and records nothing. `withdraw(Ann)` on a published D → `Withdrawn`,
       `publishedAt()` kept, no event; again → no-op. `withdraw(Ann)` on a draft →
       `ListingNotPublished`; `withdraw(Bob)` → `NotTheSeller`. `publish()` on a withdrawn D at T+60s
       → `Published`, `publishedAt()` = T+60s, one `ListingPublished`.
-- [ ] **AC-4 (revise by status, L-11/L-13/L-15)** —
+- [x] **AC-4 (revise by status, L-11/L-13/L-15)** —
       - Draft and Withdrawn: revise with required attributes empty succeeds (L-11).
       - Published: revise keeping condition and brand succeeds and stays `Published`; revise
         clearing brand → `ListingIncomplete` naming brand, nothing changed; revise against a schema
         with a **new** required attribute (absent from the input) → `ListingIncomplete` naming it.
       - Published: revise to Bass → `PublishedListingCannotBeRefiled`, before L-2 (also with Bass
         `Missing`), nothing changed. Withdrawn: re-file to Bass succeeds (L-10 applies).
-- [ ] **AC-5 (schema fact)** — `AttributeSchema::missingFrom(AttributeValues)` returns exactly the
+- [x] **AC-5 (schema fact)** — `AttributeSchema::missingFrom(AttributeValues)` returns exactly the
       required rules' ids with no value, in id order; `AttributeValue::toRaw()` read back through its
       own rule returns an equal value for each of the four kinds.
-- [ ] **AC-6 (shape)** — `Listing`'s public methods are exactly the listing-attribute-values AC-4
+- [x] **AC-6 (shape)** — `Listing`'s public methods are exactly the listing-attribute-values AC-4
       list plus `publish`, `withdraw`, `publishedAt`, `releaseEvents` (allow-list test updated **on
       purpose**; listing-draft AC-6's "does not use `RecordsEvents`" assertion **inverted on
       purpose**). `ListingPublished` holds only value objects and a `\DateTimeImmutable`.
-- [ ] **AC-7 (isolation)** — `ListingIsolationTest` and `CatalogIsolationTest` pass unchanged.
+- [x] **AC-7 (isolation)** — `ListingIsolationTest` and `CatalogIsolationTest` pass unchanged.
+      **Amended at `/verify`:** "unchanged" was wrong in one respect — the first Listing event uses
+      the shared kernel (`RecordsEvents`, `DomainEvent`, `Clock`), so `ListingIsolationTest` now
+      admits `App\Domain\Shared` and nothing else. The shared kernel is not a bounded context; the
+      test won, on purpose. `CatalogIsolationTest` is unchanged.
 
 ### Use cases against a real database (Integration, DAMA)
 
-- [ ] **AC-8 (schema)** — after the migration `listing_listing.published_at` is `timestamp(0) with
+- [x] **AC-8 (schema)** — after the migration `listing_listing.published_at` is `timestamp(0) with
       time zone`, nullable; every pre-existing row is `status = 'draft'`, `published_at IS NULL`.
       `make migration.make` afterwards generates **nothing**.
-- [ ] **AC-9 (save and publish)** — `ReviseListing(publish: true)` on D with condition = Used, brand
+- [x] **AC-9 (save and publish)** — `ReviseListing(publish: true)` on D with condition = Used, brand
       = Fender: one transaction; a **fresh EntityManager** load shows `Published`, `publishedAt` = T,
       the values stored. The recording dispatcher received exactly one `ListingPublished`.
       `ReviseListing(publish: false)` dispatches nothing.
-- [ ] **AC-10 (refused publish writes nothing)** — `ReviseListing(publish: true)` on D with a new
+- [x] **AC-10 (refused publish writes nothing)** — `ReviseListing(publish: true)` on D with a new
       title and brand empty → `ListingIncomplete`; `listing_listing` and `listing_attribute_value`
       equal their pre-command snapshot (the title edit is **not** saved either), nothing dispatched.
-- [ ] **AC-11 (`schemaOf()` reports required)** — for Electric, condition and brand are required,
+- [x] **AC-11 (`schemaOf()` reports required)** — for Electric, condition and brand are required,
       the other three are not; toggling `required` on strings through `EditAttribute` flips it on
       the next read.
-- [ ] **AC-12 (never retroactive — the D11.2 test)** — with D published and strings = 6:
+- [x] **AC-12 (never retroactive — the D11.2 test)** — with D published and strings = 6:
       - an admin marks `has_case` required, defines a new required attribute on Instruments, and
         narrows strings to 7…12: all succeed; D's `listing_listing` and `listing_attribute_value`
         rows are byte-identical; D is still `published` and its public page is still 200;
@@ -227,15 +231,15 @@ D with condition = Used, brand = Fender. The Clock in tests is a fixed whole-sec
         filled → saved, still `Published`, `published_at` unchanged, nothing dispatched.
       - The same three admin changes against a **withdrawn** D: Ann's revise without the new fields
         succeeds (L-11); her publish without them is refused (L-13).
-- [ ] **AC-13 (withdraw)** — `WithdrawListing` on published D → `withdrawn`, `published_at`
+- [x] **AC-13 (withdraw)** — `WithdrawListing` on published D → `withdrawn`, `published_at`
       unchanged, values unchanged; on a draft → `ListingNotPublished`, row unchanged; by Bob →
       `NotTheSeller`, row unchanged.
-- [ ] **AC-14 (Catalog guards are status-blind — ADR-0019's watch item)** — with **only** a
+- [x] **AC-14 (Catalog guards are status-blind — ADR-0019's watch item)** — with **only** a
       published listing on Electric (no drafts anywhere): deleting Electric (C-23), creating a child
       under it (C-24), deleting brand (C-25), removing Fender (C-26), moving Electric (C-27) are each
       refused. With only a **withdrawn** listing: deleting Electric and creating a child under it
       are refused.
-- [ ] **AC-15 (the lock and the commit, recording doubles)** — `ReviseListingHandler` calls
+- [x] **AC-15 (the lock and the commit, recording doubles)** — `ReviseListingHandler` calls
       `statusOf()`, `schemaOf()` and `save()` inside `holdSteady()`, and calls
       `DomainEventDispatcher::dispatch()` **outside** it (the double records whether the lock was
       held at dispatch time). `WithdrawListingHandler` calls `get()` and `save()` inside
@@ -243,60 +247,60 @@ D with condition = Used, brand = Fender. The Clock in tests is a fixed whole-sec
 
 ### HTTP surface (Functional)
 
-- [ ] **AC-16 (your listings)** — `GET /sell/drafts` lists **only** Ann's listings, newest first,
+- [x] **AC-16 (your listings)** — `GET /sell/drafts` lists **only** Ann's listings, newest first,
       each with its status as a word ("Draft", "Published", "Withdrawn"); a published one also links
       to its public page. Title "Your listings". URLs unchanged (Q8).
-- [ ] **AC-17 (edit page by status)** — `GET /sell/drafts/{D}/edit`:
+- [x] **AC-17 (edit page by status)** — `GET /sell/drafts/{D}/edit`:
       - Draft: heading "Edit listing", status "Draft", buttons "Save draft" and "Save and publish";
         no withdraw form.
       - Published: status "Published" with a link to the public page; the category `<select>` is
         `disabled` with help *"Withdraw the listing to move it to another category."*; one button
         "Save changes"; a separate POST form "Withdraw" with its own CSRF token.
       - Withdrawn: status "Withdrawn"; buttons "Save" and "Save and publish again"; category enabled.
-- [ ] **AC-18 (publish from the form)** — "Save and publish" on complete D → 303 to
+- [x] **AC-18 (publish from the form)** — "Save and publish" on complete D → 303 to
       `/listings/{D}` with flash *"Published. This is what buyers see."*. Incomplete → **422**, the
       edit form with *"Fill this in to publish."* on every missing required field, every field
       keeping its submitted value, flash-free, nothing written. "Save and publish" with a **changed
       category** saves the re-file as before (L-10), does **not** publish, and lands on the edit page
       with *"Saved, not published yet. The details now follow “Bass”: check them, then publish."*
-- [ ] **AC-19 (edit while published)** — "Save changes" on published D: valid and complete → 303 to
+- [x] **AC-19 (edit while published)** — "Save changes" on published D: valid and complete → 303 to
       `/sell/drafts` with *"Saved. Your listing is updated."*, still published; clearing brand →
       422 *"Fill this in to publish."* on brand, nothing written; a tampered `category` field on
       the POST is ignored (disabled field) and the category is unchanged.
-- [ ] **AC-20 (withdraw from the form)** — `POST /sell/drafts/{D}/withdraw` with a valid token on
+- [x] **AC-20 (withdraw from the form)** — `POST /sell/drafts/{D}/withdraw` with a valid token on
       published D → 303 `/sell/drafts`, flash *"Withdrawn. It is no longer public."*; the public
       page is now 404. Bad/missing token → **403**, checked **before** the ownership lookup so it is
       the same for every id (the `CategoryAdminController::delete()` precedent), nothing changed. On a draft → 303, error flash *"Only a published
       listing can be withdrawn."* `GET` on the withdraw URL → 405.
-- [ ] **AC-21 (public page content)** — anonymous `GET /listings/{D}` on published D → 200, showing:
+- [x] **AC-21 (public page content)** — anonymous `GET /listings/{D}` on published D → 200, showing:
       the title as `<h1>`; the price as "1234.50 EUR"; the category path "Instruments › Guitars ›
       Electric"; "Listed on 20 Nov 2026" (from `published_at`); the description with line breaks
       preserved and HTML escaped (`<script>` in a description renders as text); a "Details" `<dl>`
       with one entry per stored value in `effectiveFor()` order — choice → its option's label,
       number → value with unit ("6 pcs"), boolean → "Yes"/"No", text → as stored. Attributes with
       no value are omitted; no Details section when there are none. Signed in as Bob: identical body.
-- [ ] **AC-22 (privacy — Constitution §8)** — the public page's HTML contains **neither** Ann's
+- [x] **AC-22 (privacy — Constitution §8)** — the public page's HTML contains **neither** Ann's
       email, **nor** her user id, **nor** any string from `identity_user`; and the read model's SQL
       for it (captured by `QueryRecordingStatement`) **never names `seller_id`**.
-- [ ] **AC-23 (404 parity)** — `GET /listings/{x}` is 404 for x = a draft, a withdrawn listing, an
+- [x] **AC-23 (404 parity)** — `GET /listings/{x}` is 404 for x = a draft, a withdrawn listing, an
       unknown UUID, a malformed id — for anonymous, Bob, **and Ann** — and the four bodies are equal
       after normalising ids and dump ids (the `SellTest` technique). A malformed id issues no query.
-- [ ] **AC-24 (public page query budget)** — the public page issues at most **five** queries
+- [x] **AC-24 (public page query budget)** — the public page issues at most **five** queries
       (listing, outline, effective schema, values, option labels), the same with one choice
       attribute as with four, and the option-label query names only the stored option ids (a
       50-option attribute fetches one label row).
-- [ ] **AC-25 (no GET writes)** — the public page, "Your listings" and the edit page GETs leave every
+- [x] **AC-25 (no GET writes)** — the public page, "Your listings" and the edit page GETs leave every
       table unchanged (ADR-0015).
-- [ ] **AC-26 (someone else's listing)** — Bob's GET/POST on D's edit URL and POST on its withdraw
+- [x] **AC-26 (someone else's listing)** — Bob's GET/POST on D's edit URL and POST on its withdraw
       URL (with a valid token minted for his session), for D in each status, are the listing-draft
       AC-29 404; D unchanged.
-- [ ] **AC-27 (silence)** — every *user error* refusal (incomplete, not-a-leaf, out of range,
+- [x] **AC-27 (silence)** — every *user error* refusal (incomplete, not-a-leaf, out of range,
       withdraw a draft) is not logged at `error`; `RecordingSentryTransport` stays
       empty.
 
 ### Cross-cutting
 
-- [ ] **AC-28 (tests bite)** — each mutation fails a named test (recorded in the commit message):
+- [x] **AC-28 (tests bite)** — each mutation fails a named test (recorded in the commit message):
       - (a) `publish()` without L-13 → AC-2 / AC-10
       - (b) `revise()` without L-13 while published → AC-4 / AC-19
       - (c) L-13 on every revise regardless of status → AC-4 / AC-12 (draft and withdrawn)
@@ -312,7 +316,7 @@ D with condition = Used, brand = Fender. The Clock in tests is a fixed whole-sec
       - (m) filter `status = 'draft'` in `ListingCategoryUsage::hasListings()` → AC-14
       - (n) `withdraw()` keeps status `Published` → AC-3 / AC-20
       - (o) `publishedAt` not set from the Clock (e.g. `new \DateTimeImmutable()`) → AC-1 / AC-9
-- [ ] **AC-29** — `make check` green, `make test` passes **twice in a row**, Deptrac 0 violations
+- [x] **AC-29** — `make check` green, `make test` passes **twice in a row**, Deptrac 0 violations
       with `--fail-on-uncovered`, `make migration.make` empty, CI-mode run
       (`php -d zend.assertions=-1 vendor/bin/phpunit`) green.
 
