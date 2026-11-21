@@ -312,7 +312,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         `CategoryUsage::hasAttributeValues()`, under `exclusively()`.
         [ADR-0020](./adr/0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md)
         + ADR-0004/0007/0016/0018/0019 amendments. All fourteen AC-28 mutations bit. 1436 → 1637 tests.
-  - [x] `listing-publish` (2026-11-21; **not yet through `/verify`**) — `Draft → Published` (+ `Withdrawn`). **D11.2 answered here: "required"
+  - [x] `listing-publish` (2026-11-21; **passed `/verify` 2026-11-21 first time**) — `Draft → Published` (+ `Withdrawn`). **D11.2 answered here: "required"
         and current number rules bite at publish and at every later edit, never retroactively** — so
         a new required attribute, or narrowed bounds, makes a listing incomplete only when its owner
         next touches it. Public page `/listings/{id}` for published listings only, no seller email

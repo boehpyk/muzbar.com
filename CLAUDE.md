@@ -124,7 +124,8 @@ Docker Compose · Traefik · Nginx.
 > soft delete can come later** (`listing-schema-drift`). Blank = clear. All fourteen AC-28 mutations
 > bit; 1637 tests. [ADR-0020](./docs/adr/0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md)
 > + ADR-0004/0007/0016/0018/0019 amendments.
-> `listing-publish` (2026-11-21, **not yet through `/verify`**) — Listing slice 3 of 4: the first page
+> `listing-publish` (2026-11-21, **passed `/verify` 2026-11-21 first time** — the one fix was
+> `StatusBlindGuardsTest` covering withdrawn listings for C-25/C-26/C-27, not only C-23/C-24) — Listing slice 3 of 4: the first page
 > anyone but its author can see, and the first **state machine inside an aggregate whose invariant's
 > force depends on the state**. `Draft → Published ⇄ Withdrawn` (L-12; nothing returns to `Draft`).
 > `required` bites (L-13) at `publish()` and at every `revise()` **while published**, against the
@@ -136,9 +137,9 @@ Docker Compose · Traefik · Nginx.
 > **dispatched after it returns**: "after save" there is not "after commit". The public page
 > `/listings/{id}` filters `status = 'published'` in SQL and **never selects `seller_id`** — privacy
 > as a column never read; one 404 for draft/withdrawn/unknown/malformed, for everyone. All fifteen
-> AC-28 mutations bit; 1743 tests.
+> AC-28 mutations bit; 1746 tests.
 > [ADR-0021](./docs/adr/0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md)
-> + ADR-0008/0018/0019/0020 amendments. Next: `/verify`, then `uuid-id-trait` (eleven copies);
+> + ADR-0008/0018/0019/0020 amendments. Next: `uuid-id-trait` (eleven copies);
 > `public-styles` before Phase 2's public search UI; seller contact channels before launch.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
