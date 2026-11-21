@@ -10,10 +10,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Mirrors `EmailVerificationRequestIdTest` (itself mirroring `UserIdTest`) — deliberately, per
- * `PasswordResetRequestId`'s own docblock: this is the *third* near-clone in the context, and the
- * duplication is a knowing choice (ADR-0009's 2026-07-29 amendment) rather than an oversight, so its
- * test suite is knowingly duplicated too.
+ * Mirrors `EmailVerificationRequestIdTest` (itself mirroring `UserIdTest`): all three classes now share
+ * their shape through the `UuidIdShape` trait (ADR-0009's duplication was resolved by extraction).
  */
 final class PasswordResetRequestIdTest extends TestCase
 {
@@ -61,6 +59,7 @@ final class PasswordResetRequestIdTest extends TestCase
         yield 'too short' => ['018f5b2a-0000-7000-8000'];
         yield 'wrong grouping' => ['018f5b2a00007000800000000000000'];
         yield 'empty string' => [''];
+        yield 'trailing newline' => ["018f5b2a-0000-7000-8000-000000000000\n"];
     }
 
     #[DataProvider('malformedIdProvider')]

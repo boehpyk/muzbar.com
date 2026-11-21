@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Domain\Listing\ValueObject;
 
+use App\Domain\Listing\Exception\InvalidAttributeId;
+use App\Domain\Listing\Exception\InvalidAttributeOptionId;
 use App\Domain\Listing\ValueObject\AttributeId;
 use App\Domain\Listing\ValueObject\AttributeOptionId;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -24,6 +26,15 @@ final class AttributeIdValueObjectsTest extends TestCase
     }
 
     /**
+     * @return iterable<string, array{class-string<AttributeId|AttributeOptionId>, class-string<\DomainException>}>
+     */
+    public static function idClassesWithException(): iterable
+    {
+        yield 'AttributeId' => [AttributeId::class, InvalidAttributeId::class];
+        yield 'AttributeOptionId' => [AttributeOptionId::class, InvalidAttributeOptionId::class];
+    }
+
+    /**
      * @param class-string<AttributeId|AttributeOptionId> $class
      */
     #[DataProvider('idClasses')]
@@ -35,16 +46,17 @@ final class AttributeIdValueObjectsTest extends TestCase
 
     /**
      * @param class-string<AttributeId|AttributeOptionId> $class
+     * @param class-string<\DomainException>              $exceptionClass
      */
-    #[DataProvider('idClasses')]
-    public function testRejectsMalformedValues(string $class): void
+    #[DataProvider('idClassesWithException')]
+    public function testRejectsMalformedValues(string $class, string $exceptionClass): void
     {
         foreach (['', 'not-a-uuid', '018f5b2a000070008000000000000000', self::UUID.'x', self::UUID."\n"] as $bad) {
             try {
                 $class::fromString($bad);
                 self::fail(\sprintf('%s accepted %s', $class, var_export($bad, true)));
-            } catch (\DomainException) {
-                $this->addToAssertionCount(1);
+            } catch (\DomainException $e) {
+                self::assertSame($exceptionClass, $e::class);
             }
         }
     }

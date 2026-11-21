@@ -27,7 +27,8 @@ final class CatalogIsolationTest extends TestCase
                     continue;
                 }
                 ++$scanned;
-                preg_match_all('/App\\\\(?:Domain|Application|Infrastructure)\\\\(?!Catalog\\\\)\w+\\\\/', (string) file_get_contents($file->getPathname()), $m);
+                // `Shared` is the shared kernel (events, Clock), not a bounded context.
+                preg_match_all('/App\\\\(?:Domain|Application|Infrastructure)\\\\(?!Catalog\\\\|Shared\\\\)\w+\\\\/', (string) file_get_contents($file->getPathname()), $m);
                 foreach ($m[0] as $hit) {
                     $offences[] = substr($file->getPathname(), \strlen($root) + 1).': '.$hit;
                 }

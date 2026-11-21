@@ -331,12 +331,18 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         discharged). Routes and `DbalSellerDrafts` keep their names (Q8); the page is "Your listings".
         [ADR-0021](./adr/0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md)
         + ADR-0008/0018/0019/0020 amendments. All fifteen AC-28 mutations bit. 1637 → 1743 tests.
-  - [ ] `uuid-id-trait` *(immediately after `listing-publish` — plan Q7)* — `refactor/uuid-id-trait`:
+  - [x] `uuid-id-trait` *(immediately after `listing-publish` — plan Q7)* — `refactor/uuid-id-trait`:
         **eleven** copies of the id value-object shape (ADR-0009; plan Risk 4), Listing's
         `SellerId`/`CategoryId`/`AttributeId`/`AttributeOptionId` included; one trait, touching
         Identity, Catalog and Listing, its own mechanical all-green slice. ADR-0020 asked for it
         *before* `listing-publish` to stop the count growing; that slice added no copy, so it moved
         to just after.
+        **Shipped (2026-11-21):** `App\Domain\Shared\ValueObject\UuidIdShape`, used by all eleven;
+        `self` in a trait resolves to the using class, so every cross-type `equals()` is still a
+        `TypeError` (`UuidIdShapeTest`, an 11-case ring). Each id keeps its own exception through a
+        `malformed()` hook. The two challenge ids had drifted (no `D`) and now refuse a trailing
+        newline — the one behaviour change. The nine DBAL id types are deferred until a fix would
+        have to be made nine times. ADR-0009 amendment; no new ADR. 1746 → 1759 tests.
   - [ ] `listing-schema-drift` *(may follow the gate if the refusals hold up)* — replaces slice 2's
         refusals with ADR-0004's real rules: soft-delete attributes/options (`archived_at`, hidden
         from forms, values retained — and decide whether an archived code still blocks C-21), and a

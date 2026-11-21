@@ -10,9 +10,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Mirrors `UserIdTest` exactly — deliberately, per `EmailVerificationRequestId`'s own docblock: this
- * is `UserId` with two identifiers changed, and the duplication is a knowing choice (ADR-0009,
- * Consequences) rather than an oversight, so its test suite is knowingly duplicated too.
+ * Mirrors `UserIdTest`: `EmailVerificationRequestId` and `UserId` now share their whole shape through
+ * the `UuidIdShape` trait (ADR-0009's duplication was resolved by extraction), so the suites stay parallel.
  */
 final class EmailVerificationRequestIdTest extends TestCase
 {
@@ -60,6 +59,7 @@ final class EmailVerificationRequestIdTest extends TestCase
         yield 'too short' => ['018f5b2a-0000-7000-8000'];
         yield 'wrong grouping' => ['018f5b2a00007000800000000000000'];
         yield 'empty string' => [''];
+        yield 'trailing newline' => ["018f5b2a-0000-7000-8000-000000000000\n"];
     }
 
     #[DataProvider('malformedIdProvider')]
