@@ -12,6 +12,9 @@
     kept under the tree lock in two modes instead — Listing's half via `Categories::holdSteady()`,
     Catalog's half via C-23/C-24 (ADR-0019).
 
+    Lifecycle (L-12, ADR-0021): `status` is draft | published | withdrawn; `published_at` records
+    the last time the listing became public.
+
     `price` is an embeddable: one two-part value object, two columns (ADR-0007 amendment,
     `embeddable/Price.orm.xml`). `status` uses native `enum-type` (the `AttributeType` precedent).
 
@@ -47,6 +50,10 @@
 
         <field name="status" column="status" type="string" length="16" nullable="false"
                enum-type="App\Domain\Listing\ValueObject\ListingStatus"/>
+
+        <!-- L-16: null exactly when the listing was never published; whole seconds from `Clock`
+             (ADR-0007). No CHECK tying it to `status`: the aggregate is the only writer (plan D8). -->
+        <field name="publishedAt" column="published_at" type="datetimetz_immutable" nullable="true"/>
 
     </entity>
 

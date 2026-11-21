@@ -1,0 +1,34 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ listing.title }}{% endblock %}
+
+{% block body %}
+    {# No seller data reaches this template, on purpose (PRD §6, Constitution §8): `findPublished()`
+       never selects `seller_id`, so there is nothing here to leak. Contact channels are their own
+       slice (listing-publish Q4). Unstyled semantic markup with stable class names (Q7). #}
+    <article class="listing">
+        <h1>{{ listing.title }}</h1>
+        <p class="listing-price">{{ listing.price }} {{ listing.currency }}</p>
+        {% if path is not null %}
+            <p class="listing-category">{{ path }}</p>
+        {% endif %}
+        <p class="listing-published">Listed on <time datetime="{{ listing.publishedAt }}">{{ listing.publishedAt|date('j M Y') }}</time></p>
+
+        {% if listing.description is not empty %}
+            {# `nl2br` escapes first, then inserts `<br>`: a `<script>` renders as text. #}
+            <div class="listing-description">{{ listing.description|nl2br }}</div>
+        {% endif %}
+
+        {% if details is not empty %}
+            <section class="listing-details-section">
+                <h2>Details</h2>
+                <dl class="listing-details">
+                    {% for detail in details %}
+                        <dt>{{ detail.label }}</dt>
+                        <dd>{{ detail.value }}</dd>
+                    {% endfor %}
+                </dl>
+            </section>
+        {% endif %}
+    </article>
+{% endblock %}

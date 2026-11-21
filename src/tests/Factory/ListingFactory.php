@@ -45,10 +45,20 @@ use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
  * `withValues()` therefore revises the listing through the aggregate (so L-9 applies to fixtures)
  * and saves it through the repository, after Foundry has persisted it.
  *
+ * **`published()` / `withdrawn()` go through the aggregate** (`publish()`, `withdraw()`), against a
+ * schema built from the category's real lineage (`required` included), saved through
+ * `ListingRepository::save()` — and they **release the recorded events**. Foundry knows nothing of
+ * ADR-0008's buffer: a `ListingPublished` left on the object would surface as a phantom event the
+ * next time anything releases it. Like `draft()` they take the category as a `Leaf` (no L-2 here),
+ * but L-9 and L-13 do apply, so a fixture that cannot lawfully be public throws instead of lying.
+ *
  * @extends PersistentObjectFactory<Listing>
  */
 final class ListingFactory extends PersistentObjectFactory
 {
+    /** The default `publishedAt` of `published()` — a whole second, like every instant the Clock port gives. */
+    public const string PUBLISHED_AT = '2026-11-20 10:00:00';
+
     public static function class(): string
     {
         return Listing::class;
@@ -87,32 +97,58 @@ final class ListingFactory extends PersistentObjectFactory
 
             return Listing::draft($id, $sellerId, $categoryId, CategoryStatus::Leaf, $title, $description, $price);
         })->afterPersist(static function (Listing $listing, array $attributes): void {
+            $manager = self::entityManager();
+
             /** @var array<string, string> $values */
             $values = $attributes['values'] ?? [];
-            if ([] === $values) {
-                return;
+            if ([] !== $values) {
+                $rules = [];
+                foreach (array_keys($values) as $attributeId) {
+                    $rules[] = self::ruleFor($manager, (string) $attributeId);
+                }
+
+                // Bypasses L-2 like draft() does above (the status is a given); L-9 applies to the values.
+                $listing->revise(
+                    $listing->sellerId(),
+                    $listing->categoryId(),
+                    CategoryStatus::Leaf,
+                    AttributeSchema::of(...$rules),
+                    $listing->title(),
+                    $listing->description(),
+                    $listing->price(),
+                    AttributeInput::fromArray($values),
+                );
+
+                (new DoctrineListingRepository($manager))->save($listing);
             }
 
-            $manager = self::entityManager();
-            $rules = [];
-            foreach (array_keys($values) as $attributeId) {
-                $rules[] = self::ruleFor($manager, (string) $attributeId);
+            $publishedAt = $attributes['publishedAt'] ?? null;
+            if ($publishedAt instanceof \DateTimeImmutable) {
+                $listing->publish($listing->sellerId(), CategoryStatus::Leaf, self::lineageSchema($manager, $listing->categoryId()), $publishedAt);
+                if (true === ($attributes['withdrawn'] ?? false)) {
+                    $listing->withdraw($listing->sellerId());
+                }
+
+                (new DoctrineListingRepository($manager))->save($listing);
+                $listing->releaseEvents(); // ADR-0008's Foundry hole: nobody dispatches these, nobody may see them later.
             }
-
-            // Bypasses L-2 like draft() does above (the status is a given); L-9 applies to the values.
-            $listing->revise(
-                $listing->sellerId(),
-                $listing->categoryId(),
-                CategoryStatus::Leaf,
-                AttributeSchema::of(...$rules),
-                $listing->title(),
-                $listing->description(),
-                $listing->price(),
-                AttributeInput::fromArray($values),
-            );
-
-            (new DoctrineListingRepository($manager))->save($listing);
         });
+    }
+
+    /**
+     * Public: through `publish()` (L-13 applies — every `required` attribute of the category's
+     * lineage must have a value, so give `withValues()` the required ones). `$at` defaults to
+     * `PUBLISHED_AT`; pass a whole-second instant.
+     */
+    public function published(?\DateTimeImmutable $at = null): static
+    {
+        return $this->with(['publishedAt' => $at ?? new \DateTimeImmutable(self::PUBLISHED_AT, new \DateTimeZone('UTC'))]);
+    }
+
+    /** Was public, is not now: `published()` then `withdraw()`; `published_at` kept. */
+    public function withdrawn(?\DateTimeImmutable $at = null): static
+    {
+        return $this->published($at)->with(['withdrawn' => true]);
     }
 
     /**
@@ -139,6 +175,25 @@ final class ListingFactory extends PersistentObjectFactory
         return $repository->createQueryBuilder('l')->getEntityManager();
     }
 
+    /** The category's effective schema (own + every ancestor's attributes), `required` included. */
+    private static function lineageSchema(EntityManagerInterface $manager, CategoryId $categoryId): AttributeSchema
+    {
+        $ids = $manager->getConnection()->fetchFirstColumn(
+            'WITH RECURSIVE up (id, parent_id, d) AS (
+                SELECT id, parent_id, 0 FROM catalog_category WHERE id = :category
+                UNION ALL
+                SELECT c.id, c.parent_id, up.d + 1 FROM catalog_category c JOIN up ON c.id = up.parent_id WHERE up.d < 10
+            )
+            SELECT a.id FROM catalog_attribute a JOIN up ON a.category_id = up.id ORDER BY a.id',
+            ['category' => $categoryId->toString()],
+        );
+
+        return AttributeSchema::of(...array_map(
+            static fn (mixed $id): AttributeRule => self::ruleFor($manager, \is_string($id) ? $id : throw new \LogicException('A non-string attribute id.')),
+            $ids,
+        ));
+    }
+
     private static function ruleFor(EntityManagerInterface $manager, string $attributeId): AttributeRule
     {
         $attribute = $manager->find(Attribute::class, CatalogAttributeId::fromString($attributeId))
@@ -149,10 +204,10 @@ final class ListingFactory extends PersistentObjectFactory
             AttributeType::Choice => AttributeRule::choice($id, array_map(
                 static fn (mixed $optionId): AttributeOptionId => AttributeOptionId::fromString(\is_string($optionId) ? $optionId : throw new \LogicException('A non-string option id.')),
                 $manager->getConnection()->fetchFirstColumn('SELECT id FROM catalog_attribute_option WHERE attribute_id = ? ORDER BY id', [$attributeId]),
-            )),
-            AttributeType::Number => AttributeRule::number($id, $attribute->numberRules()?->minimum(), $attribute->numberRules()?->maximum()),
-            AttributeType::Boolean => AttributeRule::boolean($id),
-            AttributeType::Text => AttributeRule::text($id),
+            ), $attribute->isRequired()),
+            AttributeType::Number => AttributeRule::number($id, $attribute->numberRules()?->minimum(), $attribute->numberRules()?->maximum(), $attribute->isRequired()),
+            AttributeType::Boolean => AttributeRule::boolean($id, $attribute->isRequired()),
+            AttributeType::Text => AttributeRule::text($id, $attribute->isRequired()),
         };
     }
 

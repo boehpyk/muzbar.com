@@ -114,7 +114,7 @@ final class ListingValuesPersistenceTest extends KernelTestCase
             $listing->sellerId(),
             $listing->categoryId(),
             CategoryStatus::Leaf,
-            AttributeSchema::of(AttributeRule::text(AttributeId::fromString($this->serial->id()->toString()))),
+            AttributeSchema::of(AttributeRule::text(AttributeId::fromString($this->serial->id()->toString()), false)),
             $listing->title(),
             $listing->description(),
             $listing->price(),

@@ -236,3 +236,20 @@ Four questions are new:
   `listing-publish`.
 - **No domain events** (plan D10): a draft's details are private; `listing-publish` designs
   `ListingPublished`.
+
+## Amendment, 2026-11-20 — L-11 narrowed to "not public"; `AttributeRule` carries `required`
+
+Recorded by the `listing-publish` slice ([ADR-0021](./0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md), plan D2–D4).
+
+1. **L-11 is narrowed:** `required` is not enforced while a listing is **not public** (`Draft`,
+   `Withdrawn`). It is enforced by L-13 at `publish()` and at every `revise()` of a `Published`
+   listing, against the schema current at that write — still never retroactively (decision 7).
+2. **`AttributeRule` carries `required`** (`isRequired()`), and every named constructor takes
+   `bool $required` with no default. Decision 3's "no labels" stands — `required` is a rule, not
+   presentation. `AttributeSchema::missingFrom()` is the one definition of "complete";
+   `CategoriesForListing::schemaOf()` selects `a.is_required`.
+3. **`AttributeValue::toRaw()`** round-trips a stored value through `AttributeSchema::read()`, so
+   `publish()` re-checks stored values (L-14) with the same parser and the same messages as edit.
+4. **The last consequence bullet is answered:** `listing-publish` designed `ListingPublished` (ids
+   and `publishedAt` only). The "eleven copies" bullet's "before `listing-publish`" is relaxed — that
+   slice added no copy; the trait refactor follows it.

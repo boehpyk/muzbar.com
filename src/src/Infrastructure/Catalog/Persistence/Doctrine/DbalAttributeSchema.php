@@ -151,6 +151,31 @@ final readonly class DbalAttributeSchema
     }
 
     /**
+     * The labels of exactly these options, keyed by option id, in **one** query by primary key — the
+     * public listing page labels a stored choice without loading the whole list (a Brand list has
+     * thousands; listing-publish D11). No ids: `[]` without a query. Unknown ids are absent.
+     *
+     * @param list<string> $optionIds
+     *
+     * @return array<string, string>
+     */
+    public function optionLabels(array $optionIds): array
+    {
+        if ([] === $optionIds) {
+            return [];
+        }
+
+        /** @var array<string, string> $labels */
+        $labels = $this->connection->fetchAllKeyValue(
+            'SELECT id, label FROM catalog_attribute_option WHERE id IN (:ids)',
+            ['ids' => $optionIds],
+            ['ids' => ArrayParameterType::STRING],
+        );
+
+        return $labels;
+    }
+
+    /**
      * @param RawRow $row
      *
      * @return AttributeRow

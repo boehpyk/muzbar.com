@@ -123,8 +123,24 @@ Docker Compose · Traefik · Nginx.
 > Catalog refuses the three writes that would strand a value — C-25/C-26/C-27 — **by refusal now so
 > soft delete can come later** (`listing-schema-drift`). Blank = clear. All fourteen AC-28 mutations
 > bit; 1637 tests. [ADR-0020](./docs/adr/0020-attribute-values-parts-of-listing-validated-against-catalog-schema-guarded-by-refusal.md)
-> + ADR-0004/0007/0016/0018/0019 amendments. Next: `listing-publish` (the public SCSS pipeline and
-> the UUID-trait refactor — eleven copies — are candidates before it).
+> + ADR-0004/0007/0016/0018/0019 amendments.
+> `listing-publish` (2026-11-21, **passed `/verify` 2026-11-21 first time** — the one fix was
+> `StatusBlindGuardsTest` covering withdrawn listings for C-25/C-26/C-27, not only C-23/C-24) — Listing slice 3 of 4: the first page
+> anyone but its author can see, and the first **state machine inside an aggregate whose invariant's
+> force depends on the state**. `Draft → Published ⇄ Withdrawn` (L-12; nothing returns to `Draft`).
+> `required` bites (L-13) at `publish()` and at every `revise()` **while published**, against the
+> schema current **at that write** — so **never retroactive** needs no mechanism: a rule checked only
+> on writes cannot fire on a row nobody touches. Publish re-checks leaf and stored values
+> unconditionally (L-14); a published listing cannot be re-filed (L-15); `published_at` (L-16).
+> "Save and publish" is `ReviseListing::$publish` (no default) — one transaction. The first Listing
+> event, `ListingPublished` (ids + time, no listener), is released **inside** `holdSteady()` and
+> **dispatched after it returns**: "after save" there is not "after commit". The public page
+> `/listings/{id}` filters `status = 'published'` in SQL and **never selects `seller_id`** — privacy
+> as a column never read; one 404 for draft/withdrawn/unknown/malformed, for everyone. All fifteen
+> AC-28 mutations bit; 1746 tests.
+> [ADR-0021](./docs/adr/0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md)
+> + ADR-0008/0018/0019/0020 amendments. Next: `uuid-id-trait` (eleven copies);
+> `public-styles` before Phase 2's public search UI; seller contact channels before launch.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -295,6 +311,22 @@ established by `listing-draft`, inherited by every context:
   category does not exist. Build with `->inCategory($leaf)`, in an order that keeps it on a leaf.
   **`withValues()` also skips L-9's "in force" half** — it builds the schema from the attributes it
   is given, not the category's lineage, so a fixture can hold a value no seller could enter.
+  **`ListingFactory::published()` / `->withdrawn()` go through the aggregate** (`publish()` against
+  a schema built from the category's real lineage, `required` included, then `withdraw()`), save
+  through the repository **and release the events** — nobody dispatches them, so a leftover would
+  surface later as a phantom. L-13 applies: give `withValues()` every required attribute, or the
+  fixture throws. L-2 is still bypassed (`publish()` is handed `Leaf`).
+- **Catalog's guards are status-blind, on purpose** (ADR-0021 d.9): C-23…C-27 count listings of
+  **every** status. A withdrawn listing can be published again and a draft can be published, so both
+  must stay on a leaf with values that mean something. **Never add a `status` filter to
+  `ListingCategoryUsage`/`ListingAttributeUsage`** — mutation (m) and `StatusBlindGuardsTest` bite.
+- **The public listing page is the fifth crossing** — a UI read of Catalog's read model
+  (`DbalCategoryOutline`, `effectiveFor()`, and `DbalAttributeSchema::optionLabels()`, which loads
+  only the stored option ids — never `optionsFor()`, a 5 000-entry Brand list to label one value).
+  3 queries without values, ≤ 5 with (AC-24).
+- **`ListingIsolationTest` admits `App\Domain\Shared`** (`RecordsEvents`, `DomainEvent`, `Clock`,
+  `DomainEventDispatcher`) — the shared kernel is not a bounded context. Widened by the first Listing
+  event; listing-publish's AC-7 ("unchanged") was wrong in that one respect. Admit nothing else.
 - **Money is integer minor units, never a float** — `Price::fromDecimal(string, Currency)` parses
   with string and integer arithmetic; `PriceTest` scans the source for `float`. Never `MoneyType`.
 
@@ -681,6 +713,35 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   or the next save would be refused for an attribute the seller cannot see.
 - **The isolation scans strip PHP comments first** — a Domain docblock names `listing_attribute_value`.
   A new scan that greps raw source flags documentation as a dependency.
+
+- **Dispatch after `holdSteady()` returns, never inside it.** Inside the closure the save is flushed
+  but **not committed** — a listener would act on a publish a later rollback undoes (and a mail
+  already sent cannot be rolled back). The handler `return`s `$listing->releaseEvents()` from the closure and
+  dispatches outside (ADR-0021 d.5, ADR-0008 amendment: *"after save" means after the transaction
+  that holds it commits*). A crash between commit and dispatch loses the event — accepted, no
+  listener yet. `CategoryTreeLockTest` records whether the lock was held at dispatch (mutation (i) —
+  **its only catcher**).
+- **`required` is never retroactive — do not add a sweep.** L-13 is checked only on writes that are
+  or make a listing public, so an admin marking an attribute required (or narrowing bounds) leaves
+  every published listing untouched until its seller's next save. That is the owner's decision
+  (D11.2), not a gap: a job that re-checks, unpublishes or flags published listings is a new
+  decision, not a fix. Drafts and withdrawn listings never check it (L-11).
+- **The public read never selects `seller_id`** — `DbalSellerDrafts::findPublished()` names its
+  columns, and `PublicListingTest` asserts the *SQL* (via `QueryRecordingStatement`), not just the
+  HTML (mutation (l) — **its only catcher**). Not "selected and not rendered": a column the page
+  never read is one no template change can leak. Contact channels are their own slice.
+- **`/listings/{id}` has one 404** for draft, withdrawn, unknown and malformed ids, for everyone
+  including the seller (no preview), and **no route `requirements`** (a route-level 404 differs).
+  The status filter is in SQL, never PHP (mutation (k)). A malformed id issues no query.
+- **POST 404 parity must normalise CSRF tokens too** — the test-env debug 404 embeds the request's
+  `_token`, so `ReadsListingPages::normalised()` strips tokens, ids and dump ids. Bob's *valid* token
+  for Ann's listing is minted through the real CSRF token manager (`mintToken()`), or the test
+  proves the 403, not the 404. "Identical body" signed-in vs anonymous compares `article.listing`
+  (the layout nav differs).
+- **A template must not reference a route that does not exist yet** — `path()` throws at render, so
+  the withdraw form landed with the withdraw route, not with the edit page that shows it.
+- **`published_at`'s introspected default is `NULL::timestamp with time zone`**, not a literal
+  `NULL`; a shape test accepts both.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):

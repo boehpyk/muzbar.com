@@ -19,9 +19,13 @@ use App\Domain\Listing\ValueObject\ListingId;
 use App\Domain\Listing\ValueObject\ListingTitle;
 use App\Domain\Listing\ValueObject\Price;
 use App\Domain\Listing\ValueObject\SellerId;
+use App\Domain\Shared\Port\Clock;
+use App\Domain\Shared\Port\DomainEventDispatcher;
 
 /**
- * Revises a listing in one all-or-nothing step (AC-11, AC-12).
+ * Revises a listing — and, when asked, publishes it — in one all-or-nothing step (AC-11, AC-12;
+ * listing-publish plan D6). The status and schema read for the revise serve the publish too: they
+ * describe the command's category, which after `revise()` is the listing's.
  *
  * Inside `holdSteady()` like every Listing write — **including** a revise that keeps its category:
  * the rule is uniform so nobody decides per handler whether "this one is safe" (ADR-0019 decision
@@ -40,39 +44,58 @@ final readonly class ReviseListingHandler
     public function __construct(
         private ListingRepository $listings,
         private Categories $categories,
+        private Clock $clock,
+        private DomainEventDispatcher $events,
     ) {
     }
 
     /**
-     * @throws ListingNotFound                                         (incl. a malformed id)
+     * @throws ListingNotFound                                               (incl. a malformed id)
      * @throws \App\Domain\Listing\Exception\InvalidSellerId
-     * @throws \App\Domain\Listing\Exception\NotTheSeller              (L-6)
-     * @throws \App\Domain\Listing\Exception\InvalidListingTitle       (L-3)
-     * @throws \App\Domain\Listing\Exception\InvalidListingDescription (L-4)
-     * @throws \App\Domain\Listing\Exception\InvalidPrice              (L-5, incl. an unsupported currency)
-     * @throws UnknownCategory                                         (L-2, incl. a malformed id)
-     * @throws \App\Domain\Listing\Exception\CategoryIsNotALeaf        (L-2)
-     * @throws \App\Domain\Listing\Exception\InvalidAttributeValue     (L-9, incl. a malformed key)
+     * @throws \App\Domain\Listing\Exception\NotTheSeller                    (L-6)
+     * @throws \App\Domain\Listing\Exception\InvalidListingTitle             (L-3)
+     * @throws \App\Domain\Listing\Exception\InvalidListingDescription       (L-4)
+     * @throws \App\Domain\Listing\Exception\InvalidPrice                    (L-5, incl. an unsupported currency)
+     * @throws UnknownCategory                                               (L-2, incl. a malformed id)
+     * @throws \App\Domain\Listing\Exception\CategoryIsNotALeaf              (L-2)
+     * @throws \App\Domain\Listing\Exception\InvalidAttributeValue           (L-9, incl. a malformed key)
+     * @throws \App\Domain\Listing\Exception\ListingIncomplete               (L-13)
+     * @throws \App\Domain\Listing\Exception\PublishedListingCannotBeRefiled (L-15)
      */
     public function __invoke(ReviseListing $command): void
     {
-        $this->categories->holdSteady(function () use ($command): void {
+        // Released INSIDE the closure, dispatched OUTSIDE it (plan D5, ADR-0008 amendment). The save
+        // runs in `holdSteady()`'s transaction, so "after save" is not "after commit": dispatching in
+        // here would hand a listener a publish that a later rollback undoes. A crash between commit
+        // and dispatch loses the event — accepted while nothing listens; the first listener revisits it.
+        $events = $this->categories->holdSteady(function () use ($command): array {
             $listing = $this->listings->get(self::listingId($command->listingId));
+            $sellerId = SellerId::fromString($command->sellerId);
             $categoryId = self::categoryId($command->categoryId);
+            $status = $this->categories->statusOf($categoryId);
+            $schema = $this->categories->schemaOf($categoryId);
 
             $listing->revise(
-                SellerId::fromString($command->sellerId),
+                $sellerId,
                 $categoryId,
-                $this->categories->statusOf($categoryId),
-                $this->categories->schemaOf($categoryId),
+                $status,
+                $schema,
                 ListingTitle::fromString($command->title),
                 ListingDescription::fromString($command->description),
                 Price::fromDecimal($command->price, Currency::fromCode($command->currency)),
                 AttributeInput::fromArray($command->attributes),
             );
 
+            if ($command->publish) {
+                $listing->publish($sellerId, $status, $schema, $this->clock->now());
+            }
+
             $this->listings->save($listing);
+
+            return $listing->releaseEvents();
         });
+
+        $this->events->dispatch(...$events);
     }
 
     /** A malformed listing id is a listing that does not exist (a tampered URL). */

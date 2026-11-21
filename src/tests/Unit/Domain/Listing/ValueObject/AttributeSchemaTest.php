@@ -11,6 +11,8 @@ use App\Domain\Listing\ValueObject\AttributeInput;
 use App\Domain\Listing\ValueObject\AttributeOptionId;
 use App\Domain\Listing\ValueObject\AttributeRule;
 use App\Domain\Listing\ValueObject\AttributeSchema;
+use App\Domain\Listing\ValueObject\AttributeValue;
+use App\Domain\Listing\ValueObject\AttributeValues;
 use PHPUnit\Framework\TestCase;
 
 /** AC-2. */
@@ -25,9 +27,9 @@ final class AttributeSchemaTest extends TestCase
     private function schema(): AttributeSchema
     {
         return AttributeSchema::of(
-            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER)]),
-            AttributeRule::number(AttributeId::fromString(self::STRINGS), 4, 12),
-            AttributeRule::text(AttributeId::fromString(self::SERIAL)),
+            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER)], false),
+            AttributeRule::number(AttributeId::fromString(self::STRINGS), 4, 12, false),
+            AttributeRule::text(AttributeId::fromString(self::SERIAL), false),
         );
     }
 
@@ -91,8 +93,42 @@ final class AttributeSchemaTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
 
         AttributeSchema::of(
-            AttributeRule::boolean(AttributeId::fromString(self::BRAND)),
-            AttributeRule::text(AttributeId::fromString(self::BRAND)),
+            AttributeRule::boolean(AttributeId::fromString(self::BRAND), false),
+            AttributeRule::text(AttributeId::fromString(self::BRAND), false),
         );
+    }
+
+    /** AC-5. */
+    public function testMissingFromReturnsExactlyTheRequiredRulesWithNoValueInIdOrder(): void
+    {
+        // Declared out of id order on purpose: the answer is sorted, not in declaration order.
+        $schema = AttributeSchema::of(
+            AttributeRule::text(AttributeId::fromString(self::SERIAL), true),
+            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER)], true),
+            AttributeRule::number(AttributeId::fromString(self::STRINGS), 4, 12, false),
+        );
+
+        $missing = $schema->missingFrom(AttributeValues::none());
+
+        self::assertSame([self::BRAND, self::SERIAL], array_map(static fn (AttributeId $id): string => $id->toString(), $missing));
+    }
+
+    public function testMissingFromIgnoresRequiredRulesThatHaveAValueAndOptionalOnesThatDoNot(): void
+    {
+        $schema = AttributeSchema::of(
+            AttributeRule::choice(AttributeId::fromString(self::BRAND), [AttributeOptionId::fromString(self::FENDER)], true),
+            AttributeRule::text(AttributeId::fromString(self::SERIAL), true),
+            AttributeRule::number(AttributeId::fromString(self::STRINGS), 4, 12, false),
+        );
+        $values = AttributeValues::of(AttributeValue::ofOption(AttributeId::fromString(self::BRAND), AttributeOptionId::fromString(self::FENDER)));
+
+        $missing = $schema->missingFrom($values);
+
+        self::assertSame([self::SERIAL], array_map(static fn (AttributeId $id): string => $id->toString(), $missing));
+    }
+
+    public function testMissingFromIsEmptyWhenNothingIsRequired(): void
+    {
+        self::assertSame([], $this->schema()->missingFrom(AttributeValues::none()));
     }
 }

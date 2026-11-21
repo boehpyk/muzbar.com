@@ -18,6 +18,8 @@ use App\Domain\Listing\ValueObject\AttributeSchema;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\CategoryStatus;
 use App\Domain\Listing\ValueObject\Currency;
+use App\Domain\Shared\Port\Clock;
+use App\Domain\Shared\Port\DomainEventDispatcher;
 use App\Infrastructure\Catalog\Integration\CategoriesForListing;
 use App\Infrastructure\Listing\Form\ListingFormType;
 use App\Tests\Factory\AttributeFactory;
@@ -998,6 +1000,10 @@ final class SellTest extends WebTestCase
         self::assertInstanceOf(Categories::class, $real);
         $repository = self::getContainer()->get(ListingRepository::class);
         self::assertInstanceOf(ListingRepository::class, $repository);
+        $clock = self::getContainer()->get(Clock::class);
+        self::assertInstanceOf(Clock::class, $clock);
+        $events = self::getContainer()->get(DomainEventDispatcher::class);
+        self::assertInstanceOf(DomainEventDispatcher::class, $events);
         self::getContainer()->set(ReviseListingHandler::class, new ReviseListingHandler($repository, new class($real) implements Categories {
             public function __construct(private readonly Categories $inner)
             {
@@ -1017,7 +1023,7 @@ final class SellTest extends WebTestCase
             {
                 return AttributeSchema::none();
             }
-        }));
+        }, $clock, $events));
         $token = $this->token($path);
         $listings = $this->listings();
         $values = $this->valueRows();

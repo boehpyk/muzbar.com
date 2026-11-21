@@ -24,11 +24,17 @@ use App\Application\Catalog\Handler\RelabelAttributeOptionHandler;
 use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
 use App\Application\Listing\Command\DraftListing;
 use App\Application\Listing\Command\ReviseListing;
+use App\Application\Listing\Command\WithdrawListing;
 use App\Application\Listing\Handler\DraftListingHandler;
 use App\Application\Listing\Handler\ReviseListingHandler;
+use App\Application\Listing\Handler\WithdrawListingHandler;
 use App\Domain\Catalog\Port\CategoryTreeLock;
+use App\Domain\Listing\Entity\Listing;
+use App\Domain\Listing\Event\ListingPublished;
+use App\Domain\Listing\Exception\ListingIncomplete;
 use App\Domain\Listing\Port\Categories;
 use App\Domain\Listing\Port\ListingRepository;
+use App\Domain\Shared\Port\Clock;
 use App\Infrastructure\Catalog\Integration\CategoriesForListing;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeOptionRepository;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DoctrineAttributeRepository;
@@ -39,6 +45,7 @@ use App\Infrastructure\Listing\Integration\ListingCategoryUsage;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
 use App\Tests\Factory\ListingFactory;
+use App\Tests\Fixture\LockObservingDispatcher;
 use App\Tests\Fixture\ObservedAttributeOptionRepository;
 use App\Tests\Fixture\ObservedAttributeRepository;
 use App\Tests\Fixture\ObservedAttributeUsage;
@@ -442,7 +449,7 @@ final class CategoryTreeLockTest extends KernelTestCase
     }
 
     /**
-     * @return array{ObservedCategories, DraftListingHandler, ReviseListingHandler}
+     * @return array{ObservedCategories, DraftListingHandler, ReviseListingHandler, LockObservingDispatcher, WithdrawListingHandler}
      */
     private function observeListingHandlers(): array
     {
@@ -454,8 +461,11 @@ final class CategoryTreeLockTest extends KernelTestCase
 
         $categories = new ObservedCategories(new CategoriesForListing(new PostgresCategoryTreeLock($em), $this->db));
         $listings = new ObservedListingRepository($repository, $categories);
+        $clock = $container->get(Clock::class);
+        self::assertInstanceOf(Clock::class, $clock);
+        $events = new LockObservingDispatcher($categories);
 
-        return [$categories, new DraftListingHandler($listings, $categories), new ReviseListingHandler($listings, $categories)];
+        return [$categories, new DraftListingHandler($listings, $categories), new ReviseListingHandler($listings, $categories, $clock, $events), $events, new WithdrawListingHandler($listings, $categories)];
     }
 
     public function testDraftListingHandlerReadsTheStatusAndSavesInsideHoldSteady(): void
@@ -480,7 +490,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         $listing = ListingFactory::new()->inCategory(CategoryFactory::createOne())->create();
         [$categories, , $revise] = $this->observeListingHandlers();
 
-        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $bass->id()->toString(), 'Changed title', '', '10', 'EUR', []));
+        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $bass->id()->toString(), 'Changed title', '', '10', 'EUR', [], false));
 
         self::assertSame(1, $categories->entries());
         $methods = array_column($categories->calls(), 0);
@@ -491,6 +501,77 @@ final class CategoryTreeLockTest extends KernelTestCase
         foreach ($categories->calls() as [$method, $held]) {
             self::assertTrue($held, \sprintf('%s() ran outside Categories::holdSteady().', $method));
         }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // listing-publish: AC-15 (the lock and the commit). Read and save inside holdSteady(); dispatch
+    // OUTSIDE it, because inside it the transaction has not committed yet.
+    // ------------------------------------------------------------------------------------------
+
+    private function publishRevision(Listing $listing, string $categoryId, bool $publish): ReviseListing
+    {
+        return new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $categoryId, 'Changed title', '', '10', 'EUR', [], $publish);
+    }
+
+    public function testReviseAndPublishReadsAndSavesInsideHoldSteadyAndDispatchesOutsideIt(): void
+    {
+        $category = CategoryFactory::createOne();
+        $listing = ListingFactory::new()->inCategory($category)->create();
+        [$categories, , $revise, $events] = $this->observeListingHandlers();
+
+        $revise($this->publishRevision($listing, $category->id()->toString(), true));
+
+        self::assertSame(1, $categories->entries());
+        self::assertSame(
+            [['get', true], ['statusOf', true], ['schemaOf', true], ['save', true]],
+            $categories->calls(),
+            'Publishing decides on the schema fact read under the shared lock, and saves there.',
+        );
+        self::assertSame('published', $this->db->fetchOne('SELECT status FROM listing_listing WHERE id = ?', [$listing->id()->toString()]), 'The publish did not happen (a vacuous pass otherwise).');
+
+        $dispatched = $events->dispatched();
+        self::assertCount(1, $dispatched, 'Exactly one ListingPublished must be dispatched (zero would pass the next assertion vacuously).');
+        self::assertInstanceOf(ListingPublished::class, $dispatched[0][0]);
+        self::assertFalse($dispatched[0][1], 'ListingPublished was dispatched inside holdSteady(): a rollback would have un-published it after a listener saw it.');
+    }
+
+    public function testReviseWithoutPublishDispatchesNothing(): void
+    {
+        $category = CategoryFactory::createOne();
+        $listing = ListingFactory::new()->inCategory($category)->create();
+        [, , $revise, $events] = $this->observeListingHandlers();
+
+        $revise($this->publishRevision($listing, $category->id()->toString(), false));
+
+        self::assertSame([], $events->dispatched());
+    }
+
+    public function testARefusedPublishDispatchesNothing(): void
+    {
+        $category = CategoryFactory::createOne();
+        AttributeFactory::new(['required' => true])->inCategory($category)->coded('serial')->text()->create();
+        $listing = ListingFactory::new()->inCategory($category)->create();
+        [, , $revise, $events] = $this->observeListingHandlers();
+
+        try {
+            $revise($this->publishRevision($listing, $category->id()->toString(), true));
+            self::fail('An incomplete listing was published.');
+        } catch (ListingIncomplete) {
+            self::assertSame([], $events->dispatched());
+        }
+    }
+
+    public function testWithdrawListingHandlerLoadsAndSavesInsideHoldSteady(): void
+    {
+        $category = CategoryFactory::createOne();
+        $listing = ListingFactory::new()->inCategory($category)->published()->create();
+        [$categories, , , , $withdraw] = $this->observeListingHandlers();
+
+        $withdraw(new WithdrawListing($listing->id()->toString(), $listing->sellerId()->toString()));
+
+        self::assertSame(1, $categories->entries());
+        self::assertSame([['get', true], ['save', true]], $categories->calls());
+        self::assertSame('withdrawn', $this->db->fetchOne('SELECT status FROM listing_listing WHERE id = ?', [$listing->id()->toString()]), 'The withdraw did not happen (a vacuous pass otherwise).');
     }
 
     // ------------------------------------------------------------------------------------------
@@ -505,7 +586,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         $listing = ListingFactory::new()->inCategory($category)->create();
         [$categories, , $revise] = $this->observeListingHandlers();
 
-        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $category->id()->toString(), 'Changed title', '', '10', 'EUR', [$serial->id()->toString() => 'SN-1']));
+        $revise(new ReviseListing($listing->id()->toString(), $listing->sellerId()->toString(), $category->id()->toString(), 'Changed title', '', '10', 'EUR', [$serial->id()->toString() => 'SN-1'], false));
 
         self::assertSame(1, $categories->entries());
         self::assertSame(

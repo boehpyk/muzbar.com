@@ -9,6 +9,7 @@ use App\Domain\Listing\Exception\InvalidAttributeValueReason;
 use App\Domain\Listing\ValueObject\AttributeId;
 use App\Domain\Listing\ValueObject\AttributeKind;
 use App\Domain\Listing\ValueObject\AttributeOptionId;
+use App\Domain\Listing\ValueObject\AttributeRule;
 use App\Domain\Listing\ValueObject\AttributeValue;
 use PHPUnit\Framework\TestCase;
 
@@ -72,5 +73,39 @@ final class AttributeValueTest extends TestCase
         self::assertTrue(
             AttributeValue::ofOption($a, AttributeOptionId::fromString(self::OPT))->equals(AttributeValue::ofOption($a, AttributeOptionId::fromString(strtoupper(self::OPT)))),
         );
+    }
+
+    /** AC-5: `toRaw()` read back through its own rule returns an equal value, for each of the four kinds. */
+    public function testToRawReadBackThroughItsOwnRuleReturnsAnEqualValueForEveryKind(): void
+    {
+        $a = AttributeId::fromString(self::A);
+        $option = AttributeOptionId::fromString(self::OPT);
+
+        $cases = [
+            [AttributeRule::choice($a, [$option], false), AttributeValue::ofOption($a, $option)],
+            [AttributeRule::number($a, null, null, false), AttributeValue::ofNumber($a, -7)],
+            [AttributeRule::number($a, null, null, false), AttributeValue::ofNumber($a, 0)],
+            [AttributeRule::boolean($a, false), AttributeValue::ofBoolean($a, true)],
+            [AttributeRule::boolean($a, false), AttributeValue::ofBoolean($a, false)],
+            [AttributeRule::text($a, false), AttributeValue::ofText($a, 'SN-1 (mint)')],
+        ];
+
+        foreach ($cases as [$rule, $value]) {
+            $readBack = $rule->read($value->toRaw());
+
+            self::assertNotNull($readBack, $value->kind()->name);
+            self::assertTrue($value->equals($readBack), $value->kind()->name.' '.$value->toRaw());
+        }
+    }
+
+    public function testToRawSpellsEachKindTheWayTheFormPostsIt(): void
+    {
+        $a = AttributeId::fromString(self::A);
+
+        self::assertSame(self::OPT, AttributeValue::ofOption($a, AttributeOptionId::fromString(self::OPT))->toRaw());
+        self::assertSame('6', AttributeValue::ofNumber($a, 6)->toRaw());
+        self::assertSame('yes', AttributeValue::ofBoolean($a, true)->toRaw());
+        self::assertSame('no', AttributeValue::ofBoolean($a, false)->toRaw());
+        self::assertSame('SN-1', AttributeValue::ofText($a, 'SN-1')->toRaw());
     }
 }

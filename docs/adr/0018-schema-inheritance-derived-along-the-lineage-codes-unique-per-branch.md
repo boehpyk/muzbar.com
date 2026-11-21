@@ -179,3 +179,15 @@ Recorded by the `listing-attribute-values` slice
 4. **Point 4 (the effective schema for other contexts):** answered by Listing's
    `Categories::schemaOf(): AttributeSchema` — a fact in Listing's own words, adapted by
    `CategoriesForListing` over the same lineage query. Still derived, never stored (C-22).
+
+## Amendment, 2026-11-20 — decision 8 point 2 answered: `required` bites on writes that are or make a listing public, never retroactively
+
+Recorded by the `listing-publish` slice ([ADR-0021](./0021-listing-lifecycle-in-the-aggregate-completeness-on-public-writes-dispatch-after-commit.md), plan D2–D4).
+
+**Point 2 (a new required attribute on a parent):** answered by **L-13**. A listing must be complete —
+every attribute required by its category's effective schema *current at that write* has a value —
+when it is published, and at every revise while it is published. Drafts and withdrawn listings are
+never checked (L-11, narrowed). Nothing re-checks published listings, so a new required attribute
+(or narrowed number bounds) makes a listing incomplete only when its seller next touches it. The
+schema fact (`Categories::schemaOf()`) now carries `required`; Catalog's Domain and Application
+are unchanged. All four points of decision 8 are now answered.

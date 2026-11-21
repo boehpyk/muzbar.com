@@ -41,3 +41,6 @@ node_modules/
 #Some private docs
 docs/explanations
 /FORboehpyk.md
+
+# Playwright MCP scratch output
+.playwright-mcp/

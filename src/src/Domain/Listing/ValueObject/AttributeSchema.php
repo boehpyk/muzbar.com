@@ -58,6 +58,27 @@ final readonly class AttributeSchema
     }
 
     /**
+     * L-13's question: the required attributes that `$values` has no value for, in attribute-id
+     * order — **all** of them, so a seller sees every field to fill in one round trip (plan D2).
+     *
+     * @return list<AttributeId>
+     */
+    public function missingFrom(AttributeValues $values): array
+    {
+        $rules = $this->rules;
+        ksort($rules, \SORT_STRING);
+        $missing = [];
+
+        foreach ($rules as $rule) {
+            if ($rule->isRequired() && null === $values->for($rule->attributeId())) {
+                $missing[] = $rule->attributeId();
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
      * L-9 for every input: each is read against its attribute's rule; empty inputs are skipped (no
      * value — L-11). An input for an attribute not in this schema is **refused**, never dropped:
      * dropping is L-10's decision, taken by the aggregate on a re-file (`AttributeInput::onlyFor()`)

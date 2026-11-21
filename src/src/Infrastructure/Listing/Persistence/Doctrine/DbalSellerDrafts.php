@@ -23,11 +23,19 @@ use Doctrine\DBAL\Connection;
  * `price` is the decimal string, formatted by `Price::toDecimalString()` — the Domain's one
  * definition of how minor units read back, so no float is ever involved.
  *
- * @phpstan-type DraftRow array{id: string, categoryId: string, title: string, description: string, price: string, currency: string}
+ * **`findPublished()` is the public page's read, and the one method here without a seller filter.**
+ * It filters `status = 'published'` in SQL instead, and it **never selects `seller_id`**: the column
+ * a page cannot leak is the one it never read (listing-publish D10, Constitution §8).
+ *
+ * `publishedAt` is an ISO 8601 string (`DATE_ATOM`), null for a listing that was never published.
+ *
+ * @phpstan-type DraftRow array{id: string, categoryId: string, title: string, description: string, price: string, currency: string, status: string, publishedAt: ?string}
+ * @phpstan-type PublicRow array{id: string, categoryId: string, title: string, description: string, price: string, currency: string, publishedAt: string}
  */
 final readonly class DbalSellerDrafts
 {
-    private const string COLUMNS = 'id, category_id, title, description, price_amount, price_currency';
+    // Never `seller_id` (see the class docblock): the seller filters name it, no select list does.
+    private const string COLUMNS = 'id, category_id, title, description, price_amount, price_currency, published_at';
 
     public function __construct(
         private Connection $connection,
@@ -45,13 +53,13 @@ final readonly class DbalSellerDrafts
             return [];
         }
 
-        /** @var list<array{id: string, category_id: string, title: string, description: string, price_amount: int, price_currency: string}> $rows */
+        /** @var list<array{id: string, category_id: string, title: string, description: string, price_amount: int, price_currency: string, published_at: ?string, status: string}> $rows */
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT '.self::COLUMNS.' FROM listing_listing WHERE seller_id = :seller ORDER BY id DESC',
+            'SELECT '.self::COLUMNS.', status FROM listing_listing WHERE seller_id = :seller ORDER BY id DESC',
             ['seller' => $seller->toString()],
         );
 
-        return array_map(self::toRow(...), $rows);
+        return array_map(self::toDraftRow(...), $rows);
     }
 
     /**
@@ -72,20 +80,45 @@ final readonly class DbalSellerDrafts
             return null;
         }
 
-        /** @var array{id: string, category_id: string, title: string, description: string, price_amount: int, price_currency: string}|false $row */
+        /** @var array{id: string, category_id: string, title: string, description: string, price_amount: int, price_currency: string, published_at: ?string, status: string}|false $row */
         $row = $this->connection->fetchAssociative(
-            'SELECT '.self::COLUMNS.' FROM listing_listing WHERE id = :id AND seller_id = :seller',
+            'SELECT '.self::COLUMNS.', status FROM listing_listing WHERE id = :id AND seller_id = :seller',
             ['id' => $listingId->toString(), 'seller' => $seller->toString()],
         );
 
-        return false === $row ? null : self::toRow($row);
+        return false === $row ? null : self::toDraftRow($row);
+    }
+
+    /**
+     * The listing, if it exists **and** is published; null otherwise — a draft, a withdrawn listing,
+     * an unknown id, and a malformed id (answered without a query) all look the same (AC-23).
+     *
+     * @return PublicRow|null
+     */
+    public function findPublished(string $id): ?array
+    {
+        try {
+            $listingId = ListingId::fromString($id);
+        } catch (InvalidListingId) {
+            return null;
+        }
+
+        // `published_at` is non-null for every published row (L-16, kept by the aggregate).
+        /** @var array{id: string, category_id: string, title: string, description: string, price_amount: int, price_currency: string, published_at: string}|false $row */
+        $row = $this->connection->fetchAssociative(
+            'SELECT '.self::COLUMNS." FROM listing_listing WHERE id = :id AND status = 'published'",
+            ['id' => $listingId->toString()],
+        );
+
+        return false === $row ? null : self::toRow($row) + ['publishedAt' => self::isoDate($row['published_at'])];
     }
 
     /**
      * The draft's stored details as the edit form's prefill, keyed by attribute id: an option id, a
      * whole number as a string, `yes`/`no`, or the text — exactly what the form would submit.
      *
-     * **No seller filter**: call it only with an id `find()` has already passed for this seller.
+     * **No seller or status filter**: call it only with an id `find()` has already passed for this
+     * seller, or that `findPublished()` has just returned.
      *
      * @return array<string, string>
      */
@@ -112,9 +145,27 @@ final readonly class DbalSellerDrafts
     }
 
     /**
-     * @param array{id: string, category_id: string, title: string, description: string, price_amount: int, price_currency: string} $row
+     * @param array{id: string, category_id: string, title: string, description: string, price_amount: int, price_currency: string, published_at: ?string, status: string} $row
      *
      * @return DraftRow
+     */
+    private static function toDraftRow(array $row): array
+    {
+        return self::toRow($row) + [
+            'status' => $row['status'],
+            'publishedAt' => null === $row['published_at'] ? null : self::isoDate($row['published_at']),
+        ];
+    }
+
+    private static function isoDate(string $timestamp): string
+    {
+        return new \DateTimeImmutable($timestamp)->format(\DATE_ATOM);
+    }
+
+    /**
+     * @param array{id: string, category_id: string, title: string, description: string, price_amount: int, price_currency: string} $row
+     *
+     * @return array{id: string, categoryId: string, title: string, description: string, price: string, currency: string}
      */
     private static function toRow(array $row): array
     {

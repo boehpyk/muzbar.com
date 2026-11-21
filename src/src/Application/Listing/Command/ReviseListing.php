@@ -12,6 +12,10 @@ namespace App\Application\Listing\Command;
  * `$attributes` is the "Details" section: attribute id → the seller's raw text, read against the
  * category's schema by the aggregate (L-9). Required, with no default: a revise replaces the whole
  * set, so `[]` clears every stored value — a caller must say so, never get it by omission.
+ *
+ * `$publish`: also publish, in the same transaction — either both the edits and the publish commit,
+ * or neither does. No default, for `$attributes`' reason. The controller sends `false` on a re-file:
+ * the new category's details were never shown to the seller (plan Q2).
  */
 final readonly class ReviseListing
 {
@@ -27,6 +31,7 @@ final readonly class ReviseListing
         public string $price,
         public string $currency,
         public array $attributes,
+        public bool $publish,
     ) {
     }
 }
