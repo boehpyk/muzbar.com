@@ -44,7 +44,7 @@
 ## Application — `Catalog`
 - [x] **T5:** `ArchiveAttribute` + `RestoreAttribute` and handlers (`exclusively()`, `Clock` for
       archive, malformed id → `AttributeNotFound`).
-- [ ] **T6:** `ArchiveAttributeOption` + `RestoreAttributeOption` and handlers (option-of-attribute
+- [x] **T6:** `ArchiveAttributeOption` + `RestoreAttributeOption` and handlers (option-of-attribute
       rule as in `RemoveAttributeOptionHandler`; archive: C-18 on `countActiveForAttribute()` when the
       option is active).
 - [ ] **T7:** Retire C-27: remove the block from `EditCategoryHandler` (rewrite the accretion-point
