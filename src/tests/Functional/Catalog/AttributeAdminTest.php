@@ -1487,7 +1487,7 @@ final class AttributeAdminTest extends WebTestCase
         self::assertResponseStatusCodeSame(303);
         self::assertResponseRedirects($this->listPath($category));
         $this->client->followRedirect();
-        self::assertSelectorTextContains('.flash-error', '“Brand” is used by listings, so it cannot be deleted.');
+        self::assertSelectorTextContains('.flash-error', 'Listings use “Brand”, so it cannot be deleted. Archive it instead — listings keep their values.');
         self::assertSame($before, $this->tables());
         $this->assertNothingReportedToSentry();
     }
@@ -1500,7 +1500,7 @@ final class AttributeAdminTest extends WebTestCase
 
         $this->client->request('POST', '/admin/attributes/'.$brand->id()->toString().'/options/'.$this->optionId($brand, 'Fender').'/delete', ['_token' => $this->optionsToken($brand)]);
 
-        $this->assertRedirectsToEditThenFlash($brand, 'error', '“Fender” is used by listings, so it cannot be removed.');
+        $this->assertRedirectsToEditThenFlash($brand, 'error', 'Listings use “Fender”, so it cannot be deleted. Archive it instead.');
         self::assertSame($before, $this->tables());
         self::assertSame(['Fender', 'Gibson'], $this->optionLabels($brand));
     }

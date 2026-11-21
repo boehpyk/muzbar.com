@@ -61,7 +61,7 @@
       `optionsFor(…, keep)` with `archived` per row. `optionLabels()` unchanged.
 
 ## Infrastructure — UI
-- [ ] **T10:** `AttributeAdminController`: the four POST routes (CSRF → 403 first, 303 + flash,
+- [x] **T10:** `AttributeAdminController`: the four POST routes (CSRF → 403 first, 303 + flash,
       `AttributeNeedsAnOption` → error flash); C-25/C-26 flashes point at Archive.
 - [ ] **T11:** Admin templates: Archive per active attribute and option; "Archived" section on the
       defining category's list (with "Archived on …", Restore, Delete); "Archived options" on the edit
