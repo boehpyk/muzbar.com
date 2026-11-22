@@ -82,6 +82,23 @@ final class SearchIsolationTest extends TestCase
         self::assertSame([], $offences);
     }
 
+    public function testSearchInfrastructureNeverSelectsStar(): void
+    {
+        $files = $this->phpFiles('Infrastructure/Search');
+        $offences = [];
+
+        foreach ($files as $file) {
+            // `SELECT l.*` would read seller_id without ever naming it; the scan above cannot see that.
+            preg_match_all('/\bSELECT\s+\*|\b\w+\.\*/i', $this->codeOf($file), $m);
+            foreach ($m[0] as $hit) {
+                $offences[] = $file->getFilename().': '.$hit;
+            }
+        }
+
+        self::assertGreaterThan(0, \count($files), 'The scan found no files: the path is wrong, so it would pass vacuously.');
+        self::assertSame([], $offences);
+    }
+
     public function testTheWriteVerbPatternBitesOnSqlAndSparesCamelCaseIdentifiers(): void
     {
         self::assertSame(1, preg_match(self::WRITE_VERBS, "\$c->executeStatement('DELETE FROM x')"));

@@ -50,7 +50,7 @@
       no `Seq Scan`, docblock on what it does not prove).
 - [x] T14: `tests/Functional/Search/BrowsePageTest` — AC-19…AC-24 (anonymous; recorded SQL; 404
       parity; hostile parameters; statement bound with Brand of 2 vs 50; navigation keeps `f`).
-- [ ] T15: Mutation proof — AC-25 (a)…(q), each applied, run, reverted; catcher recorded in the
+- [x] T15: Mutation proof — AC-25 (a)…(q), each applied, run, reverted; catcher recorded in the
       commit message. `make test` twice; `php -d zend.assertions=-1 vendor/bin/phpunit` (AC-28).
       Remember `make test filter=` breaks on `|` — run phpunit directly for alternations.
 

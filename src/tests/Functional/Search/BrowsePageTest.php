@@ -252,6 +252,33 @@ final class BrowsePageTest extends WebTestCase
         self::assertCount(0, $page->filter('nav.search-pager a[rel="next"]'));
     }
 
+    public function testNextIsHiddenOnTheLastReachablePageEvenWhenMoreListingsExist(): void
+    {
+        // A thousand more published listings (raw rows, test-only; browsing with no category needs no values).
+        $this->db->executeStatement(
+            "INSERT INTO listing_listing (id, seller_id, category_id, title, description, price_amount, price_currency, status, published_at)
+             SELECT gen_random_uuid(), gen_random_uuid(), ?, 'Bulk ' || n, '', 100, 'EUR', 'published', now() - n * interval '1 second'
+             FROM generate_series(1, 1001) AS n",
+            [$this->electric->id()->toString()],
+        );
+        $total = $this->db->fetchOne("SELECT count(*) FROM listing_listing WHERE status = 'published'");
+        self::assertIsInt($total);
+        self::assertGreaterThan(50 * 20, $total, 'Control: more listings exist than page 50 can reach.');
+
+        $before = $this->client->request('GET', '/browse?page=49');
+        self::assertSame('/browse?page=50', $before->filter('nav.search-pager a[rel="next"]')->attr('href'), 'Control: page 49 links to page 50.');
+
+        $last = $this->client->request('GET', '/browse?page=50');
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertCount(20, $last->filter('li.search-hit'));
+        self::assertCount(0, $last->filter('nav.search-pager a[rel="next"]'));
+        self::assertCount(1, $last->filter('nav.search-pager a[rel="prev"]'));
+        $beyond = $this->client->request('GET', '/browse?page=51');
+        self::assertCount(20, $beyond->filter('li.search-hit'), 'A page past MAX_PAGE is clamped to it.');
+        self::assertCount(0, $beyond->filter('nav.search-pager a[rel="next"]'));
+    }
+
     // ---------------------------------------------------------------- AC-20
 
     public function testNoStatementTheGetSendsNamesSellerId(): void
@@ -262,7 +289,12 @@ final class BrowsePageTest extends WebTestCase
         self::assertNotSame([], $this->searchStatements($sql), 'The recorder saw no Search statement, so "never seller_id" would pass vacuously.');
         foreach ($sql as $query) {
             self::assertStringNotContainsString('seller_id', $query);
+            // `SELECT l.*` reads seller_id without naming it, so the substring check above cannot see it.
+            self::assertSame(0, preg_match('/\bSELECT\s+\*|\b\w+\.\*/i', $query), 'A select-star reads every column, seller_id included: '.$query);
         }
+        $hits = array_values(array_filter($sql, static fn (string $q): bool => str_contains($q, 'ORDER BY l.published_at')));
+        self::assertCount(1, $hits, 'The recorder did not see the hits statement.');
+        self::assertMatchesRegularExpression('/^\s*(?:WITH .*\)\s+)?SELECT l\.id, l\.title, l\.price_amount, l\.price_currency, l\.published_at FROM listing_listing l\b/s', $hits[0]);
     }
 
     public function testThePageContainsNothingFromTheSellersAccount(): void
