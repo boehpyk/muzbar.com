@@ -14,7 +14,7 @@
 - [x] T1: `CategoryId`, `AttributeId`, `OptionId` (`UuidIdShape` + `malformed()` hook) and
       `InvalidCategoryId`, `InvalidAttributeId`, `InvalidOptionId`; add the three to
       `UuidIdShapeTest`'s ring. `FacetKind` enum. `UnknownCategory` exception.
-- [ ] T2: `FilterRequest::parse()` — format, dedupe, caps (S-5 first half) + `FilterRequestTest`
+- [x] T2: `FilterRequest::parse()` — format, dedupe, caps (S-5 first half) + `FilterRequestTest`
       (AC-1).
 - [ ] T3: `FacetAttribute`, `FacetSchema` (`none()`, `facet()`, `optionBelongsTo()`).
 - [ ] T4: `Selection`, `FacetedQuery::resolve()` — S-5 second half, page clamp (S-8) +
