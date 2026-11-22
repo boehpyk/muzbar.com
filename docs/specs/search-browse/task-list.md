@@ -42,11 +42,11 @@
 ## Tests (qa)
 - [x] T10: `QueryRecordingStatement` records bound values (D9; verify Risk 4 first). Existing users
       (`PublicListingTest`, `SellTest`, admin tests) unchanged and green.
-- [ ] T11: Move the fixture: `tests/Support/BuildsTheFacetFixture` (from `SchemaMutationGateTest`
+- [x] T11: Move the fixture: `tests/Support/BuildsTheFacetFixture` (from `SchemaMutationGateTest`
       section B); delete `FACET_COUNT`, sections B and C from `SchemaMutationGateTest` (D10).
       Lands **with** T12 and T13 so no assertion is ever absent from the suite (AC-26).
-- [ ] T12: `tests/Integration/Search/BrowseListingsTest` — AC-6…AC-17 through the handler.
-- [ ] T13: `tests/Integration/Search/SearchIndexUsageTest` — AC-18 (replayed EXPLAIN, `Index Cond`,
+- [x] T12: `tests/Integration/Search/BrowseListingsTest` — AC-6…AC-17 through the handler.
+- [x] T13: `tests/Integration/Search/SearchIndexUsageTest` — AC-18 (replayed EXPLAIN, `Index Cond`,
       no `Seq Scan`, docblock on what it does not prove).
 - [ ] T14: `tests/Functional/Search/BrowsePageTest` — AC-19…AC-24 (anonymous; recorded SQL; 404
       parity; hostile parameters; statement bound with Brand of 2 vs 50; navigation keeps `f`).
