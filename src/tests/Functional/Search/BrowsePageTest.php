@@ -388,7 +388,7 @@ final class BrowsePageTest extends WebTestCase
         yield 'page is not a number' => ['page=abc'];
         yield 'page is negative' => ['page=-1'];
         yield 'page overflows an integer' => ['page=99999999999999999999'];
-        yield 'thirty attributes' => [$thirty];
+        yield 'thirty unknown attributes (the cap itself: FilterRequestTest)' => [$thirty];
         yield 'NUL in a key and a value' => ['f[%00][]=%00'];
         yield 'NUL in a value of a well-formed attribute' => ['f['.$uuid.'][]=%00'];
         yield 'invalid UTF-8 in a key and a value' => ['f[%FF%FE][]=%FF%FE'];

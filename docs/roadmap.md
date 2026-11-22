@@ -414,6 +414,11 @@ launch is not a Phase 2 item.
         `EXPLAIN` without planner switches (carry-over 3), and a 50-concurrent load run. **Index tuning
         and hot-column promotion (ADR-0004) happen here or not at all.** The phase gate re-runs it on
         the final query; this slice exists so the gate is a confirmation, not a discovery.
+        **Carry-over from `search-browse`'s `/verify` (2026-11-22): `/browse` has no rate limit.**
+        Statements are bounded (≤ 5 + k, k ≤ 20) but cost is not — 20 selected facets at the root
+        category is up to 25 statements, each count joining every published listing with up to 19
+        `EXISTS`. Measure that worst case under the load run; if it hurts, add a per-IP limiter on
+        the `cache.rate_limiter` pool (and to `ClearsRateLimiters`' list), or decide it is fine.
 - [ ] 5. `public-styles` *(before the public search UI — `listing-publish` plan Q7)* — the public SCSS
       pipeline (ADR-0006): `sass-bundle`, `public.css`, tokens, and the **first public layout** — which
       is also where the **Umami snippet** finally lands (Phase 0 left it with nowhere to live). The sell

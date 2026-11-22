@@ -243,6 +243,12 @@ final class BrowseListingsTest extends KernelTestCase
 
     // ---------------------------------------------------------------- AC-11 (dormant by move)
 
+    /**
+     * Holds by construction, not by a dormancy guard: the facets are the browsed category's
+     * lineage, which is in every subtree listing's lineage, so a value whose attribute left the
+     * lineage can never belong to a facet. P2 stops counting because it leaves Instruments' subtree
+     * (S-2). Do not go looking for a fifth clause.
+     */
     public function testAValueMadeDormantByAMoveCountsNowhere(): void
     {
         $this->buildTheFacetFixture();
