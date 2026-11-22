@@ -11,7 +11,7 @@
       D3/D4 port shape; D6 no lock; the watch item). Only after the owner answers Q1.
 
 ## Domain (`src/Domain/Search/`)
-- [ ] T1: `CategoryId`, `AttributeId`, `OptionId` (`UuidIdShape` + `malformed()` hook) and
+- [x] T1: `CategoryId`, `AttributeId`, `OptionId` (`UuidIdShape` + `malformed()` hook) and
       `InvalidCategoryId`, `InvalidAttributeId`, `InvalidOptionId`; add the three to
       `UuidIdShapeTest`'s ring. `FacetKind` enum. `UnknownCategory` exception.
 - [ ] T2: `FilterRequest::parse()` — format, dedupe, caps (S-5 first half) + `FilterRequestTest`
