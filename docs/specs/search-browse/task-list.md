@@ -17,7 +17,7 @@
 - [x] T2: `FilterRequest::parse()` — format, dedupe, caps (S-5 first half) + `FilterRequestTest`
       (AC-1).
 - [x] T3: `FacetAttribute`, `FacetSchema` (`none()`, `facet()`, `optionBelongsTo()`).
-- [ ] T4: `Selection`, `FacetedQuery::resolve()` — S-5 second half, page clamp (S-8) +
+- [x] T4: `Selection`, `FacetedQuery::resolve()` — S-5 second half, page clamp (S-8) +
       `FacetedQueryTest` (AC-2, AC-3).
 - [ ] T5: Result types `SearchResult`, `ListingHit`, `FacetBucket`, `Facet::of()` + `FacetTest`
       (AC-4).
