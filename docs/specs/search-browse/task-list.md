@@ -55,7 +55,7 @@
       Remember `make test filter=` breaks on `|` — run phpunit directly for alternations.
 
 ## Docs
-- [ ] T16: ADR amendments, dated: ADR-0019 (decision 4 exception; crossings count stops), ADR-0002
+- [x] T16: ADR amendments, dated: ADR-0019 (decision 4 exception; crossings count stops), ADR-0002
       (port shape, discharged consequence), ADR-0004 (carry-overs discharged, `is_facet` deferred,
       zero promoted columns).
 - [ ] T17: CLAUDE.md — status paragraph for `search-browse`; a **Search** block: ADR-0023's fence

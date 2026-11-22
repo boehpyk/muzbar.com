@@ -52,3 +52,16 @@ need or a proven facet-count bottleneck appears.
   If it fails on real data, we revisit — cheaply, because of the port.
 - The `SearchPort` interface (and a `FacetedQuery` value object as its input) must be designed before
   the read model — it is the boundary that keeps this decision reversible.
+
+## Amendment, 2026-11-22 — the port exists; its last consequence is discharged
+
+`search-browse` designed the port before any read model beyond the phase1-gate query
+([ADR-0023](./0023-search-is-a-read-only-projection-over-catalog-and-listing-tables.md)):
+
+1. **`SearchPort` has two methods:** `facetSchemaFor(?CategoryId, FilterRequest): ?FacetSchema` reads
+   the facts a request is resolved against; `search(FacetedQuery): SearchResult` accepts **only** a
+   query built by `FacetedQuery::resolve()`. An unresolved filter reaching SQL is a type error.
+2. **Counts are disjunctive** (a bucket ignores its own facet's selection): one count statement for
+   the unselected facets plus one per selected facet.
+3. The "design `SearchPort` and `FacetedQuery` before the read model" consequence is **discharged**.
+   The latency benchmark remains `search-benchmark`'s (Phase 2 item 4).
