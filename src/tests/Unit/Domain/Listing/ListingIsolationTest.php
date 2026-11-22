@@ -124,7 +124,8 @@ final class ListingIsolationTest extends TestCase
         self::assertNotSame([], $hits, 'The scan never found the table at all, so "only under Listing" proves nothing.');
         self::assertSame(
             [],
-            array_values(array_filter($hits, static fn (string $path): bool => !str_starts_with($path, 'Infrastructure/Listing/'))),
+            // ADR-0023: Search's read-only projection is the one other directory that may read it.
+            array_values(array_filter($hits, static fn (string $path): bool => !str_starts_with($path, 'Infrastructure/Listing/') && !str_starts_with($path, 'Infrastructure/Search/'))),
         );
     }
 
@@ -137,7 +138,8 @@ final class ListingIsolationTest extends TestCase
         self::assertNotSame([], $hits, 'The scan never found the tables at all, so "only under Catalog" proves nothing.');
         self::assertSame(
             [],
-            array_values(array_filter($hits, static fn (string $path): bool => !str_starts_with($path, 'Infrastructure/Catalog/'))),
+            // ADR-0023: Search's read-only projection is the one other directory that may read them.
+            array_values(array_filter($hits, static fn (string $path): bool => !str_starts_with($path, 'Infrastructure/Catalog/') && !str_starts_with($path, 'Infrastructure/Search/'))),
         );
     }
 

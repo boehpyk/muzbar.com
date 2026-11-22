@@ -24,16 +24,17 @@
 - [x] T6: `Port/SearchPort` (D3).
 
 ## Application (`src/Application/Search/`)
-- [ ] T7: `Query/BrowseListings` + `Handler/BrowseListingsHandler` (four steps, plan §Application).
+- [x] T7: `Query/BrowseListings` + `Handler/BrowseListingsHandler` (four steps, plan §Application).
       Lands **with** T8 (the handler injects the port).
 
 ## Infrastructure (`src/Infrastructure/Search/`)
-- [ ] T8: `Persistence/Doctrine/PostgresSearch` — matching fragment, `facetSchemaFor()` (statement 2),
+- [x] T8: `Persistence/Doctrine/PostgresSearch` — matching fragment, `facetSchemaFor()` (statement 2),
       `search()` (statements 3–5+k), row mapping, `Price` formatting (D5–D7); DI alias in
       `config/services.yaml`. Class docblock: ADR-0023 fence, no lock, never `seller_id`.
       `ListingIsolationTest`: the two table-ownership scans admit `Infrastructure/Search/`.
       `SearchIsolationTest` (AC-5: context scan on Domain/Application; read-only and `seller_id`
-      scans on `Infrastructure/Search`, each asserting > 0 files scanned).
+      scans on `Infrastructure/Search`, each asserting > 0 files scanned). *`SearchIsolationTest`
+      moved to qa (it is a test) — lands with T12–T14.*
 - [ ] T9: `Http/Controller/BrowseController` (`GET /browse`, D8 normalisation, `UnknownCategory` →
       404, outline-derived breadcrumb/children/roots) + `templates/search/browse.html.twig` (noindex,
       stable classes, no script) + the nav link in `base.html.twig`.
