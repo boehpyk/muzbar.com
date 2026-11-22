@@ -9,6 +9,7 @@ use App\Application\Catalog\Command\ArchiveAttribute;
 use App\Application\Catalog\Command\ArchiveAttributeOption;
 use App\Application\Catalog\Command\DefineAttribute;
 use App\Application\Catalog\Command\DeleteAttribute;
+use App\Application\Catalog\Command\DeleteCategory;
 use App\Application\Catalog\Command\EditAttribute;
 use App\Application\Catalog\Command\EditCategory;
 use App\Application\Catalog\Command\RemoveAttributeOption;
@@ -19,6 +20,7 @@ use App\Application\Catalog\Handler\ArchiveAttributeHandler;
 use App\Application\Catalog\Handler\ArchiveAttributeOptionHandler;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
 use App\Application\Catalog\Handler\DeleteAttributeHandler;
+use App\Application\Catalog\Handler\DeleteCategoryHandler;
 use App\Application\Catalog\Handler\EditAttributeHandler;
 use App\Application\Catalog\Handler\EditCategoryHandler;
 use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
@@ -31,6 +33,7 @@ use App\Domain\Catalog\Exception\AttributeInUse;
 use App\Domain\Catalog\Exception\AttributeNeedsAnOption;
 use App\Domain\Catalog\Exception\AttributeNotFound;
 use App\Domain\Catalog\Exception\AttributeOptionNotFound;
+use App\Domain\Catalog\Exception\CategoryHasAttributes;
 use App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode;
 use App\Domain\Catalog\Exception\DuplicateAttributeOption;
 use App\Domain\Catalog\Port\AttributeOptionRepository;
@@ -339,6 +342,25 @@ final class ArchiveHandlersTest extends KernelTestCase
 
         self::assertSame(0, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute WHERE id = ?', [$this->brand->id()->toString()]));
         self::assertSame(0, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute_option WHERE attribute_id = ?', [$this->brand->id()->toString()]));
+    }
+
+    public function testDeletingACategoryWhoseOnlyAttributeIsArchivedIsStillRefusedByC13(): void
+    {
+        // `existsForCategory()` reads archived rows on purpose: deleting the category would orphan
+        // the archived attribute, which dormant values may still name (no FK).
+        $leaf = CategoryFactory::createOne();
+        $attribute = AttributeFactory::new()->inCategory($leaf)->create();
+        $this->archiveAttribute($attribute);
+        $categoriesBefore = $this->db->fetchAllAssociative('SELECT * FROM catalog_category ORDER BY id');
+        $attributesBefore = $this->db->fetchAllAssociative('SELECT * FROM catalog_attribute ORDER BY id');
+
+        try {
+            ($this->service(DeleteCategoryHandler::class))(new DeleteCategory($leaf->id()->toString()));
+            self::fail('Expected CategoryHasAttributes.');
+        } catch (CategoryHasAttributes) {
+            self::assertSame($categoriesBefore, $this->db->fetchAllAssociative('SELECT * FROM catalog_category ORDER BY id'));
+            self::assertSame($attributesBefore, $this->db->fetchAllAssociative('SELECT * FROM catalog_attribute ORDER BY id'));
+        }
     }
 
     private function move(Category $category, Category $under): void

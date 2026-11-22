@@ -1286,12 +1286,13 @@ final class SellTest extends WebTestCase
         self::assertSame($this->optionIdOf($this->brand, 'Gibson'), $this->valueRowsByAttribute($draft)[$this->brand->id()->toString()]['option_id'] ?? null);
     }
 
-    public function testATextValueThatLooksLikeAUuidPassesThroughTheKeepFilterHarmlessly(): void
+    public function testATextValueHoldingAnArchivedOptionsIdDoesNotPutItOnTheChoiceSelect(): void
     {
         $this->buildTree();
         $this->buildTheAttributes();
         $ann = $this->signIn();
-        $lookalike = '018f5b2a-0000-7000-8000-00000000ffff';
+        // Fender's own id, typed into a text field: only a *choice* value may keep an archived option.
+        $lookalike = $this->optionIdOf($this->brand, 'Fender');
         $draft = ListingFactory::new()->soldBy($ann)->inCategory($this->electric)->withValues([$this->serial->id()->toString() => $lookalike])->create();
         $this->archiveFender();
 

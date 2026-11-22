@@ -790,9 +790,11 @@ These are documented failure modes we design against (see [docs/infrastructure.m
 - **C-18 counts active options: `countActiveForAttribute()`** (renamed from `countForAttribute()` —
   a port method whose meaning narrows changes its name). Asked whenever an *active* option leaves the
   active set, by archive or delete; deleting an archived option never meets it.
-- **`keep` takes uuid-shaped stored values only.** The seller edit page passes stored values to
-  `optionsFor(…, keep)` so a stale option renders selected; a text value in `id IN (…)` is a uuid
-  cast error → 500. `SellController` filters with `Uuid::isValid()` — keep it.
+- **`keep` takes the *choice* attributes' stored values only.** The seller edit page passes them to
+  `optionsFor(…, keep)` so a stale option renders selected. Any other value is wrong there twice: a
+  non-uuid text in `id IN (…)` is a uuid cast error → 500, and a uuid-shaped one (an archived
+  option's id typed into a text field) would put that option onto the choice select.
+  `SellController::detailsSchema()` builds `keep` from the choice rows — do not widen it.
 - **Every facet/search query must filter archived rows** (plan Risk 3). A naive `GROUP BY option_id`
   over `listing_attribute_value` counts dormant and stale values and archived attributes. Scope to the
   subtree + `status = 'published'`, active-schema attributes only, join options

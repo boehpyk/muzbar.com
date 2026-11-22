@@ -39,7 +39,6 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\Component\Uid\Uuid;
 
 /**
  * A seller's private listing surface: draft, list, edit, publish, withdraw (plan D13, listing-publish). Unstyled semantic markup (Q7).
@@ -166,10 +165,9 @@ final class SellController extends AbstractController
         // draft, the outline, the stored values, the effective schema, every option of every choice.
         // The values come first so a stored choice whose option was archived is still among the
         // options (`keep`, ADR-0022 D10): it renders selected as "… (no longer offered)" instead of
-        // an empty select that "blank = clear" would silently drop on save. Only uuid-shaped values
-        // can be option ids, and `id IN (…)` would 500 on any other string.
+        // an empty select that "blank = clear" would silently drop on save.
         $stored = $this->drafts->valuesOf($draft['id']);
-        [$schema, $noLongerOffered] = $this->detailsSchema($draft['categoryId'], array_values(array_filter($stored, static fn (string $value): bool => Uuid::isValid($value))));
+        [$schema, $noLongerOffered] = $this->detailsSchema($draft['categoryId'], $stored);
         // Only values for fields on the form: a dormant value (its attribute archived, or moved out
         // of the lineage) would be submitted back and refused as "no longer applies". It is not lost:
         // revise carries it over while the category is unchanged (L-17).
@@ -273,21 +271,24 @@ final class SellController extends AbstractController
 
     /**
      * The Details sub-form's rows: the effective schema (root first, then label) with each choice
-     * attribute's active options plus the archived ones in `$keep`, fetched for all of them in one
-     * query. An archived option is labelled "… (no longer offered)"; the second element maps each
-     * such option id to its plain label, for the refusal.
+     * attribute's active options plus the archived one the listing stores for it, fetched for all of
+     * them in one query. An archived option is labelled "… (no longer offered)"; the second element
+     * maps each such option id to its plain label, for the refusal.
      *
-     * @param list<string> $keep the stored values that may be option ids
+     * `keep` is built from the **choice** attributes' stored values only: a choice value is always an
+     * option id, while a text value that merely looks like one must neither reach `id IN (…)` (a
+     * non-uuid string there is a 500) nor put an archived option onto another field's select.
+     *
+     * @param array<string, string> $stored the listing's stored values, by attribute id
      *
      * @return array{list<array{id: string, label: string, type: string, required: bool, unit: ?string, options: list<array{id: string, label: string}>}>, array<string, string>}
      */
-    private function detailsSchema(string $categoryId, array $keep): array
+    private function detailsSchema(string $categoryId, array $stored): array
     {
         $rows = $this->schema->effectiveFor($categoryId);
-        $options = $this->schema->optionsFor(array_column(
-            array_filter($rows, static fn (array $row): bool => 'choice' === $row['type']),
-            'id',
-        ), $keep);
+        $choiceIds = array_column(array_filter($rows, static fn (array $row): bool => 'choice' === $row['type']), 'id');
+        $keep = array_values(array_intersect_key($stored, array_flip($choiceIds)));
+        $options = $this->schema->optionsFor($choiceIds, $keep);
 
         $noLongerOffered = [];
 
