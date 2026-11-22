@@ -107,24 +107,24 @@ Rosewood, Maple, not required, defined on **Instruments**.
 
 ### A. The schema mutation, end to end (one scenario, one `KernelBrowser`)
 
-- [ ] **AC-1 (admin defines through the UI)** — An admin (`ROLE_ADMIN`, granted before sign-in)
+- [x] **AC-1 (admin defines through the UI)** — An admin (`ROLE_ADMIN`, granted before sign-in)
       `POST`s the define-choice form at `/admin/categories/{instruments}/attributes/new/choice` with
       a token scraped from the form's `GET`. Answer: **303** to the category's attribute list.
       Result: exactly **one** new `catalog_attribute` row (`code = 'fretboard-wood'`) and exactly
       **two** new `catalog_attribute_option` rows (Rosewood, Maple). No other `catalog_*` row changes.
-- [ ] **AC-2 (no DDL, no migration)** — The columns and indexes of schema `public` (the
+- [x] **AC-2 (no DDL, no migration)** — The columns and indexes of schema `public` (the
       `information_schema.columns` + `pg_indexes` snapshot `NoDdlTest` takes) are **identical**
       before AC-1 and after AC-4. The slice's diff contains **no file under `src/migrations/`**.
-- [ ] **AC-3 (renders on the draft form, no deploy)** — Ann's pre-existing draft **D** on Electric,
+- [x] **AC-3 (renders on the draft form, no deploy)** — Ann's pre-existing draft **D** on Electric,
       holding the five values of `allFiveElectricInputs()`: after AC-1 her `GET
       /sell/drafts/{D}/edit` answers 200 with **six** Details fields (five before AC-1 — asserted
       first); the new one is labelled "Fretboard wood", is a select offering `—`, `Rosewood`, `Maple`
       in that order, and is **empty**; the other five are pre-filled exactly as before AC-1.
-- [ ] **AC-4 (a seller fills and publishes it)** — Ann submits that form (token from the page) with
+- [x] **AC-4 (a seller fills and publishes it)** — Ann submits that form (token from the page) with
       the five values unchanged, Fretboard wood = Rosewood and `action=publish`. Answer: **303**.
       Read back through a fresh connection: D's `status = 'published'`, `published_at` set; D has
       **six** value rows, the Fretboard one `option_id = Rosewood`.
-- [ ] **AC-5 (existing rows untouched)** — Raw `SELECT *` snapshots, ordered by key: every
+- [x] **AC-5 (existing rows untouched)** — Raw `SELECT *` snapshots, ordered by key: every
       pre-existing `listing_listing` row **other than D's** and every pre-existing
       `listing_attribute_value` row (D's five included) is **byte-identical** after AC-4. The
       fixture holds at least one pre-existing listing besides D (Bob's published Electric listing,
@@ -149,31 +149,31 @@ each holding Condition = Used and — on Electric — the Brand shown (both are 
 | S | Electric | published | **Maple** | Fender | — |
 | F | Electric | published | — | Fender | Gloss |
 
-- [ ] **AC-6 (it finds the new attribute)** — Before any archive: browsing **Guitars** / Fretboard
+- [x] **AC-6 (it finds the new attribute)** — Before any archive: browsing **Guitars** / Fretboard
       wood → `{Maple: 1, Rosewood: 2}`; browsing **Instruments** / Fretboard wood →
       `{Maple: 1, Rosewood: 3}`.
-- [ ] **AC-7 (published only)** — Dr and W are never counted (with them, Rosewood would be 4 at
+- [x] **AC-7 (published only)** — Dr and W are never counted (with them, Rosewood would be 4 at
       Guitars). A separate AC so mutation (a) names it.
-- [ ] **AC-8 (subtree only)** — P2 (Bass) counts at Instruments and **not** at Guitars (AC-6's
+- [x] **AC-8 (subtree only)** — P2 (Bass) counts at Instruments and **not** at Guitars (AC-6's
       2 vs 3).
-- [ ] **AC-9 (archived option → no bucket)** — After Maple is archived through
+- [x] **AC-9 (archived option → no bucket)** — After Maple is archived through
       `ArchiveAttributeOptionHandler`: Guitars / Fretboard wood → `{Rosewood: 2}` — no Maple bucket,
       S counted nowhere for this attribute. S's value rows are byte-identical before and after the
       archive (a stale value stays stored, ADR-0022).
-- [ ] **AC-10 (archived attribute → no facet)** — Instruments / Finish → `{Gloss: 1}`; after Finish
+- [x] **AC-10 (archived attribute → no facet)** — Instruments / Finish → `{Gloss: 1}`; after Finish
       is archived through `ArchiveAttributeHandler` → **no rows**. F's value rows are byte-identical.
-- [ ] **AC-11 (lineage only)** — Guitars / Brand → `{Fender: 3, Gibson: 1}` (P1, S, F; P1b — Dr and W
+- [x] **AC-11 (lineage only)** — Guitars / Brand → `{Fender: 3, Gibson: 1}` (P1, S, F; P1b — Dr and W
       excluded by AC-7); **Instruments / Brand → no rows**: Brand is defined on Guitars, so it is not
       in Instruments' effective schema and is not a facet there, although published listings below
       hold it.
-- [ ] **AC-12 (dormant-by-move needs no clause of its own — stated, not tested)** — If an attribute
+- [x] **AC-12 (dormant-by-move needs no clause of its own — stated, not tested)** — If an attribute
       is in the browsed category's lineage and a listing is in its subtree, the attribute is in the
       listing's lineage, so no value counted can be dormant by a move. The gate query's docblock says
       so; mutation (b) covers the clause that makes it true.
 
 ### C. The index
 
-- [ ] **AC-13 (the generic index can serve the active query)** — Inside the test's transaction,
+- [x] **AC-13 (the generic index can serve the active query)** — Inside the test's transaction,
       with `SET LOCAL enable_seqscan = off`, `enable_nestloop = off`, `enable_mergejoin = off`
       (plan D3), `EXPLAIN (FORMAT JSON)` of the gate query for Instruments / Fretboard wood contains
       **a plan node whose `Index Name` is `idx_listing_attribute_value_option` and whose `Index Cond`
@@ -182,18 +182,18 @@ each holding Condition = Used and — on Electric — the Brand shown (both are 
       clause mutation (f) survived, because with seq scans off PostgreSQL walks the whole index — the
       index "appears" while serving no lookup.)* On failure the message prints the plan. The test's
       docblock states what this does **not** prove (planner choice on real data, latency — Phase 2).
-- [ ] **AC-14 (the value layer's shape is unchanged)** — `ListingAttributeValuesSchemaTest`
+- [x] **AC-14 (the value layer's shape is unchanged)** — `ListingAttributeValuesSchemaTest`
       (listing-attribute-values AC-6, the table's only shape guard) passes **unmodified**.
 
 ### D. Restore-from-backup rehearsal (manual, on the box)
 
-- [ ] **AC-15 (runbook)** — `docs/infrastructure.md` §*Backups & recovery* gains a *Restore
+- [x] **AC-15 (runbook)** — `docs/infrastructure.md` §*Backups & recovery* gains a *Restore
       rehearsal (runbook)* with copy-pasteable commands for the box (they must work **without** the
       Makefile and with `MUZBAR_IMAGE` set as the box expects): dump; create a scratch database
       `muzbar_restore_rehearsal`; `pg_restore --no-owner --no-privileges --exit-on-error`; the
       completeness checks; drop the scratch database. It never names prod's database as a restore
       target.
-- [ ] **AC-16 (rehearsed, with evidence)** — The owner runs it on the box once. Closed only when a
+- [x] **AC-16 (rehearsed, with evidence)** — The owner runs it on the box once. Closed only when a
       dated *Rehearsal log* entry under the runbook records: dump file name and size; `pg_restore`
       exit status **0**; the per-table exact row counts of prod and of the scratch database with
       **an empty diff** (or each difference explained by a write after the dump's timestamp);
@@ -204,7 +204,7 @@ each holding Condition = Used and — on Electric — the Brand shown (both are 
 
 ### E. Proof and docs
 
-- [ ] **AC-17 (tests bite)** — each mutation fails a named test (recorded in the commit message):
+- [x] **AC-17 (tests bite)** — each mutation fails a named test (recorded in the commit message):
       - (a) gate query without `l.status = 'published'` → AC-7
       - (b) gate query without the subtree join → AC-8
       - (c) gate query without `a.archived_at IS NULL` → AC-10
@@ -222,7 +222,7 @@ each holding Condition = Used and — on Electric — the Brand shown (both are 
         *(h and i amended 2026-11-22: each bites, at an earlier assertion than the one first named.)*
       - (j) `DbalAttributeSchema::effectiveFor()` dropping the root of the lineage → AC-3
       - (k) the define-choice controller action not passing the option labels → AC-1 / AC-3
-- [ ] **AC-18 (docs)** — ADR-0004 dated amendment (plan D7); roadmap: `phase1-gate` ticked, the
+- [x] **AC-18 (docs)** — ADR-0004 dated amendment (plan D7); roadmap: `phase1-gate` ticked, the
       *Gate — Schema-Mutation PoC* line marked **MET** with the date (only after AC-16), the Phase 2
       `Search` item gains the two carry-overs (lift the gate query; decide the cross-context read —
       plan Risk 2); CLAUDE.md status; FORboehpyk.md chapter.

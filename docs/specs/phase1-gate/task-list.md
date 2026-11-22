@@ -4,6 +4,7 @@
 > `feature/phase1-gate`. Run `make check` before each commit. Check off as you go.
 
 **Status:** Approved 2026-11-22 — Q1–Q6 as recommended.
+**Verified:** 2026-11-22 — `/verify` PASS first time (0 CRITICAL, 0 MAJOR; 4 MINOR + 3 STYLE fixed anyway).
 
 **Rules for the whole slice:**
 - **No change under `src/src/`, `src/config/` or `src/migrations/`.** The slice is tests, docs and a
@@ -61,5 +62,5 @@
 
 ## Verify
 
-- [ ] **T9:** `/verify` → reviewer PASS, AC-1…AC-18 checked (AC-16 by the owner's log entry),
+- [x] **T9:** `/verify` → reviewer PASS, AC-1…AC-18 checked (AC-16 by the owner's log entry),
       docs updated.

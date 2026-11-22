@@ -158,7 +158,7 @@ Docker Compose · Traefik · Nginx.
 > leaves the lineage goes dormant and wakes if the move is undone. All fifteen AC-23 mutations bit;
 > 1883 tests. [ADR-0022](./docs/adr/0022-schema-drift-archive-reserved-names-dormant-values.md)
 > + ADR-0004/0016/0017/0018/0020/0021 amendments.
-> `phase1-gate` (2026-11-22, **gate MET 2026-11-22** — restore rehearsed on the box, logged in
+> `phase1-gate` (2026-11-22, **gate MET 2026-11-22**, **passed `/verify` first time** — 4 MINORs fixed anyway, chiefly a runbook rewrite that could silently have checked prod — restore rehearsed on the box, logged in
 > docs/infrastructure.md §*Rehearsal log*) — a **proof slice with zero production code**. `SchemaMutationGateTest` drives ADR-0004's bet through the real admin and seller pages: a
 > runtime-defined attribute reaches a pre-existing draft's form and a facet count, with no DDL and
 > every pre-existing row byte-identical. The gate query (`FACET_COUNT`, test-owned — Phase 2 lifts
