@@ -26,7 +26,7 @@
       values; Ann's draft D with five values), the two snapshots (D4, D5), then the scenario
       AC-1 → AC-3 → AC-4, then AC-5 and AC-2. One method, one `KernelBrowser`, `disableReboot()`,
       `ClearsRateLimiters`.
-- [ ] **T3:** Section B: `FACET_COUNT` constant with its docblock (four clauses, the AC-12
+- [x] **T3:** Section B: `FACET_COUNT` constant with its docblock (four clauses, the AC-12
       subtree ∩ lineage argument, "Phase 2 lifts this and its fixture"), `facetCount(browsed,
       attribute): array<string,int>`, `buildTheFacetFixture()` (spec §B table, through the handlers
       and `ListingFactory`), and AC-6 … AC-11. Exact expected maps, not "contains".
