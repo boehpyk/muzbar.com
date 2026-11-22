@@ -157,7 +157,16 @@ Docker Compose · Traefik · Nginx.
 > values). C-18 counts **active** options. **C-27 is retired** — a move with values is allowed; what
 > leaves the lineage goes dormant and wakes if the move is undone. All fifteen AC-23 mutations bit;
 > 1883 tests. [ADR-0022](./docs/adr/0022-schema-drift-archive-reserved-names-dormant-values.md)
-> + ADR-0004/0016/0017/0018/0020/0021 amendments. Next: `phase1-gate`;
+> + ADR-0004/0016/0017/0018/0020/0021 amendments.
+> `phase1-gate` (2026-11-22, tests + runbook; **gate not MET until the owner's restore rehearsal is
+> logged** in docs/infrastructure.md §*Restore rehearsal*) — a **proof slice with zero production
+> code**. `SchemaMutationGateTest` drives ADR-0004's bet through the real admin and seller pages: a
+> runtime-defined attribute reaches a pre-existing draft's form and a facet count, with no DDL and
+> every pre-existing row byte-identical. The gate query (`FACET_COUNT`, test-owned — Phase 2 lifts
+> it **with its fixture**) speaks "active" in four clauses, each with a fixture row only it excludes.
+> The `EXPLAIN` proves **usability, not choice**, and needed an `Index Cond` check: with seq scans off,
+> a full index scan "uses the index" while looking nothing up (mutation (f) survived until then).
+> API-key issuance moved to Phase 3. ADR-0004 amendment. 1892 tests. Next: the rehearsal;
 > `public-styles` before Phase 2's public search UI; seller contact channels before launch.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot

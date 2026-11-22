@@ -113,3 +113,34 @@ Recorded by the `listing-schema-drift` slice
    Archive for any row.
 3. **The value layer is untouched** — no column, index or row of `listing_attribute_value` changes.
    The no-runtime-DDL invariant is unchanged: archiving is an `UPDATE` of one row.
+
+## Amendment, 2026-11-22 — the Schema-Mutation PoC ran; zero promoted columns stands
+
+Recorded by the `phase1-gate` slice (plan D7). No decision changes; this records that the proof
+this ADR named as the Phase 1 gate was run, and what it does and does not show.
+
+1. **The bet held end to end, through the HTTP doors.** `SchemaMutationGateTest` section A: an admin
+   defines a choice attribute "Fretboard wood" through `/admin/…/attributes/new/choice`; a seller's
+   **pre-existing** draft shows it on its edit form with no deploy; she fills it and publishes. The
+   `information_schema.columns` + `pg_indexes` snapshot of `public` is identical before and after
+   (the `NoDdlTest` snapshot, now the `SnapshotsTheSchemaCatalogs` trait), the slice adds no
+   migration, and every pre-existing `listing_listing` and `listing_attribute_value` row is
+   byte-identical (raw `SELECT *`), except the draft's own listing row that the publish changes.
+2. **A facet count over the generic table must speak "active" — four clauses** (ADR-0022): listing
+   `status = 'published'`, listing in the browsed subtree, attribute active **and** in the browsed
+   category's lineage (C-22), option active. The gate query (`SchemaMutationGateTest::FACET_COUNT`)
+   carries them, and its fixture holds one row per clause that only that clause excludes; removing
+   any one of them turns its test red. Dormant-by-move needs no fifth clause: subtree ∩ lineage
+   cannot hold one.
+3. **The `EXPLAIN` proves usability, not choice.** Under `SET LOCAL enable_seqscan/nestloop/mergejoin
+   = off`, the gate query's plan contains an index **lookup** on `idx_listing_attribute_value_option`
+   (`Index Cond` on `attribute_id`; a full index scan was not enough, so the test requires the
+   lookup) and no `Seq Scan` on `listing_attribute_value`. That proves no "active" clause made the
+   value leg unindexable. It does **not** prove PostgreSQL picks that plan on real, `ANALYZE`d data,
+   or any latency: that is Phase 2's *Search Latency Benchmark* (10 000 rows, no planner switches).
+4. **Zero promoted columns stands.** Nothing measured says one is needed; promotion lives with the
+   Phase 2 benchmark.
+5. **Carried to Phase 2's `Search` item:** lift the gate query **and its AC-6…AC-11 fixture** into
+   the `SearchPort` adapter (the fixture is what proves the four clauses); decide how `Search` reads
+   Catalog's and Listing's tables — the single joined statement breaks ADR-0019's "table names only
+   in their own context's Infrastructure" once it moves into `src/`.

@@ -51,12 +51,14 @@
 
 ## Docs
 
-- [ ] **T8:** ADR-0004 dated amendment (plan D7): the PoC gate is met — the test, the four "active"
+- [x] **T8:** ADR-0004 dated amendment (plan D7): the PoC gate is met — the test, the four "active"
       clauses, what the `EXPLAIN` shows and does not; zero promoted columns stands; the Phase 2
       carry-overs. Roadmap: tick `phase1-gate`; mark *Gate — Schema-Mutation PoC* **MET** with the
       date (after T7); add plan Risk 2's two carry-overs to Phase 2's `Search` item; move API-key
       issuance per the owner's Q4 answer. CLAUDE.md status line. FORboehpyk.md chapter (what a gate
       is, why each clause needs its own row, the honest `EXPLAIN`, the rehearsal's result). AC-18.
+      *(Done except the post-T7 edits: roadmap tick + gate **MET** with the date, CLAUDE.md status,
+      and the rehearsal's result in FORboehpyk.md Chapter 17.)*
 
 ## Verify
 
