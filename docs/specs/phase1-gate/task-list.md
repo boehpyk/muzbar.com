@@ -21,7 +21,7 @@
 
 - [x] **T1:** Extract `NoDdlTest::catalogs()` into `tests/Support/SnapshotsTheSchemaCatalogs`;
       `NoDdlTest` uses the trait. Pure move — `NoDdlTest` green, nothing else changed (plan D5).
-- [ ] **T2:** `tests/Functional/SchemaMutationGateTest.php`, section A: fixture (values tree; admin
+- [x] **T2:** `tests/Functional/SchemaMutationGateTest.php`, section A: fixture (values tree; admin
       with `admin: true` registered before sign-in; Ann; Bob's published Electric listing with five
       values; Ann's draft D with five values), the two snapshots (D4, D5), then the scenario
       AC-1 → AC-3 → AC-4, then AC-5 and AC-2. One method, one `KernelBrowser`, `disableReboot()`,
