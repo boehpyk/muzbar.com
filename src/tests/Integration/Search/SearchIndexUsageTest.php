@@ -25,8 +25,9 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  *   that (phase1-gate's mutation (f) survived it until this check existed).
  * - Both statements: no `Seq Scan` on `listing_attribute_value`.
  *
- * `SET LOCAL` dies with DAMA's rollback; each statement has its own test method so nothing else runs
- * under the switches.
+ * `SET LOCAL` dies with DAMA's rollback (and so does the `ANALYZE` of the four tables, which pins the
+ * planner's statistics to the fixture instead of to autovacuum's history); each statement has its own
+ * test method so nothing else runs under the switches.
  *
  * What this does NOT prove: which plan PostgreSQL picks on real, ANALYZEd data (a dozen unanalysed
  * rows say nothing about choice), nor any timing. It proves only that no clause makes the value-table
@@ -92,6 +93,12 @@ final class SearchIndexUsageTest extends KernelTestCase
         foreach ($statement['params'] as [$value, $pdoType]) {
             $values[] = $value;
             $types[] = \PDO::PARAM_INT === $pdoType ? ParameterType::INTEGER : ParameterType::STRING;
+        }
+        // The planner's statistics for these tables depend on what autovacuum last saw of every earlier test's
+        // rolled-back rows, so without this the plan (pkey vs generic index on a dozen rows, where their costs tie)
+        // flips between runs. ANALYZE inside DAMA's transaction describes exactly the fixture and is rolled back.
+        foreach (['listing_listing', 'listing_attribute_value', 'catalog_attribute_option', 'catalog_category'] as $table) {
+            $this->db->executeStatement('ANALYZE '.$table);
         }
         $this->db->executeStatement('SET LOCAL enable_seqscan = off');
         $this->db->executeStatement('SET LOCAL enable_nestloop = off');
