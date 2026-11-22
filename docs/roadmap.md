@@ -343,7 +343,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         `malformed()` hook. The two challenge ids had drifted (no `D`) and now refuse a trailing
         newline — the one behaviour change. The nine DBAL id types are deferred until a fix would
         have to be made nine times. ADR-0009 amendment; no new ADR. 1746 → 1759 tests.
-  - [x] `listing-schema-drift` (2026-11-21; **not yet through `/verify`**) *(taken before the gate)* — replaces slice 2's
+  - [x] `listing-schema-drift` (2026-11-21; **passed `/verify` 2026-11-22 first time** — 3 MINORs fixed anyway, chiefly `keep` built from choice values only; six hand-checks in Chromium green) *(taken before the gate)* — replaces slice 2's
         refusals with ADR-0004's real rules: soft-delete attributes/options (`archived_at`, hidden
         from forms, values retained — and decide whether an archived code still blocks C-21), and a
         move that is allowed, retaining values whose attribute left the schema but hiding them.

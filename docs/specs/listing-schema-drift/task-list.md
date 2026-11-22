@@ -103,7 +103,7 @@
         a transition and delete is not, dormant vs stale, why a reserved name makes restore free.
 
 ## Verify
-- [ ] **T20:** `/verify` → reviewer PASS, AC-1…AC-24 checked, empty `make migration.make`, both
+- [x] **T20:** `/verify` → reviewer PASS, AC-1…AC-24 checked, empty `make migration.make`, both
       isolation scans green. Then by hand on the dev stack (Chromium):
       1. As admin, archive Brand (used by a published listing) → its public page loses "Brand", the
          seller's edit page has no Brand field; the seller fixes a typo; restore Brand → "Brand:

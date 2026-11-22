@@ -146,7 +146,7 @@ Docker Compose · Traefik · Nginx.
 > Each id keeps its own exception via a `malformed()` hook. One deliberate behaviour change: the two
 > challenge ids had drifted (no `D`) and now refuse `"<uuid>\n"`. The nine DBAL id types are deferred
 > (trigger: a fix made nine times). ADR-0009 amendment.
-> `listing-schema-drift` (2026-11-21, **not yet through `/verify`**) — Listing slice 4 of 4, and the
+> `listing-schema-drift` (2026-11-21, **passed `/verify` 2026-11-22 first time** — 3 MINORs fixed anyway, chiefly `keep` built from choice values only; six hand-checks in Chromium green) — Listing slice 4 of 4, and the
 > first slice that **weakens an invariant on purpose**: "every stored value is in force" is no longer
 > kept by refusal. `Attribute`/`AttributeOption` gain **archive/restore** (C-28; nullable
 > `archived_at`, a transition — hard delete stays non-existence, for unused rows only). An archived
