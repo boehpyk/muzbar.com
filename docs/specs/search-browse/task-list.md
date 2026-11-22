@@ -48,7 +48,7 @@
 - [x] T12: `tests/Integration/Search/BrowseListingsTest` — AC-6…AC-17 through the handler.
 - [x] T13: `tests/Integration/Search/SearchIndexUsageTest` — AC-18 (replayed EXPLAIN, `Index Cond`,
       no `Seq Scan`, docblock on what it does not prove).
-- [ ] T14: `tests/Functional/Search/BrowsePageTest` — AC-19…AC-24 (anonymous; recorded SQL; 404
+- [x] T14: `tests/Functional/Search/BrowsePageTest` — AC-19…AC-24 (anonymous; recorded SQL; 404
       parity; hostile parameters; statement bound with Brand of 2 vs 50; navigation keeps `f`).
 - [ ] T15: Mutation proof — AC-25 (a)…(q), each applied, run, reverted; catcher recorded in the
       commit message. `make test` twice; `php -d zend.assertions=-1 vendor/bin/phpunit` (AC-28).
