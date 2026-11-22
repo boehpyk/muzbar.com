@@ -6,7 +6,7 @@
 > no adapter fails only at runtime — CLAUDE.md "Symfony compiles services lazily").
 
 ## Decision
-- [ ] T0: `/adr` → **ADR-0023** *Search is a read-only projection over Catalog's and Listing's
+- [x] T0: `/adr` → **ADR-0023** *Search is a read-only projection over Catalog's and Listing's
       tables* (plan D1: options A/B/C/D, recommendation A and its five-point fence; D2 no aggregate;
       D3/D4 port shape; D6 no lock; the watch item). Only after the owner answers Q1.
 
