@@ -481,9 +481,12 @@ docker compose exec -T postgres sh -c "psql -U \"\$POSTGRES_USER\" -d muzbar_res
 diff /tmp/counts_prod.txt /tmp/counts_restored.txt && echo "counts identical"; cat /tmp/counts_restored.txt
 
 # 5. The restored schema is the one the deployed code expects. DATABASE_URL is rewritten
-#    inside the container, so no password is typed. Expect "exit 0" twice.
-docker compose exec -T app sh -c 'DATABASE_URL=$(printf %s "$DATABASE_URL" | sed "s#/[^/?]*?#/muzbar_restore_rehearsal?#") php bin/console doctrine:migrations:up-to-date'; echo "exit $?"
-docker compose exec -T app sh -c 'DATABASE_URL=$(printf %s "$DATABASE_URL" | sed "s#/[^/?]*?#/muzbar_restore_rehearsal?#") php bin/console doctrine:schema:validate --skip-mapping'; echo "exit $?"
+#    inside the container, so no password is typed. Each line first prints the database it will
+#    check and REFUSES (exit 2) if the rewrite did not happen, because a silent no-op would check
+#    prod and pass. Expect "checking muzbar_restore_rehearsal" and "exit 0", twice.
+SCRATCH='URL=$(printf %s "$DATABASE_URL" | sed -E "s#^([^/]*//[^/]*/)[^/?]*#\1muzbar_restore_rehearsal#"); case "$URL" in *//*/muzbar_restore_rehearsal|*//*/muzbar_restore_rehearsal\?*) echo "checking muzbar_restore_rehearsal" ;; *) echo "DATABASE_URL rewrite failed; refusing" >&2; exit 2 ;; esac; export DATABASE_URL="$URL";'
+docker compose exec -T app sh -c "$SCRATCH php bin/console doctrine:migrations:up-to-date"; echo "exit $?"
+docker compose exec -T app sh -c "$SCRATCH php bin/console doctrine:schema:validate --skip-mapping"; echo "exit $?"
 
 # 6. Drop the scratch database (safe to run on its own after any failure), and confirm.
 docker compose exec -T postgres sh -c 'dropdb -U "$POSTGRES_USER" --if-exists muzbar_restore_rehearsal'
@@ -525,7 +528,9 @@ duration · count diff (empty, or each difference explained) · `migrations:up-t
   *What it proves and does not:* the dump is complete and restorable by the same Postgres major, and
   the restored schema (all 13 migrations, through `listing-schema-drift`) is the one the deployed image
   expects. Prod holds almost no catalog or listing data yet, so it proves little about restoring
-  **volume** — re-run after Phase 2 has real listings. Both console commands also print Doctrine DBAL
+  **volume** — re-run after Phase 2 has real listings. *(Step 5 was hardened after this run, at
+  `/verify`: its rewrite needed a `?` in `DATABASE_URL` and would silently have checked prod
+  without one. This run's URL had one — the up-to-date check ran against the scratch database.)* Both console commands also print Doctrine DBAL
   `deprecation` INFO lines to stderr in prod; harmless noise, not a failure.
 
 ## Monitoring & observability

@@ -16,7 +16,7 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 `Identity` complete (7 of 7)** · **`Catalog` complete (3 of 3)**.
+> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 complete** — `Identity` (7 of 7) · `Catalog` (3 of 3) · `Listing` (4 of 4) · **Phase 1 gate MET 2026-11-22**.
 > `identity-user-password-auth` (2026-07-26) shipped the repo's first Domain code — the `User`
 > aggregate, value objects, ports, two domain events, the first migration, and
 > register/login/logout/`/account`. `identity-email-verification` (2026-07-28) added the **second

@@ -59,7 +59,9 @@ final class SchemaMutationGateTest extends WebTestCase
      *      i.e. defined on it or an ancestor (C-22; AC-11).
      *  (f) `v.attribute_id = :attribute` — the leading column of `idx_listing_attribute_value_option` (AC-13).
      *
-     * (a)-(f) are lettered because the bite proof removes each in turn; keep every one on its own line.
+     * (a)-(e) are the four "active" clauses ((c) and (e) together are the one about the attribute);
+     * (f) is not an "active" clause but the index's way in. All six are lettered because the bite
+     * proof removes each in turn; keep every one on its own line.
      *
      * Dormant-by-move needs no clause of its own (AC-12): a value counted here sits on a listing in
      * the browsed subtree, and its attribute is in the browsed category's lineage; the listing's
@@ -148,6 +150,8 @@ final class SchemaMutationGateTest extends WebTestCase
         $fieldsBefore = $this->detailFieldIds($page);
         self::assertCount(5, $fieldsBefore, 'Sanity: five Details before the define.');
         $prefilledBefore = $this->prefilled($page, $fieldsBefore);
+        // A fixed reference, so "pre-filled as before" cannot pass with five blanks on both sides.
+        self::assertEquals($this->allFiveElectricInputs(), $prefilledBefore, 'Sanity: D shows its five stored values.');
         $this->signOut();
 
         // AC-1: the admin defines the attribute through the admin form.
@@ -168,6 +172,11 @@ final class SchemaMutationGateTest extends WebTestCase
         self::assertCount(1, $newAttributes);
         $fretboardId = $newAttributes[0]['id'];
         self::assertIsString($fretboardId);
+        self::assertSame(
+            ['category_id' => $this->instruments->id()->toString(), 'label' => 'Fretboard wood', 'type' => 'choice', 'is_required' => false, 'archived_at' => null],
+            array_intersect_key($newAttributes[0], array_flip(['category_id', 'label', 'type', 'is_required', 'archived_at'])),
+            'AC-1: an optional, active choice attribute on Instruments.',
+        );
         $newOptions = $this->db->fetchFirstColumn('SELECT label FROM catalog_attribute_option WHERE attribute_id = ? ORDER BY label', [$fretboardId]);
         self::assertSame(['Maple', 'Rosewood'], $newOptions);
         self::assertSame($categoriesBefore, $this->db->fetchAllAssociative('SELECT * FROM catalog_category ORDER BY id'));
@@ -452,7 +461,7 @@ final class SchemaMutationGateTest extends WebTestCase
         return $values;
     }
 
-    // ---------------------------------------------------------------- C. the index (keep this test last in the file)
+    // ---------------------------------------------------------------- C. the index
 
     /**
      * AC-13: the generic index can serve the active facet query. Under `SET LOCAL` switches that
