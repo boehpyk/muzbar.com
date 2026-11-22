@@ -33,7 +33,7 @@
 - [x] **T4:** AC-13: `testTheGenericIndexCanServeTheActiveFacetQuery()` — the three `SET LOCAL`
       switches, `EXPLAIN (FORMAT JSON)`, a recursive walk of `Plans`, the two assertions, the plan in
       the failure message, and the docblock saying what it does **not** prove (plan D3, Risk 3).
-- [ ] **T5:** Bite proof (AC-17): mutations (a)…(k) one at a time, each turning its named test red;
+- [x] **T5:** Bite proof (AC-17): mutations (a)…(k) one at a time, each turning its named test red;
       revert each. Record the table in the commit message. Then `make test` twice in a row and once
       with `php -d zend.assertions=-1 vendor/bin/phpunit` (CI parity).
 
