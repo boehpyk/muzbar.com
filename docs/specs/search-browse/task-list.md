@@ -21,7 +21,7 @@
       `FacetedQueryTest` (AC-2, AC-3).
 - [x] T5: Result types `SearchResult`, `ListingHit`, `FacetBucket`, `Facet::of()` + `FacetTest`
       (AC-4).
-- [ ] T6: `Port/SearchPort` (D3).
+- [x] T6: `Port/SearchPort` (D3).
 
 ## Application (`src/Application/Search/`)
 - [ ] T7: `Query/BrowseListings` + `Handler/BrowseListingsHandler` (four steps, plan §Application).
