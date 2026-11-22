@@ -176,8 +176,11 @@ each holding Condition = Used and — on Electric — the Brand shown (both are 
 - [ ] **AC-13 (the generic index can serve the active query)** — Inside the test's transaction,
       with `SET LOCAL enable_seqscan = off`, `enable_nestloop = off`, `enable_mergejoin = off`
       (plan D3), `EXPLAIN (FORMAT JSON)` of the gate query for Instruments / Fretboard wood contains
-      **a plan node whose `Index Name` is `idx_listing_attribute_value_option`** and **no `Seq Scan`
-      node on `listing_attribute_value`**. On failure the message prints the plan. The test's
+      **a plan node whose `Index Name` is `idx_listing_attribute_value_option` and whose `Index Cond`
+      looks up `attribute_id =`** and **no `Seq Scan` node on `listing_attribute_value`**.
+      *(Amended 2026-11-22 at `/implement` — the test won, on purpose: without the `Index Cond`
+      clause mutation (f) survived, because with seq scans off PostgreSQL walks the whole index — the
+      index "appears" while serving no lookup.)* On failure the message prints the plan. The test's
       docblock states what this does **not** prove (planner choice on real data, latency — Phase 2).
 - [ ] **AC-14 (the value layer's shape is unchanged)** — `ListingAttributeValuesSchemaTest`
       (listing-attribute-values AC-6, the table's only shape guard) passes **unmodified**.
@@ -211,9 +214,12 @@ each holding Condition = Used and — on Electric — the Brand shown (both are 
       - (g) `DROP INDEX idx_listing_attribute_value_option` at the start of the EXPLAIN test (DAMA
         rolls it back) → AC-13
       - (h) `DoctrineListingRepository::writeValues()`'s `DELETE` without its `listing_id` predicate
-        → AC-5
+        → the section A scenario (red already at the fixture's control count, 5 rows for 10; a
+        narrower widening — only for a published listing — goes red at AC-5's comparison)
       - (i) an `ALTER TABLE catalog_attribute ADD COLUMN …` executed in `DefineAttributeHandler` →
-        AC-2
+        the section A scenario (red at AC-1's `SELECT *` row comparison first; a `CREATE INDEX` in
+        the handler goes red at AC-2)
+        *(h and i amended 2026-11-22: each bites, at an earlier assertion than the one first named.)*
       - (j) `DbalAttributeSchema::effectiveFor()` dropping the root of the lineage → AC-3
       - (k) the define-choice controller action not passing the option labels → AC-1 / AC-3
 - [ ] **AC-18 (docs)** — ADR-0004 dated amendment (plan D7); roadmap: `phase1-gate` ticked, the

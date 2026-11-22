@@ -39,7 +39,7 @@
 
 ## Ops (runbook + manual)
 
-- [ ] **T6:** `docs/infrastructure.md` §*Backups & recovery* → *Restore rehearsal (runbook)* (plan
+- [x] **T6:** `docs/infrastructure.md` §*Backups & recovery* → *Restore rehearsal (runbook)* (plan
       D6): box-ready `docker compose` commands for dump → `createdb` → `pg_restore --exit-on-error`
       → per-table exact counts on both databases + `diff` → `doctrine:migrations:up-to-date` and
       `doctrine:schema:validate --skip-mapping` against the scratch DB → `DROP DATABASE`; the `df`
