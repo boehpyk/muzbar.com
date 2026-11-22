@@ -444,6 +444,76 @@ change.
 - **Rehearse restore** at least once before launch and after any schema-mutation milestone — an
   untested backup is a rumour, not a backup.
 
+### Restore rehearsal (runbook)
+
+The Phase 1 gate's second half (`phase1-gate`, AC-15/AC-16). It restores a fresh prod dump into a
+**scratch database on prod's own Postgres**, proves the copy is complete and is the schema the
+deployed code expects, then drops it. **Prod's database is only ever read** (`pg_dump`); the only
+restore target is `muzbar_restore_rehearsal`. Never point `pg_restore -d` at anything else.
+
+Run on the box, in `~/muzbar.com`, as the deploy user. Plain `docker compose` works there because
+`deploy.yml` writes `MUZBAR_IMAGE` into the box `.env`; if it complains about building, first
+`export MUZBAR_IMAGE=$(docker compose ps -q app | xargs docker inspect --format '{{.Config.Image}}')`.
+No Makefile needed.
+
+```bash
+# 0. Disk: a second copy of the database lands on the same volume. Note both numbers.
+df -h /var/lib/docker
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT pg_size_pretty(pg_database_size(current_database()))"'
+
+# 1. Dump — the exact command line of `make db.dump`.
+mkdir -p backups
+DUMP=backups/muzbar_$(date +%Y%m%d_%H%M%S).dump
+time docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc --no-owner --no-privileges' > "$DUMP"
+ls -lh "$DUMP"
+
+# 2. The scratch database. Fails if it already exists — run step 6 first, then retry.
+docker compose exec -T postgres sh -c 'createdb -U "$POSTGRES_USER" muzbar_restore_rehearsal'
+
+# 3. Restore into the SCRATCH database only. Expect "exit 0" on the last line.
+time docker compose exec -T postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d muzbar_restore_rehearsal --no-owner --no-privileges --exit-on-error' < "$DUMP"; echo "exit $?"
+
+# 4. Exact per-table row counts in both databases, then diff. Empty diff = complete
+#    (it also covers the unmapped tables `schema_filter` hides from Doctrine).
+COUNTS="SELECT table_name, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM public.%I', table_name), false, true, '')))[1]::text FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY 1"
+docker compose exec -T postgres sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -At -c \"$COUNTS\"" > /tmp/counts_prod.txt
+docker compose exec -T postgres sh -c "psql -U \"\$POSTGRES_USER\" -d muzbar_restore_rehearsal -At -c \"$COUNTS\"" > /tmp/counts_restored.txt
+diff /tmp/counts_prod.txt /tmp/counts_restored.txt && echo "counts identical"; cat /tmp/counts_restored.txt
+
+# 5. The restored schema is the one the deployed code expects. DATABASE_URL is rewritten
+#    inside the container, so no password is typed. Expect "exit 0" twice.
+docker compose exec -T app sh -c 'DATABASE_URL=$(printf %s "$DATABASE_URL" | sed "s#/[^/?]*?#/muzbar_restore_rehearsal?#") php bin/console doctrine:migrations:up-to-date'; echo "exit $?"
+docker compose exec -T app sh -c 'DATABASE_URL=$(printf %s "$DATABASE_URL" | sed "s#/[^/?]*?#/muzbar_restore_rehearsal?#") php bin/console doctrine:schema:validate --skip-mapping'; echo "exit $?"
+
+# 6. Drop the scratch database (safe to run on its own after any failure), and confirm.
+docker compose exec -T postgres sh -c 'dropdb -U "$POSTGRES_USER" --if-exists muzbar_restore_rehearsal'
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT datname FROM pg_database ORDER BY 1"'
+```
+
+Keep the dump (it is a real backup now); copy it off the box if you can.
+
+- **`pg_restore` errors or a non-zero exit** → the rehearsal **failed**. Paste the output into the
+  log, do not tick the gate, open a fix (dump flags, roles, extensions). Prod is untouched.
+- **A count differs** → explain it by a write after the dump (e.g. a new `prelaunch_signup` row);
+  an unexplained difference fails the rehearsal.
+- **Not enough disk** → stop, record `df`, copy the dump off-box and restore there instead. Never
+  restore over prod to save space.
+- **Step 5's `up-to-date` fails** → the dump predates a migration the running image has, or the
+  restore dropped `doctrine_migration_versions` — check the counts for that table first.
+
+> **Note — there is no pre-deploy dump today.** [cicd.md](./cicd.md) *Rollback* says "restore from
+> the pre-deploy `make db.dump`", but `deploy.yml` takes none. This rehearsal proves a dump
+> restores; it does not make one exist before a deploy. Until the daily-dump to-do above lands, run
+> step 1 by hand before any deploy that carries a migration.
+
+#### Rehearsal log
+
+One entry per run: date · dump file and size · dump duration · `pg_restore` exit status and
+duration · count diff (empty, or each difference explained) · `migrations:up-to-date` exit ·
+`schema:validate --skip-mapping` exit · scratch database dropped (step 6 no longer lists it).
+
+- *(none yet — the `phase1-gate` gate is not met until the first entry is here)*
+
 ## Monitoring & observability
 
 - **Umami** for product analytics — the **shared instance already running on the VDS**, not a muzbar

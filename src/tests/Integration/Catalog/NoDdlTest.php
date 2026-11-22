@@ -30,6 +30,7 @@ use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
 use App\Domain\Catalog\Exception\CategoryMoveWouldDuplicateAttributeCode;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
+use App\Tests\Support\SnapshotsTheSchemaCatalogs;
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
@@ -43,6 +44,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  */
 final class NoDdlTest extends KernelTestCase
 {
+    use SnapshotsTheSchemaCatalogs;
+
     private Connection $db;
 
     protected function setUp(): void
@@ -51,17 +54,6 @@ final class NoDdlTest extends KernelTestCase
         $db = self::getContainer()->get(Connection::class);
         self::assertInstanceOf(Connection::class, $db);
         $this->db = $db;
-    }
-
-    /**
-     * @return array{list<array<string, mixed>>, list<array<string, mixed>>}
-     */
-    private function catalogs(): array
-    {
-        return [
-            $this->db->fetchAllAssociative("SELECT table_name, column_name, data_type, character_maximum_length, is_nullable, ordinal_position FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, column_name"),
-            $this->db->fetchAllAssociative("SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' ORDER BY tablename, indexname"),
-        ];
     }
 
     /**

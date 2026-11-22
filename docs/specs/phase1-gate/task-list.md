@@ -19,7 +19,7 @@
 
 ## Tests (qa)
 
-- [ ] **T1:** Extract `NoDdlTest::catalogs()` into `tests/Support/SnapshotsTheSchemaCatalogs`;
+- [x] **T1:** Extract `NoDdlTest::catalogs()` into `tests/Support/SnapshotsTheSchemaCatalogs`;
       `NoDdlTest` uses the trait. Pure move — `NoDdlTest` green, nothing else changed (plan D5).
 - [ ] **T2:** `tests/Functional/SchemaMutationGateTest.php`, section A: fixture (values tree; admin
       with `admin: true` registered before sign-in; Ann; Bob's published Electric listing with five
