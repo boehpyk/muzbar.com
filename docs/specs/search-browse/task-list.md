@@ -63,7 +63,7 @@
       `listing_*`/`catalog_*` and new "not public" predicates → grep `Infrastructure/Search/`, add to
       the matching fragment), `InputBag::all()`/`getInt()` 400 on hostile query strings (D8), no lock
       on reads (D6), the move of `FACET_COUNT`. Roadmap: item 1 ticked.
-- [ ] T18: `FORboehpyk.md` — the chapter: a context with no aggregate; parse-don't-validate with two
+- [x] T18: `FORboehpyk.md` — the chapter: a context with no aggregate; parse-don't-validate with two
       types; why a read model may join what aggregates keep apart; the `InputBag` 400 trap; bugs hit.
 
 ## Verify
