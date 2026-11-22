@@ -40,7 +40,7 @@
       stable classes, no script) + the nav link in `base.html.twig`.
 
 ## Tests (qa)
-- [ ] T10: `QueryRecordingStatement` records bound values (D9; verify Risk 4 first). Existing users
+- [x] T10: `QueryRecordingStatement` records bound values (D9; verify Risk 4 first). Existing users
       (`PublicListingTest`, `SellTest`, admin tests) unchanged and green.
 - [ ] T11: Move the fixture: `tests/Support/BuildsTheFacetFixture` (from `SchemaMutationGateTest`
       section B); delete `FACET_COUNT`, sections B and C from `SchemaMutationGateTest` (D10).
