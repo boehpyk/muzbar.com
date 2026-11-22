@@ -16,7 +16,7 @@ that teaches DDD honestly.
 Tailwind (admin UI) + hand-authored SCSS (public UI) · Doctrine · PostgreSQL 16 · Redis 7 ·
 Docker Compose · Traefik · Nginx.
 
-> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 `Identity` complete (7 of 7)** · **`Catalog` complete (3 of 3)**.
+> Status: **Phase 0 complete** (2026-07-23 → 07-24) · **Phase 1 complete** — `Identity` (7 of 7) · `Catalog` (3 of 3) · `Listing` (4 of 4) · **Phase 1 gate MET 2026-11-22**.
 > `identity-user-password-auth` (2026-07-26) shipped the repo's first Domain code — the `User`
 > aggregate, value objects, ports, two domain events, the first migration, and
 > register/login/logout/`/account`. `identity-email-verification` (2026-07-28) added the **second
@@ -157,7 +157,15 @@ Docker Compose · Traefik · Nginx.
 > values). C-18 counts **active** options. **C-27 is retired** — a move with values is allowed; what
 > leaves the lineage goes dormant and wakes if the move is undone. All fifteen AC-23 mutations bit;
 > 1883 tests. [ADR-0022](./docs/adr/0022-schema-drift-archive-reserved-names-dormant-values.md)
-> + ADR-0004/0016/0017/0018/0020/0021 amendments. Next: `phase1-gate`;
+> + ADR-0004/0016/0017/0018/0020/0021 amendments.
+> `phase1-gate` (2026-11-22, **gate MET 2026-11-22**, **passed `/verify` first time** — 4 MINORs fixed anyway, chiefly a runbook rewrite that could silently have checked prod — restore rehearsed on the box, logged in
+> docs/infrastructure.md §*Rehearsal log*) — a **proof slice with zero production code**. `SchemaMutationGateTest` drives ADR-0004's bet through the real admin and seller pages: a
+> runtime-defined attribute reaches a pre-existing draft's form and a facet count, with no DDL and
+> every pre-existing row byte-identical. The gate query (`FACET_COUNT`, test-owned — Phase 2 lifts
+> it **with its fixture**) speaks "active" in four clauses, each with a fixture row only it excludes.
+> The `EXPLAIN` proves **usability, not choice**, and needed an `Index Cond` check: with seq scans off,
+> a full index scan "uses the index" while looking nothing up (mutation (f) survived until then).
+> API-key issuance moved to Phase 3. ADR-0004 amendment. 1892 tests. Next: `/verify phase1-gate`;
 > `public-styles` before Phase 2's public search UI; seller contact channels before launch.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot

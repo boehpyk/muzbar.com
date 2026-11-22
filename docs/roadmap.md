@@ -360,7 +360,8 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         "… (no longer offered)".
         [ADR-0022](./adr/0022-schema-drift-archive-reserved-names-dormant-values.md)
         + ADR-0004/0016/0017/0018/0020/0021 amendments. All fifteen AC-23 mutations bit. 1759 → 1883 tests.
-  - [ ] `phase1-gate` — the Schema-Mutation PoC as a test (define "Fretboard Wood" through the admin
+  - [x] `phase1-gate` *(2026-11-22: `SchemaMutationGateTest` + the restore rehearsal, logged in
+        docs/infrastructure.md §*Rehearsal log*)* — the Schema-Mutation PoC as a test (define "Fretboard Wood" through the admin
         handlers → it renders on the draft form → a facet count `GROUP BY option_id` over the value
         layer returns it, with `EXPLAIN` on the generic index, existing rows untouched) **plus** the
         restore-from-backup rehearsal on the box. **The facet count must speak "active"**
@@ -371,16 +372,23 @@ Stand up the skeleton the SDLC assumes. No product features yet.
       **Dropped from this item: the hot-column promotion mechanism.** ADR-0004 says start with zero
       promoted columns and promote only when the Phase 2 benchmark demands it; a mapping with zero
       entries is scaffolding. It moves to the Phase 2 latency gate, where the measurement lives.
-- [ ] API-key issuance (hashed, revocable) — model only; endpoints in Phase 3.
 - **Gate — Schema-Mutation PoC** (PRD validation #2): add a new attribute (e.g. "Fretboard Wood") via
       the admin UI and confirm it propagates to the dynamic form-render path and to a facet query
       **without corrupting existing listing rows**. Restore-from-backup rehearsed once.
+      **MET 2026-11-22** — `SchemaMutationGateTest` (ADR-0004 amendment 2026-11-22) and the restore
+      rehearsal on the box (pg_restore exit 0, counts identical, both schema checks exit 0).
 
 ## Phase 2 — Faceted search & listing marketplace *(PRD Phase 2)*
 
 - [ ] `Search` context: `SearchPort` + `FacetedQuery` value object + Postgres adapter (composite
       indexes, facet counts); FTS + pg_trgm on title/description with identical write/read mangling +
       tsquery sanitizer (ADR-0002).
+      **Carry-overs from `phase1-gate`:** (1) lift `SchemaMutationGateTest::FACET_COUNT` **and its
+      AC-6…AC-11 fixture** into the adapter — the fixture is what proves the four "active" clauses;
+      (2) decide how `Search` reads Catalog's and Listing's tables (an ADR-0019 amendment making
+      `Search` a read-only projection context, or composition through ports with id lists); (3) the
+      `EXPLAIN` that decides index tuning and hot-column promotion is taken on ANALYZEd 10k rows,
+      without planner switches.
 - [ ] Morphing single-page listing wizard as a **Symfony UX Live Component** — selecting a category
       reshapes the lower form (parametric dropdowns) without a reload or data loss (US-1, UX §).
 - [ ] `public-styles` *(before the public search UI — `listing-publish` plan Q7)* — the public SCSS
@@ -408,6 +416,8 @@ Stand up the skeleton the SDLC assumes. No product features yet.
       Leaflet/OSM map with responsive, swipeable cards centering on the selected pin (US-3, FR-4).
 - [ ] `Billing` context: Stripe subscriptions + webhook processing toggling the "Featured" flag on
       listings/profiles on verified payment (US-4, FR-5) — behind `PaymentPort`.
+- [ ] API-key issuance (hashed, revocable) — beside the endpoints that consume it *(moved from
+      Phase 1 by `phase1-gate` plan Q4, 2026-11-22: model-only with no consumer was scaffolding)*.
 - [ ] Commercial API: authenticated `/api/*` endpoints (API-key auth) for inventory sync (FR-2).
       Consider API Platform here, behind the same ports (ADR-0001).
 - **Gate — Monetization loop end-to-end:** a business user purchases a featured tier via Stripe test
