@@ -1,0 +1,85 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ category ? category.name : 'All categories' }}{% endblock %}
+
+{# The facet URL space is combinatorial: keep crawlers out until search-ui decides canonical URLs (Q13). #}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block body %}
+    {# Unstyled, JS-free, semantic markup with stable class names (search-browse plan §Infrastructure).
+       Facets work by submitting the form. No seller data reaches this template: no Search read
+       selects `seller_id` (S-9). #}
+    {% set query = result.query %}
+    <main class="search-browse">
+        <h1>{{ category ? category.name : 'All categories' }}</h1>
+
+        {% if breadcrumb is not empty %}
+            <nav class="search-breadcrumb" aria-label="Breadcrumb">
+                <a href="{{ path('app_browse', {f: f}) }}">All categories</a>
+                {% for crumb in breadcrumb %}
+                    › <a href="{{ path('app_browse', {category: crumb.id, f: f}) }}">{{ crumb.name }}</a>
+                {% endfor %}
+            </nav>
+        {% endif %}
+
+        {% if children is not empty %}
+            <ul class="search-categories">
+                {% for child in children %}
+                    <li><a href="{{ path('app_browse', {category: child.id, f: f}) }}">{{ child.name }}</a></li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        {% if result.facets is not empty %}
+            <form class="search-facets" method="get" action="{{ path('app_browse') }}">
+                <input type="hidden" name="category" value="{{ categoryId }}">
+                {% for facet in result.facets %}
+                    {% set attributeId = facet.attribute.attributeId.toString %}
+                    <fieldset class="search-facet">
+                        <legend>{{ facet.attribute.label }}</legend>
+                        {% for bucket in facet.buckets %}
+                            <label>
+                                <input type="checkbox" name="f[{{ attributeId }}][]" value="{{ bucket.value }}"{% if bucket.selected %} checked{% endif %}>
+                                {{ bucket.label }} ({{ bucket.count }})
+                            </label>
+                        {% endfor %}
+                    </fieldset>
+                {% endfor %}
+                <button type="submit">Apply filters</button>
+                <a href="{{ path('app_browse', {category: categoryId}) }}">Clear filters</a>
+            </form>
+        {% endif %}
+
+        <section class="search-results">
+            <p>{{ result.total }} {{ result.total == 1 ? 'listing' : 'listings' }}</p>
+
+            {% if result.hits is empty %}
+                <p>No listings found.</p>
+            {% else %}
+                <ol>
+                    {% for hit in result.hits %}
+                        <li class="search-hit">
+                            <a href="{{ path('app_listing_show', {id: hit.id}) }}">{{ hit.title }}</a>
+                            <span>{{ hit.price }} {{ hit.currency }}</span>
+                            <time datetime="{{ hit.publishedAt }}">{{ hit.publishedAt|date('j M Y') }}</time>
+                        </li>
+                    {% endfor %}
+                </ol>
+            {% endif %}
+
+            {% set hasNext = query.page * perPage < result.total and query.page < maxPage %}
+            {% if query.page > 1 or hasNext %}
+                <nav class="search-pager" aria-label="Pages">
+                    {% if query.page > 1 and result.hits is empty %}
+                        <a href="{{ path('app_browse', {category: categoryId, f: f}) }}">First page</a>
+                    {% elseif query.page > 1 %}
+                        <a href="{{ path('app_browse', {category: categoryId, f: f, page: query.page - 1}) }}" rel="prev">Previous</a>
+                    {% endif %}
+                    {% if hasNext %}
+                        <a href="{{ path('app_browse', {category: categoryId, f: f, page: query.page + 1}) }}" rel="next">Next</a>
+                    {% endif %}
+                </nav>
+            {% endif %}
+        </section>
+    </main>
+{% endblock %}

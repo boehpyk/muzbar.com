@@ -35,7 +35,7 @@
       `SearchIsolationTest` (AC-5: context scan on Domain/Application; read-only and `seller_id`
       scans on `Infrastructure/Search`, each asserting > 0 files scanned). *`SearchIsolationTest`
       moved to qa (it is a test) — lands with T12–T14.*
-- [ ] T9: `Http/Controller/BrowseController` (`GET /browse`, D8 normalisation, `UnknownCategory` →
+- [x] T9: `Http/Controller/BrowseController` (`GET /browse`, D8 normalisation, `UnknownCategory` →
       404, outline-derived breadcrumb/children/roots) + `templates/search/browse.html.twig` (noindex,
       stable classes, no script) + the nav link in `base.html.twig`.
 
