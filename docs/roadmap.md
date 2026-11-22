@@ -343,14 +343,31 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         `malformed()` hook. The two challenge ids had drifted (no `D`) and now refuse a trailing
         newline — the one behaviour change. The nine DBAL id types are deferred until a fix would
         have to be made nine times. ADR-0009 amendment; no new ADR. 1746 → 1759 tests.
-  - [ ] `listing-schema-drift` *(may follow the gate if the refusals hold up)* — replaces slice 2's
+  - [x] `listing-schema-drift` (2026-11-21; **passed `/verify` 2026-11-22 first time** — 3 MINORs fixed anyway, chiefly `keep` built from choice values only; six hand-checks in Chromium green) *(taken before the gate)* — replaces slice 2's
         refusals with ADR-0004's real rules: soft-delete attributes/options (`archived_at`, hidden
         from forms, values retained — and decide whether an archived code still blocks C-21), and a
         move that is allowed, retaining values whose attribute left the schema but hiding them.
+        **Shipped:** archive/restore as transitions on `Attribute` and `AttributeOption` (C-28),
+        separate from hard delete, which survives for unused rows (C-25/C-26 now guard only that, and
+        count dormant values). **An archived name stays reserved** (C-29) — so it *does* still block
+        C-21 and C-17, and restore takes no facts. C-18 counts active options
+        (`countActiveForAttribute()`). `schemaOf()` and `effectiveFor()` are active-only;
+        `optionLabels()` is not. A value whose attribute is not in force is **dormant** (L-17: kept by
+        revise, dropped by re-file, read by no rule, never stored as a flag); one naming an archived
+        option is **stale** (shown, refused at the next write and at publish — L-14 narrowed).
+        **C-27 retired** with `CategoryUsage::hasAttributeValues()`. Migration: two nullable
+        `timestamptz(0)` columns, no backfill, no index. Seller form shows a stale option selected as
+        "… (no longer offered)".
+        [ADR-0022](./adr/0022-schema-drift-archive-reserved-names-dormant-values.md)
+        + ADR-0004/0016/0017/0018/0020/0021 amendments. All fifteen AC-23 mutations bit. 1759 → 1883 tests.
   - [ ] `phase1-gate` — the Schema-Mutation PoC as a test (define "Fretboard Wood" through the admin
         handlers → it renders on the draft form → a facet count `GROUP BY option_id` over the value
         layer returns it, with `EXPLAIN` on the generic index, existing rows untouched) **plus** the
-        restore-from-backup rehearsal on the box.
+        restore-from-backup rehearsal on the box. **The facet count must speak "active"**
+        (`listing-schema-drift` plan Risk 3, ADR-0022): scope it to the browsed subtree and
+        `status = 'published'`, offer only active-schema attributes, and join options
+        `AND archived_at IS NULL` — a bare `GROUP BY option_id` counts dormant values, stale values and
+        archived attributes. The `EXPLAIN` is taken on **that** query.
       **Dropped from this item: the hot-column promotion mechanism.** ADR-0004 says start with zero
       promoted columns and promote only when the Phase 2 benchmark demands it; a mapping with zero
       entries is scaffolding. It moves to the Phase 2 latency gate, where the measurement lives.

@@ -77,12 +77,18 @@ final class AttributeFactory extends PersistentObjectFactory
                 /** @var list<string> $optionLabels */
                 $optionLabels = $attributes['optionLabels'];
 
-                return match ($type) {
+                $attribute = match ($type) {
                     AttributeType::Choice => Attribute::defineChoice($id, $categoryId, $code, $label, $required, array_map(AttributeLabel::fromString(...), $optionLabels), AttributeCodes::none()),
                     AttributeType::Number => Attribute::defineNumber($id, $categoryId, $code, $label, $required, $rules, AttributeCodes::none()),
                     AttributeType::Boolean => Attribute::defineBoolean($id, $categoryId, $code, $label, $required, AttributeCodes::none()),
                     AttributeType::Text => Attribute::defineText($id, $categoryId, $code, $label, $required, AttributeCodes::none()),
                 };
+
+                if (($archivedAt = $attributes['archivedAt'] ?? null) instanceof \DateTimeImmutable) {
+                    $attribute->archive($archivedAt);
+                }
+
+                return $attribute;
             })
             ->afterPersist(static function (Attribute $attribute, array $attributes): void {
                 if (AttributeType::Choice !== $attribute->type()) {
@@ -124,6 +130,12 @@ final class AttributeFactory extends PersistentObjectFactory
     public function number(?NumberRules $rules = null): static
     {
         return $this->with(['type' => AttributeType::Number, 'numberRules' => $rules ?? NumberRules::of(null, null, null)]);
+    }
+
+    /** Archived through `archive()`, never by setting the column. A whole-second instant (ADR-0007). */
+    public function archived(?\DateTimeImmutable $at = null): static
+    {
+        return $this->with(['archivedAt' => $at ?? new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC'))]);
     }
 
     public function boolean(): static

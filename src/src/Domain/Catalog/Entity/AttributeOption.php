@@ -21,6 +21,10 @@ use App\Domain\Catalog\ValueObject\AttributeOptionId;
  * case-insensitive uniqueness (plan D3 — an expression index would re-diff forever). It is assigned
  * from `AttributeLabel::key()` in the same statement as the label, every time, and has no setter.
  *
+ * C-28, archiving is a reversible **state**: `archive()` / `restore()` (ADR-0022). An archived option
+ * is among no rule's options, but its row — and every listing value naming its id — stays. Whether
+ * an active option may be archived (C-18, counting active options) is `Attribute::allowOptionRemoval()`.
+ *
  * No `delete()` (ADR-0012), no domain events (plan D10). Order is insertion order, derived from the
  * UUIDv7 id; no position is stored.
  *
@@ -29,6 +33,9 @@ use App\Domain\Catalog\ValueObject\AttributeOptionId;
 final class AttributeOption
 {
     private string $labelKey;
+
+    /** Null while active (C-28); set to the first archive instant, whole seconds (Clock, ADR-0007). */
+    private ?\DateTimeImmutable $archivedAt = null;
 
     private function __construct(
         private AttributeOptionId $id,
@@ -58,6 +65,32 @@ final class AttributeOption
         $this->labelKey = $label->key();
     }
 
+    /**
+     * C-28: no rule offers this option any more; values naming it become stale, not dormant (their
+     * attribute is still in force). On an archived option a no-op that **keeps the first instant**.
+     *
+     * @param \DateTimeImmutable $now the `Clock` port's now (whole seconds, ADR-0007)
+     */
+    public function archive(\DateTimeImmutable $now): void
+    {
+        if (null !== $this->archivedAt) {
+            return;
+        }
+
+        $this->archivedAt = $now;
+    }
+
+    /**
+     * C-28, and C-29 is why this takes no facts and is never refused: an archived option's label
+     * **stays reserved** — `isLabelTaken()` and the `(attribute_id, label_key)` index include archived
+     * rows, so no other option of the attribute can have taken it meanwhile (ADR-0022). On an active
+     * option a no-op.
+     */
+    public function restore(): void
+    {
+        $this->archivedAt = null;
+    }
+
     public function id(): AttributeOptionId
     {
         return $this->id;
@@ -77,5 +110,15 @@ final class AttributeOption
     public function labelKey(): string
     {
         return $this->labelKey;
+    }
+
+    public function archivedAt(): ?\DateTimeImmutable
+    {
+        return $this->archivedAt;
+    }
+
+    public function isArchived(): bool
+    {
+        return null !== $this->archivedAt;
     }
 }

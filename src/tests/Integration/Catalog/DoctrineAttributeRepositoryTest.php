@@ -196,6 +196,8 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
             'type' => 'character varying:16:NO',
             'is_required' => 'boolean::NO',
             'number_rules' => 'jsonb::YES',
+            // listing-schema-drift (C-28): null while active.
+            'archived_at' => 'timestamp with time zone::YES',
         ], $columns);
         self::assertSame(0, $this->db->fetchOne("SELECT count(*) FROM pg_constraint WHERE conrelid = 'catalog_attribute'::regclass AND contype = 'f'"));
         self::assertSame('id', $this->db->fetchOne("SELECT a.attname FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey) WHERE i.indrelid = 'catalog_attribute'::regclass AND i.indisprimary"));
@@ -276,5 +278,21 @@ final class DoctrineAttributeRepositoryTest extends KernelTestCase
     public function testFindReturnsNullForAnUnknownId(): void
     {
         self::assertNull((new DbalAttributeSchema($this->db))->find(Uuid::v7()->toRfc4122()));
+    }
+
+    // listing-schema-drift: the factory builds an archived row through archive(), and the column carries it.
+    public function testAnArchivedFactoryAttributeStoresItsArchiveInstantAndReloadsArchived(): void
+    {
+        $at = new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC'));
+        $attribute = AttributeFactory::new()->archived($at)->create();
+        $active = AttributeFactory::createOne();
+
+        self::assertSame('2026-11-21 10:00:00+00', $this->db->fetchOne('SELECT archived_at FROM catalog_attribute WHERE id = ?', [$attribute->id()->toString()]));
+        self::assertNull($this->db->fetchOne('SELECT archived_at FROM catalog_attribute WHERE id = ?', [$active->id()->toString()]));
+
+        $this->em->clear();
+        $reloaded = $this->attributes->get($attribute->id());
+        self::assertTrue($reloaded->isArchived());
+        self::assertSame($at->getTimestamp(), $reloaded->archivedAt()?->getTimestamp());
     }
 }

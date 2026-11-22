@@ -374,6 +374,63 @@ final class AttributeTest extends TestCase
         self::assertSame('orientation', $attribute->code()->toString());
     }
 
+    public function testAFreshlyDefinedAttributeIsNotArchived(): void
+    {
+        $subject = self::choice();
+
+        self::assertFalse($subject->isArchived());
+        self::assertNull($subject->archivedAt());
+    }
+
+    public function testArchiveStampsTheGivenInstant(): void
+    {
+        $subject = self::choice();
+        $t = new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC'));
+
+        $subject->archive($t);
+
+        self::assertTrue($subject->isArchived());
+        self::assertSame($t, $subject->archivedAt());
+    }
+
+    public function testArchivingAnArchivedRowKeepsTheFirstInstant(): void
+    {
+        $subject = self::choice();
+        $t = new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC'));
+
+        $subject->archive($t);
+        $subject->archive($t->modify('+60 seconds'));
+
+        self::assertSame($t, $subject->archivedAt());
+    }
+
+    public function testRestoreClearsTheArchiveAndIsIdempotent(): void
+    {
+        $subject = self::choice();
+        $subject->archive(new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC')));
+
+        $subject->restore();
+        self::assertFalse($subject->isArchived());
+        self::assertNull($subject->archivedAt());
+
+        $subject->restore();
+        self::assertFalse($subject->isArchived());
+        self::assertNull($subject->archivedAt());
+    }
+
+    public function testArchiveAndRestoreChangeNothingElse(): void
+    {
+        $subject = self::choice();
+        $id = $subject->id()->toString();
+        $label = $subject->label()->toString();
+
+        $subject->archive(new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC')));
+        $subject->restore();
+
+        self::assertSame($id, $subject->id()->toString());
+        self::assertSame($label, $subject->label()->toString());
+    }
+
     public function testPublicSurfaceHasNoWayToChangeIdentityOwnerOrType(): void
     {
         $methods = array_map(
@@ -383,9 +440,9 @@ final class AttributeTest extends TestCase
         sort($methods);
 
         $allowed = [
-            'allowOptionRemoval', 'categoryId', 'changeNumberRules', 'changeRequired', 'code', 'defineBoolean',
-            'defineChoice', 'defineNumber', 'defineText', 'id', 'isRequired', 'label', 'newOption', 'numberRules',
-            'recode', 'relabel', 'type',
+            'allowOptionRemoval', 'archive', 'archivedAt', 'categoryId', 'changeNumberRules', 'changeRequired',
+            'code', 'defineBoolean', 'defineChoice', 'defineNumber', 'defineText', 'id', 'isArchived', 'isRequired',
+            'label', 'newOption', 'numberRules', 'recode', 'relabel', 'restore', 'type',
         ];
 
         self::assertSame($allowed, $methods);

@@ -965,9 +965,13 @@ final class CategoryAdminTest extends WebTestCase
         );
     }
 
-    // ---------------------------------------------------------------- listing-attribute-values AC-24 (C-27)
+    // ---------------------------------------------------------------- listing-attribute-values AC-24 (C-27, retired)
 
-    public function testMovingACategoryWhoseListingsHoldDetailsIsRefusedOnTheParentFieldNamingTheMovedCategory(): void
+    /**
+     * listing-schema-drift (ADR-0022) retired C-27 — inverted on purpose: the move is accepted and
+     * the value rows are untouched (a value whose attribute leaves the lineage goes dormant, L-17).
+     */
+    public function testMovingACategoryWhoseListingsHoldDetailsSucceedsAndLeavesTheValuesUntouched(): void
     {
         $instruments = $this->category('instruments');
         $electric = $this->category('electric', $instruments, 'Electric');
@@ -977,15 +981,13 @@ final class CategoryAdminTest extends WebTestCase
         $this->signInAsAdmin();
         $values = $this->db->fetchAllAssociative('SELECT * FROM listing_attribute_value');
 
-        $this->assertRefusedOnField(
-            '/admin/categories/'.$electric->id()->toString().'/edit',
-            ['name' => 'Electric', 'slug' => 'electric', 'parent' => $bass->id()->toString()],
-            'parent',
-            'Listings under “Electric” have details filled in, so it cannot be moved yet.',
-        );
+        $this->submit('/admin/categories/'.$electric->id()->toString().'/edit', ['name' => 'Electric', 'slug' => 'electric', 'parent' => $bass->id()->toString()]);
 
+        self::assertResponseStatusCodeSame(303);
+        self::assertSame($bass->id()->toString(), $this->db->fetchOne('SELECT parent_id FROM catalog_category WHERE id = ?', [$electric->id()->toString()]));
         self::assertCount(1, $values);
         self::assertSame($values, $this->db->fetchAllAssociative('SELECT * FROM listing_attribute_value'));
+        $this->assertNothingReportedToSentry();
     }
 
     public function testRenamingACategoryWhoseListingsHoldDetailsIsStillAllowed(): void

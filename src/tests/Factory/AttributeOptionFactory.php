@@ -47,13 +47,25 @@ final class AttributeOptionFactory extends PersistentObjectFactory
             /** @var AttributeLabel $label */
             $label = $attributes['label'];
 
-            return $attribute->newOption($id, $label);
+            $option = $attribute->newOption($id, $label);
+
+            if (($archivedAt = $attributes['archivedAt'] ?? null) instanceof \DateTimeImmutable) {
+                $option->archive($archivedAt);
+            }
+
+            return $option;
         });
     }
 
     public function forAttribute(Attribute $attribute): static
     {
         return $this->with(['attribute' => $attribute]);
+    }
+
+    /** Archived through `archive()`, never by setting the column. A whole-second instant (ADR-0007). */
+    public function archived(?\DateTimeImmutable $at = null): static
+    {
+        return $this->with(['archivedAt' => $at ?? new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC'))]);
     }
 
     public function labelled(string $label): static

@@ -43,9 +43,9 @@ final class RacingAttributeOptionRepository implements AttributeOptionRepository
         return $this->inner->isLabelTaken($attributeId, $label, $except);
     }
 
-    public function countForAttribute(AttributeId $attributeId): int
+    public function countActiveForAttribute(AttributeId $attributeId): int
     {
-        return $this->inner->countForAttribute($attributeId);
+        return $this->inner->countActiveForAttribute($attributeId);
     }
 
     public function save(AttributeOption ...$options): void

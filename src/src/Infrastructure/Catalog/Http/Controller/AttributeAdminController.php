@@ -5,17 +5,25 @@ declare(strict_types=1);
 namespace App\Infrastructure\Catalog\Http\Controller;
 
 use App\Application\Catalog\Command\AddAttributeOption;
+use App\Application\Catalog\Command\ArchiveAttribute;
+use App\Application\Catalog\Command\ArchiveAttributeOption;
 use App\Application\Catalog\Command\DefineAttribute;
 use App\Application\Catalog\Command\DeleteAttribute;
 use App\Application\Catalog\Command\EditAttribute;
 use App\Application\Catalog\Command\RelabelAttributeOption;
 use App\Application\Catalog\Command\RemoveAttributeOption;
+use App\Application\Catalog\Command\RestoreAttribute;
+use App\Application\Catalog\Command\RestoreAttributeOption;
 use App\Application\Catalog\Handler\AddAttributeOptionHandler;
+use App\Application\Catalog\Handler\ArchiveAttributeHandler;
+use App\Application\Catalog\Handler\ArchiveAttributeOptionHandler;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
 use App\Application\Catalog\Handler\DeleteAttributeHandler;
 use App\Application\Catalog\Handler\EditAttributeHandler;
 use App\Application\Catalog\Handler\RelabelAttributeOptionHandler;
 use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
+use App\Application\Catalog\Handler\RestoreAttributeHandler;
+use App\Application\Catalog\Handler\RestoreAttributeOptionHandler;
 use App\Domain\Catalog\Exception\AttributeCodeAlreadyTaken;
 use App\Domain\Catalog\Exception\AttributeInUse;
 use App\Domain\Catalog\Exception\AttributeNeedsAnOption;
@@ -79,6 +87,7 @@ final class AttributeAdminController extends AbstractController
         return $this->render('catalog/admin/attributes.html.twig', [
             'category' => $category,
             'attributes' => $this->schema->effectiveFor($category['id']),
+            'archived' => $this->schema->archivedDefinedOn($category['id']),
             'types' => AttributeType::cases(),
         ]);
     }
@@ -191,12 +200,49 @@ final class AttributeAdminController extends AbstractController
             throw $this->createNotFoundException();
         } catch (AttributeInUse) {
             // C-25: a user error, flashed and never logged (failure contract, AC-24/AC-27).
-            $this->addFlash('error', \sprintf('“%s” is used by listings, so it cannot be deleted.', $attribute['label']));
+            $this->addFlash('error', \sprintf('Listings use “%s”, so it cannot be deleted. Archive it instead — listings keep their values.', $attribute['label']));
 
             return $this->redirectToRoute('admin_attribute_index', ['id' => $attribute['categoryId']], Response::HTTP_SEE_OTHER);
         }
 
         $this->addFlash('success', \sprintf('Deleted “%s” and its options.', $attribute['label']));
+
+        return $this->redirectToRoute('admin_attribute_index', ['id' => $attribute['categoryId']], Response::HTTP_SEE_OTHER);
+    }
+
+    /**
+     * Archive and restore (ADR-0022 C-28/C-29): POST only, CSRF before any lookup (403), then 303 to
+     * the defining category's list. Both are idempotent no-ops in the aggregate, so a double-submit
+     * still gets the success flash. Neither can be refused: restore takes no facts (C-29).
+     */
+    #[Route('/attributes/{id}/archive', name: 'admin_attribute_archive', requirements: ['id' => Requirement::UUID], methods: ['POST'])]
+    public function archive(string $id, Request $request, ArchiveAttributeHandler $archiveAttribute): Response
+    {
+        $attribute = $this->attributeForAction('archive-attribute-', $id, $request);
+
+        try {
+            $archiveAttribute(new ArchiveAttribute($attribute['id']));
+        } catch (AttributeNotFound) {
+            throw $this->createNotFoundException();
+        }
+
+        $this->addFlash('success', \sprintf('Archived “%s”. Sellers no longer see it; listings keep their values.', $attribute['label']));
+
+        return $this->redirectToRoute('admin_attribute_index', ['id' => $attribute['categoryId']], Response::HTTP_SEE_OTHER);
+    }
+
+    #[Route('/attributes/{id}/restore', name: 'admin_attribute_restore', requirements: ['id' => Requirement::UUID], methods: ['POST'])]
+    public function restore(string $id, Request $request, RestoreAttributeHandler $restoreAttribute): Response
+    {
+        $attribute = $this->attributeForAction('restore-attribute-', $id, $request);
+
+        try {
+            $restoreAttribute(new RestoreAttribute($attribute['id']));
+        } catch (AttributeNotFound) {
+            throw $this->createNotFoundException();
+        }
+
+        $this->addFlash('success', \sprintf('Restored “%s”.', $attribute['label']));
 
         return $this->redirectToRoute('admin_attribute_index', ['id' => $attribute['categoryId']], Response::HTTP_SEE_OTHER);
     }
@@ -246,9 +292,40 @@ final class AttributeAdminController extends AbstractController
             );
         } catch (AttributeInUse) {
             // C-26. The label is looked up only on this rare path; the option still exists (refused).
-            $label = array_column($this->schema->optionsOf($attribute['id']), 'label', 'id')[$optionId] ?? 'This option';
-            $this->addFlash('error', \sprintf('“%s” is used by listings, so it cannot be removed.', $label));
+            $this->addFlash('error', \sprintf('Listings use “%s”, so it cannot be deleted. Archive it instead.', $this->optionLabel($optionId)));
         }
+
+        return $this->redirectToRoute('admin_attribute_edit', ['id' => $attribute['id']], Response::HTTP_SEE_OTHER);
+    }
+
+    /**
+     * Option archive / restore share the option token (`attribute-options-{id}`, plan D11 of
+     * catalog-attribute-schema): the edit page may list thousands of options, one token each would be
+     * thousands of session entries. The one refusal is C-18 on archive — the last active option.
+     */
+    #[Route('/attributes/{id}/options/{optionId}/archive', name: 'admin_attribute_option_archive', requirements: ['id' => Requirement::UUID, 'optionId' => Requirement::UUID], methods: ['POST'])]
+    public function archiveOption(string $id, string $optionId, Request $request, ArchiveAttributeOptionHandler $archiveOption): Response
+    {
+        $attribute = $this->attributeForOptionAction($id, $request);
+
+        $this->optionAction(
+            static fn () => $archiveOption(new ArchiveAttributeOption($attribute['id'], $optionId)),
+            \sprintf('Archived “%s”.', $this->optionLabel($optionId)),
+            'A choice needs at least one option sellers can pick.',
+        );
+
+        return $this->redirectToRoute('admin_attribute_edit', ['id' => $attribute['id']], Response::HTTP_SEE_OTHER);
+    }
+
+    #[Route('/attributes/{id}/options/{optionId}/restore', name: 'admin_attribute_option_restore', requirements: ['id' => Requirement::UUID, 'optionId' => Requirement::UUID], methods: ['POST'])]
+    public function restoreOption(string $id, string $optionId, Request $request, RestoreAttributeOptionHandler $restoreOption): Response
+    {
+        $attribute = $this->attributeForOptionAction($id, $request);
+
+        $this->optionAction(
+            static fn () => $restoreOption(new RestoreAttributeOption($attribute['id'], $optionId)),
+            \sprintf('Restored “%s”.', $this->optionLabel($optionId)),
+        );
 
         return $this->redirectToRoute('admin_attribute_edit', ['id' => $attribute['id']], Response::HTTP_SEE_OTHER);
     }
@@ -257,19 +334,35 @@ final class AttributeAdminController extends AbstractController
      * One token per attribute serves all three option actions (`attribute-options-{id}`, plan D11):
      * the edit page may list thousands of options.
      *
-     * @return array{id: string, categoryId: string, code: string, label: string, type: string, required: bool, unit: ?string, minimum: ?int, maximum: ?int, optionCount: int}
+     * @return array{id: string, categoryId: string, code: string, label: string, type: string, required: bool, unit: ?string, minimum: ?int, maximum: ?int, optionCount: int, archivedAt: ?string}
      */
     private function attributeForOptionAction(string $id, Request $request): array
     {
-        if (!$this->isCsrfTokenValid('attribute-options-'.$id, $request->request->getString('_token'))) {
+        return $this->attributeForAction('attribute-options-', $id, $request);
+    }
+
+    /**
+     * The CSRF token first — a 403 before any lookup — then the attribute, or a 404.
+     *
+     * @return array{id: string, categoryId: string, code: string, label: string, type: string, required: bool, unit: ?string, minimum: ?int, maximum: ?int, optionCount: int, archivedAt: ?string}
+     */
+    private function attributeForAction(string $tokenPrefix, string $id, Request $request): array
+    {
+        if (!$this->isCsrfTokenValid($tokenPrefix.$id, $request->request->getString('_token'))) {
             throw $this->createAccessDeniedException('Invalid CSRF token.');
         }
 
         return $this->schema->find($id) ?? throw $this->createNotFoundException();
     }
 
+    /** One option's label by primary key, whatever its state; a placeholder when it is unknown. */
+    private function optionLabel(string $optionId): string
+    {
+        return $this->schema->optionLabels([$optionId])[$optionId] ?? 'This option';
+    }
+
     /** Runs one option command and turns the outcome into a flash (failure contract). */
-    private function optionAction(\Closure $command, string $success): void
+    private function optionAction(\Closure $command, string $success, string $lastOption = 'A choice attribute needs at least one option. Delete the attribute instead.'): void
     {
         try {
             $command();
@@ -282,7 +375,7 @@ final class AttributeAdminController extends AbstractController
         } catch (DuplicateAttributeOption $e) {
             $this->addFlash('error', \sprintf('“%s” is already an option.', $e->label()->toString()));
         } catch (AttributeNeedsAnOption) {
-            $this->addFlash('error', 'A choice attribute needs at least one option. Delete the attribute instead.');
+            $this->addFlash('error', $lastOption);
         } catch (AttributeRuleNotApplicable) {
             // Only a tampered request reaches this: the page offers option forms for a choice only.
             $this->addFlash('error', 'That does not apply to this attribute type.');

@@ -19,9 +19,10 @@ use App\Domain\Catalog\ValueObject\AttributeId;
  * aggregate has a `delete()` (ADR-0012), and the set-based sweep bypasses no rule: C-18 governs a
  * living choice attribute, and once the attribute is gone it has no subject.
  *
- * C-25 (ADR-0020 decision 6): an attribute any listing holds a value for is refused, read under the
- * lock so no seller can store a value between the read and the delete. Refusal is the fail-closed
- * placeholder: `listing-schema-drift` turns this into archiving, **here**.
+ * Hard delete, for rows no listing uses. C-25 (ADR-0020 decision 6): an attribute any listing
+ * holds a value for — dormant values included — is refused, read under the lock so no seller can
+ * store a value between the read and the delete. Archiving is the in-use path
+ * (`ArchiveAttributeHandler`, ADR-0022).
  *
  * Inside `exclusively()` like every Catalog write, so no option can be added to the attribute
  * between the delete and the sweep.

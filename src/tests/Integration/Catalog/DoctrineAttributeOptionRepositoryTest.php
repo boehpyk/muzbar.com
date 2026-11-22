@@ -104,12 +104,12 @@ final class DoctrineAttributeOptionRepositoryTest extends KernelTestCase
         self::assertFalse($this->options->isLabelTaken($other->id(), AttributeLabel::fromString('Right'), null));
     }
 
-    public function testCountForAttributeCountsOnlyItsOwnOptions(): void
+    public function testCountActiveForAttributeCountsOnlyItsOwnOptions(): void
     {
         $three = AttributeFactory::new()->choice(['A', 'B', 'C'])->create();
         AttributeFactory::new()->choice(['X'])->create();
 
-        self::assertSame(3, $this->options->countForAttribute($three->id()));
+        self::assertSame(3, $this->options->countActiveForAttribute($three->id()));
     }
 
     public function testGetOfAnUnknownIdIsOptionNotFound(): void
@@ -129,7 +129,7 @@ final class DoctrineAttributeOptionRepositoryTest extends KernelTestCase
 
         $this->options->save(...$batch);
 
-        self::assertSame(4, $this->options->countForAttribute($attribute->id()));
+        self::assertSame(4, $this->options->countActiveForAttribute($attribute->id()));
     }
 
     // ---------------------------------------------------------------- AC-13 order
@@ -181,6 +181,8 @@ final class DoctrineAttributeOptionRepositoryTest extends KernelTestCase
             'attribute_id' => 'uuid::NO',
             'label' => 'character varying:100:NO',
             'label_key' => 'character varying:100:NO',
+            // listing-schema-drift (C-28): null while active.
+            'archived_at' => 'timestamp with time zone::YES',
         ], $columns);
         self::assertSame(0, $this->db->fetchOne("SELECT count(*) FROM pg_constraint WHERE conrelid = 'catalog_attribute_option'::regclass AND contype = 'f'"));
     }
@@ -204,5 +206,16 @@ final class DoctrineAttributeOptionRepositoryTest extends KernelTestCase
             ['left-handed', 'ёлка'],
             $this->db->fetchFirstColumn('SELECT label_key FROM catalog_attribute_option WHERE attribute_id = ? ORDER BY id', [$attribute->id()->toString()]),
         );
+    }
+
+    // listing-schema-drift: the factory builds an archived option through archive(), and the column carries it.
+    public function testAnArchivedFactoryOptionStoresItsArchiveInstantAndReloadsArchived(): void
+    {
+        $at = new \DateTimeImmutable('2026-11-21 10:00:00', new \DateTimeZone('UTC'));
+        $attribute = AttributeFactory::new()->choice(['Keep'])->create();
+        $option = AttributeOptionFactory::new()->forAttribute($attribute)->labelled('Gone')->archived($at)->create();
+
+        self::assertSame('2026-11-21 10:00:00+00', $this->db->fetchOne('SELECT archived_at FROM catalog_attribute_option WHERE id = ?', [$option->id()->toString()]));
+        self::assertSame(1, $this->options->countActiveForAttribute($attribute->id()));
     }
 }

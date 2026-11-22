@@ -31,7 +31,7 @@
     three-column index would not do, because NULLs are distinct (the C-3 lesson). No
     `parent_option_id` exists yet, on purpose.
 
-    The index's leading column also serves `countForAttribute()`, `removeAllForAttribute()` and the
+    The index's leading column also serves `countActiveForAttribute()`, `removeAllForAttribute()` and the
     per-attribute option list.
 -->
 <doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
@@ -56,6 +56,9 @@
         <field name="label" column="label" type="catalog_attribute_label" length="100" nullable="false"/>
         <!-- `key()` uses simple case mapping (one code point per code point), so 100 suffices. -->
         <field name="labelKey" column="label_key" type="string" length="100" nullable="false"/>
+
+        <!-- C-28: null while active. Archived labels stay in the unique index on purpose (C-29). -->
+        <field name="archivedAt" column="archived_at" type="datetimetz_immutable" nullable="true"/>
 
     </entity>
 

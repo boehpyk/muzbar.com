@@ -21,14 +21,16 @@ use App\Domain\Catalog\ValueObject\AttributeId;
 use App\Domain\Catalog\ValueObject\AttributeOptionId;
 
 /**
- * Removes one option of a choice attribute — never the last (C-18).
+ * Hard-deletes one option of a choice attribute — never the last active one (C-18).
  *
  * The precondition is the **attribute's** rule, so the attribute decides
- * (`allowOptionRemoval()`), on a count read here. That count is only true under the lock: without
- * it, two concurrent removes of the last two options would each count 2 and both succeed — write
- * skew, which no index can catch. The option's own removal is non-existence, so it has no method on
- * any aggregate (ADR-0012). C-26 (ADR-0020 decision 6) refuses an option a listing holds, checked
- * after C-18 and under the same lock; `listing-schema-drift` replaces the refusal here.
+ * (`allowOptionRemoval()`), on an active-option count read here — asked only when the option is
+ * active, because removing an archived one costs sellers nothing (ADR-0022). That count is only true
+ * under the lock: without it, two concurrent removes of the last two active options would each count
+ * 2 and both succeed — write skew, which no index can catch. The option's own removal is
+ * non-existence, so it has no method on any aggregate (ADR-0012). C-26 (ADR-0020 decision 6) refuses
+ * an option a listing holds, checked after C-18 and under the same lock: archiving
+ * (`ArchiveAttributeOption`) is the in-use path.
  */
 final readonly class RemoveAttributeOptionHandler
 {
@@ -43,7 +45,7 @@ final readonly class RemoveAttributeOptionHandler
     /**
      * @throws AttributeNotFound                                        unknown or malformed attribute id
      * @throws AttributeOptionNotFound                                  unknown, malformed, or another attribute's option
-     * @throws AttributeNeedsAnOption                                   the last option (C-18)
+     * @throws AttributeNeedsAnOption                                   the last active option (C-18)
      * @throws AttributeInUse                                           a listing holds it (C-26)
      * @throws \App\Domain\Catalog\Exception\AttributeRuleNotApplicable not a choice attribute (C-15)
      */
@@ -53,7 +55,9 @@ final readonly class RemoveAttributeOptionHandler
             $attribute = $this->attributes->get($this->attributeId($command->attributeId));
             $option = $this->optionOf($attribute, $command->optionId);
 
-            $attribute->allowOptionRemoval($this->options->countForAttribute($attribute->id()));
+            if (!$option->isArchived()) {
+                $attribute->allowOptionRemoval($this->options->countActiveForAttribute($attribute->id()));
+            }
 
             // C-26 after C-18: the attribute's own rule first (AC-13).
             if ($this->usage->isOptionInUse($attribute->id(), $option->id())) {

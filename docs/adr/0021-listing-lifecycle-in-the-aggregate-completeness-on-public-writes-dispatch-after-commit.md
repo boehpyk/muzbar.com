@@ -1,6 +1,6 @@
 # ADR-0021: The listing lifecycle — Draft → Published ⇄ Withdrawn inside the aggregate; completeness bites on writes that are or make a listing public, never retroactively; the public read selects published rows and no seller data; `ListingPublished` is released inside the transaction and dispatched after it
 
-- **Status:** Accepted
+- **Status:** Accepted — decision 3 partly superseded by [ADR-0022](./0022-schema-drift-archive-reserved-names-dormant-values.md) (L-14 narrowed; see the 2026-11-21 amendment)
 - **Date:** 2026-11-20
 - **Established by** the `listing-publish` slice ([spec](../specs/listing-publish/feature-spec.md),
   [plan](../specs/listing-publish/technical-plan.md) D1–D13, Q1–Q8) — Listing slice 3 of 4, the
@@ -290,3 +290,14 @@ exists, four questions arrive together:
   no pre-deploy query: prod is consistent after this deploy on its own.
 - **Still eleven copies of the UUID id shape** — this slice adds none. ADR-0020's "before
   `listing-publish`" no longer applies; `refactor/uuid-id-trait` follows this slice (Q7).
+
+## Amendment, 2026-11-21 — L-14 re-checks in-force values only; stale values are still refused
+
+Recorded by the `listing-schema-drift` slice
+([ADR-0022](./0022-schema-drift-archive-reserved-names-dormant-values.md), plan D6, D7). **Decision 3 is partly superseded.**
+
+1. **L-14 is narrowed:** `publish()` re-checks the category (L-2, unconditionally, unchanged) and
+   every stored value **in force** — `$schema->read(asInput($this->attributeValues->onlyFor($schema)))`.
+   Dormant values (L-17) are skipped. **Stale values are still refused:** an archived option's
+   attribute is in force, so its value fails `read()` (`NotAnOption`), as narrowed bounds do.
+2. **Decision 9's list loses C-27** (retired). C-23/C-24 and C-25/C-26 stay status-blind.

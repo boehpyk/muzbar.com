@@ -226,3 +226,19 @@ Recorded by the `listing-attribute-values` slice
 3. **The shared mode now also makes the schema fact true.** A Listing revise reads
    `Categories::schemaOf()` inside `holdSteady()`, so no attribute delete, option remove or move
    commits between the read and the save.
+
+## Amendment, 2026-11-21 — the move accretion point loses C-27; four new writes under the exclusive lock
+
+Recorded by the `listing-schema-drift` slice
+([ADR-0022](./0022-schema-drift-archive-reserved-names-dormant-values.md), plan D7, D12).
+
+1. **The 2026-11-18 amendment's point 2 is superseded: C-27 is retired.** A category whose subtree
+   holds listing values may be moved; values whose attribute leaves the lineage go dormant (L-17) and
+   wake if the move is undone. Order in `EditCategoryHandler`: **C-4 → C-5 → C-21 → C-24**, only when
+   the parent changes. `CategoryUsage::hasAttributeValues()` and `CategoryHasListings::cannotMove()`
+   are deleted; `CategoryUsage` stays for C-23/C-24.
+2. **Four new Catalog writes run inside `exclusively()`:** `ArchiveAttribute`, `RestoreAttribute`,
+   `ArchiveAttributeOption` (which reads C-18's active count under the lock) and
+   `RestoreAttributeOption`. Each gets a `CategoryTreeLockTest` case. The shared mode still makes
+   Listing's schema fact true: no archive or restore commits between a revise's `schemaOf()` and its
+   save.

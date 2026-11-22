@@ -51,6 +51,27 @@ final readonly class AttributeValues
         return new self($byAttributeId);
     }
 
+    /** The values whose attribute is in force on `$schema` — the ones every rule reads (L-17). */
+    public function onlyFor(AttributeSchema $schema): self
+    {
+        return new self(array_filter(
+            $this->byAttributeId,
+            static fn (AttributeValue $value): bool => $schema->has($value->attributeId()),
+        ));
+    }
+
+    /**
+     * The values whose attribute is **not** in force on `$schema` — the dormant ones (L-17). Dormant
+     * is a fact about the pair (value, today's schema), not a state of the value: nothing is stored.
+     */
+    public function notIn(AttributeSchema $schema): self
+    {
+        return new self(array_filter(
+            $this->byAttributeId,
+            static fn (AttributeValue $value): bool => !$schema->has($value->attributeId()),
+        ));
+    }
+
     public function for(AttributeId $attributeId): ?AttributeValue
     {
         return $this->byAttributeId[$attributeId->toString()] ?? null;

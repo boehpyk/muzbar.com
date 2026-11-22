@@ -110,7 +110,8 @@ final class Listing
      * before any assignment, so a refused revise mutates nothing.
      *
      * Order: L-6 (the seller) → L-15, only when the category changes → L-2, only when the category
-     * changes → L-10, only when the category changes → L-9 → L-13, only while published → assign. Keeping the current category skips L-2 — the
+     * changes → L-10, only when the category changes → L-9 → L-17, only when the category is kept →
+     * L-13, only while published → assign. Keeping the current category skips L-2 — the
      * `Category::moveUnder()`-to-current-parent shape — so a listing found on a non-leaf (legacy
      * data) can still be edited without being re-filed.
      *
@@ -118,11 +119,20 @@ final class Listing
      * **target** category (the new one on a re-file), a fact about the catalog this object cannot
      * see. The aggregate decides: every value is read against its attribute's rule, current at this
      * write. The shared lock (`Categories::holdSteady()`) makes the schema true until commit, and
-     * Catalog's C-25/C-26/C-27 refuse the deletes and moves that would strand a stored value later.
+     * Catalog's C-25/C-26 refuse the hard deletes that would strand a stored value later.
      *
      * L-10: on a re-file the form was rendered for the *old* category, so inputs for attributes not
      * in force on the new one are **dropped**; with the category unchanged such an input is
      * **refused** — nothing a seller sees should vanish without a re-file to explain it.
+     *
+     * L-17 (ADR-0022): a stored value whose attribute is not in force on `$schema` — archived, or
+     * taken out of the lineage by a category move — is **dormant**. A revise that keeps the category
+     * carries every dormant value over unchanged (the form never shows one, so dropping it would lose
+     * data the seller never saw, and a restore or a move back wakes it); a re-file drops it (L-10:
+     * the seller chose a new schema). L-9, L-13 and L-14 never read a dormant value. Dormant is a
+     * fact about the pair (value, today's schema), not a state of the value — nothing is stored. An
+     * **archived option** is not dormant: its attribute is in force, so the value is *stale* — a
+     * narrowed rule, like narrowed bounds — and L-9 refuses it on the next write.
      *
      * L-15: a published listing cannot be re-filed — its form was rendered for the old category, so
      * the new one's required details could not have been filled. Withdraw, re-file, publish again.
@@ -152,7 +162,9 @@ final class Listing
             throw NotTheSeller::of($this->id);
         }
 
-        if (!$categoryId->equals($this->categoryId)) {
+        $refiles = !$categoryId->equals($this->categoryId);
+
+        if ($refiles) {
             if (ListingStatus::Published === $this->status) {
                 throw PublishedListingCannotBeRefiled::for($this->id);
             }
@@ -162,6 +174,14 @@ final class Listing
         }
 
         $attributeValues = $schema->read($input);
+
+        if (!$refiles) {
+            // L-17: disjoint by construction — `read()` yields only in-force ids, `notIn()` only others.
+            $attributeValues = AttributeValues::of(
+                ...$attributeValues->toList(),
+                ...$this->attributeValues->notIn($schema)->toList(),
+            );
+        }
 
         if (ListingStatus::Published === $this->status) {
             self::assertComplete($schema, $attributeValues);
@@ -179,13 +199,15 @@ final class Listing
      * records nothing (ADR-0008 decision 7: idempotency lives here, so a double-submit needs no
      * handler branch). Every check happens before any assignment or event.
      *
-     * Order: L-6 → no-op → L-2 → L-9 on the stored values → L-13 → assign + record.
+     * Order: L-6 → no-op → L-2 → L-9 on the stored values in force → L-13 → assign + record.
      *
      * L-14: what the listing claims about its category is re-checked **unconditionally**, even if
      * nothing changed since the last save — `$categoryStatus` and `$schema` describe the listing's
      * own category, read inside `holdSteady()`. The stored values are re-read through the one parser
      * (`AttributeValue::toRaw()` → `AttributeSchema::read()`), so a refusal is the same
-     * `InvalidAttributeValue` as on edit. It does not trust that a `revise()` just ran (ADR-0012
+     * `InvalidAttributeValue` as on edit. Only values **in force** are re-read (L-14 narrowed by
+     * ADR-0022): a dormant value (L-17) is skipped, a stale one — an archived option — is refused. It
+     * does not trust that a `revise()` just ran (ADR-0012
      * d.2: the Domain owns the part that can be wrong — the next caller may be an import).
      *
      * @throws NotTheSeller
@@ -205,7 +227,7 @@ final class Listing
         }
 
         self::assertFileableUnder($this->categoryId, $categoryStatus);
-        $schema->read(self::asInput($this->attributeValues));
+        $schema->read(self::asInput($this->attributeValues->onlyFor($schema)));
         self::assertComplete($schema, $this->attributeValues);
 
         $this->status = ListingStatus::Published;

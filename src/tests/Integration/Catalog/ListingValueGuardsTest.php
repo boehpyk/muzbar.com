@@ -26,8 +26,8 @@ use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
- * AC-12 … AC-15 of listing-attribute-values: the three guards (C-25, C-26, C-27) and the writes that
- * are deliberately unguarded, driven through the real handlers against a real database. Draft D is
+ * AC-12 … AC-15 of listing-attribute-values: the guards (C-25, C-26; C-27 retired by
+ * listing-schema-drift, its tests inverted) and the writes that are deliberately unguarded, driven through the real handlers against a real database. Draft D is
  * Ann's, on Electric (the feature spec's fixture tree).
  */
 final class ListingValueGuardsTest extends KernelTestCase
@@ -161,36 +161,32 @@ final class ListingValueGuardsTest extends KernelTestCase
         ($this->service(RemoveAttributeOptionHandler::class))(new RemoveAttributeOption($finish->id()->toString(), $this->optionIdOf($finish, 'Matte')));
     }
 
-    // ---------------------------------------------------------------- AC-14 (C-27)
+    // ---------------------------------------------------------------- AC-14 (C-27, retired)
+    //
+    // listing-schema-drift (ADR-0022) retired C-27: a move with values is allowed — values whose
+    // attribute leaves the lineage go dormant (L-17) and wake if the move is undone. These two tests
+    // are the slice-2 refusals **inverted on purpose**: the move succeeds and no value row changes.
 
-    public function testMovingTheCategoryOfADraftThatHoldsAValueIsRefusedAndTheParentIsUnchanged(): void
+    public function testMovingTheCategoryOfADraftThatHoldsAValueSucceedsAndLeavesItsValuesUntouched(): void
     {
         $this->draftHoldingBrand();
+        $before = $this->valueTable();
 
-        try {
-            $this->move($this->electric, $this->instruments);
-            self::fail('Electric was moved while a draft holds a value.');
-        } catch (CategoryHasListings $e) {
-            self::assertTrue($e->isMove());
-            self::assertSame($this->electric->id()->toString(), $e->categoryId()->toString());
-        }
+        $this->move($this->electric, $this->instruments);
 
-        self::assertSame($this->guitars->id()->toString(), $this->parentOf($this->electric));
+        self::assertSame($this->instruments->id()->toString(), $this->parentOf($this->electric));
+        self::assertSame($before, $this->valueTable());
     }
 
-    public function testMovingAnAncestorOfADraftThatHoldsAValueIsRefusedToo(): void
+    public function testMovingAnAncestorOfADraftThatHoldsAValueSucceedsToo(): void
     {
         $this->draftHoldingBrand();
+        $before = $this->valueTable();
 
-        try {
-            $this->move($this->guitars, $this->bass);
-            self::fail('Guitars was moved while a draft under it holds a value.');
-        } catch (CategoryHasListings $e) {
-            self::assertTrue($e->isMove());
-            self::assertSame($this->guitars->id()->toString(), $e->categoryId()->toString());
-        }
+        $this->move($this->guitars, $this->bass);
 
-        self::assertSame($this->instruments->id()->toString(), $this->parentOf($this->guitars));
+        self::assertSame($this->bass->id()->toString(), $this->parentOf($this->guitars));
+        self::assertSame($before, $this->valueTable());
     }
 
     public function testWithNoValuesHeldBothMovesSucceed(): void
@@ -224,7 +220,8 @@ final class ListingValueGuardsTest extends KernelTestCase
         $this->move($this->guitars, $this->electric);
     }
 
-    public function testListingsOnTheNewParentAreReportedBeforeTheValuesOfTheMovedSubtree(): void
+    /** C-24 still guards a move of a value-holding subtree (C-27's retirement left it alone). */
+    public function testMovingAValueHoldingSubtreeUnderAListedOnCategoryIsStillRefusedByC24(): void
     {
         $this->draftHoldingBrand();
         ListingFactory::new()->inCategory($this->bass)->create();
@@ -233,7 +230,6 @@ final class ListingValueGuardsTest extends KernelTestCase
             $this->move($this->guitars, $this->bass);
             self::fail('Guitars was moved under a listed-on category.');
         } catch (CategoryHasListings $e) {
-            self::assertFalse($e->isMove(), 'C-24 (cannotGainChild) must win over C-27 (cannotMove).');
             self::assertSame($this->bass->id()->toString(), $e->categoryId()->toString());
         }
     }

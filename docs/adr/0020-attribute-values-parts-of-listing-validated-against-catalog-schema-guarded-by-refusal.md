@@ -1,6 +1,6 @@
 # ADR-0020: Attribute values are parts of the Listing aggregate, persisted to a typed child table by the repository; Listing validates them against Catalog's effective schema read through its own port under the shared lock; Catalog refuses the writes that would strand them
 
-- **Status:** Accepted
+- **Status:** Accepted — decision 6 partly superseded by [ADR-0022](./0022-schema-drift-archive-reserved-names-dormant-values.md) (C-27 retired; see the 2026-11-21 amendment)
 - **Date:** 2026-11-18
 - **Established by** the `listing-attribute-values` slice ([spec](../specs/listing-attribute-values/feature-spec.md),
   [plan](../specs/listing-attribute-values/technical-plan.md) D1–D9, D11) — Listing slice 2 of 4, and
@@ -253,3 +253,20 @@ Recorded by the `listing-publish` slice ([ADR-0021](./0021-listing-lifecycle-in-
 4. **The last consequence bullet is answered:** `listing-publish` designed `ListingPublished` (ids
    and `publishedAt` only). The "eleven copies" bullet's "before `listing-publish`" is relaxed — that
    slice added no copy; the trait refactor follows it.
+
+## Amendment, 2026-11-21 — C-27 retired; C-25/C-26 guard hard delete; the invariant weakened; L-17
+
+Recorded by the `listing-schema-drift` slice
+([ADR-0022](./0022-schema-drift-archive-reserved-names-dormant-values.md), plan Q4, D5, D7). **Decision 6 is partly superseded.**
+
+1. **C-27 is retired** and with it `CategoryUsage::hasAttributeValues()`,
+   `ListingCategoryUsage::hasAttributeValues()` and `CategoryHasListings::cannotMove()`. A move with
+   values is allowed. The consequence *"the coarse move refusal is a placeholder"* is discharged.
+2. **C-25 and C-26 are re-scoped to hard delete.** They still count every value — active, stale or
+   dormant, any status — and the in-use path is now Archive. `AttributeUsage` is unchanged.
+3. **"Catalog refuses the writes that would strand a value" is weakened** to *every stored value names
+   a row that exists*. It is no longer true that every stored value is in force.
+4. **L-17: a value whose attribute is not in force is dormant** — carried over by every `revise()`
+   that keeps the category (`AttributeValues::onlyFor()` / `::notIn()`), dropped by a re-file (L-10
+   unchanged), never read by L-9, L-13 or L-14, and never stored as a state. An input naming a dormant
+   attribute is still refused as not in force.

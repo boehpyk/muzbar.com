@@ -25,7 +25,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
  * listing-publish AC-14 — ADR-0019's "status is not yet a filter" watch item, discharged: Catalog's
- * guards (C-23 … C-27) count listings of **every** status. Each case below has no draft anywhere,
+ * guards (C-23 … C-26) count listings of **every** status (C-27 was retired by listing-schema-drift;
+ * its case below is inverted). Each case below has no draft anywhere,
  * only the status under test, so a guard that filtered `status = 'draft'` would let the write through.
  */
 final class StatusBlindGuardsTest extends KernelTestCase
@@ -149,18 +150,20 @@ final class StatusBlindGuardsTest extends KernelTestCase
         }
     }
 
-    /** C-27 — moving a category whose subtree a listing of that status holds values in. */
+    /**
+     * C-27, retired by listing-schema-drift (ADR-0022) — inverted on purpose: a move of a subtree a
+     * listing of that status holds values in now **succeeds**, and the value rows are untouched (they
+     * go dormant, L-17). Status-blindness no longer has anything to guard here.
+     */
     #[DataProvider('nonDraftStatuses')]
-    public function testMovingACategoryWhoseSubtreeOnlyAListingOfThatStatusHoldsValuesInIsRefused(string $status): void
+    public function testMovingACategoryWhoseSubtreeOnlyAListingOfThatStatusHoldsValuesInSucceeds(string $status): void
     {
         $this->treeWithOnlyAListingOfStatus($status);
+        $values = $this->db->fetchAllAssociative('SELECT * FROM listing_attribute_value ORDER BY listing_id, attribute_id');
 
-        try {
-            ($this->service(EditCategoryHandler::class))(new EditCategory($this->electric->id()->toString(), 'Electric', 'electric', $this->instruments->id()->toString()));
-            self::fail('Electric was moved while a '.$status.' listing holds values.');
-        } catch (CategoryHasListings $e) {
-            self::assertTrue($e->isMove());
-            self::assertSame($this->guitars->id()->toString(), $this->db->fetchOne('SELECT parent_id FROM catalog_category WHERE id = ?', [$this->electric->id()->toString()]));
-        }
+        ($this->service(EditCategoryHandler::class))(new EditCategory($this->electric->id()->toString(), 'Electric', 'electric', $this->instruments->id()->toString()));
+
+        self::assertSame($this->instruments->id()->toString(), $this->db->fetchOne('SELECT parent_id FROM catalog_category WHERE id = ?', [$this->electric->id()->toString()]));
+        self::assertSame($values, $this->db->fetchAllAssociative('SELECT * FROM listing_attribute_value ORDER BY listing_id, attribute_id'));
     }
 }

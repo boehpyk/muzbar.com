@@ -49,8 +49,10 @@ final class ListingController extends AbstractController
 
     /**
      * One label/value pair per stored value, in the effective schema's order (root first, then
-     * label). A value whose attribute is no longer in force, or whose option has no label, is not
-     * shown (legacy data only: C-25/C-26 refuse removing what is in use).
+     * label). A dormant value — its attribute archived or moved out of the lineage (L-17) — is not
+     * shown, on purpose: `effectiveFor()` is active-only. A stale value whose option was archived
+     * *is* shown, because `optionLabels()` labels archived options too (ADR-0022, Q5). A value whose
+     * option has no row at all is not shown (legacy data only: C-26 refuses hard-deleting one in use).
      *
      * @return list<array{label: string, value: string}>
      */

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\Integration\Catalog;
 
 use App\Application\Catalog\Command\AddAttributeOption;
+use App\Application\Catalog\Command\ArchiveAttribute;
+use App\Application\Catalog\Command\ArchiveAttributeOption;
 use App\Application\Catalog\Command\CreateCategory;
 use App\Application\Catalog\Command\DefineAttribute;
 use App\Application\Catalog\Command\DeleteAttribute;
@@ -13,7 +15,11 @@ use App\Application\Catalog\Command\EditAttribute;
 use App\Application\Catalog\Command\EditCategory;
 use App\Application\Catalog\Command\RelabelAttributeOption;
 use App\Application\Catalog\Command\RemoveAttributeOption;
+use App\Application\Catalog\Command\RestoreAttribute;
+use App\Application\Catalog\Command\RestoreAttributeOption;
 use App\Application\Catalog\Handler\AddAttributeOptionHandler;
+use App\Application\Catalog\Handler\ArchiveAttributeHandler;
+use App\Application\Catalog\Handler\ArchiveAttributeOptionHandler;
 use App\Application\Catalog\Handler\CreateCategoryHandler;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
 use App\Application\Catalog\Handler\DeleteAttributeHandler;
@@ -22,6 +28,8 @@ use App\Application\Catalog\Handler\EditAttributeHandler;
 use App\Application\Catalog\Handler\EditCategoryHandler;
 use App\Application\Catalog\Handler\RelabelAttributeOptionHandler;
 use App\Application\Catalog\Handler\RemoveAttributeOptionHandler;
+use App\Application\Catalog\Handler\RestoreAttributeHandler;
+use App\Application\Catalog\Handler\RestoreAttributeOptionHandler;
 use App\Application\Listing\Command\DraftListing;
 use App\Application\Listing\Command\ReviseListing;
 use App\Application\Listing\Command\WithdrawListing;
@@ -43,6 +51,7 @@ use App\Infrastructure\Catalog\Persistence\Doctrine\PostgresCategoryTreeLock;
 use App\Infrastructure\Listing\Integration\ListingAttributeUsage;
 use App\Infrastructure\Listing\Integration\ListingCategoryUsage;
 use App\Tests\Factory\AttributeFactory;
+use App\Tests\Factory\AttributeOptionFactory;
 use App\Tests\Factory\CategoryFactory;
 use App\Tests\Factory\ListingFactory;
 use App\Tests\Fixture\LockObservingDispatcher;
@@ -324,7 +333,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         self::assertSame(1, $lock->entries());
         $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'get');
         $this->assertEveryCallWasUnderTheLock($options->calls(), 'remove');
-        self::assertContains('countForAttribute', array_column($options->calls(), 0), 'The last-option count was not read.');
+        self::assertContains('countActiveForAttribute', array_column($options->calls(), 0), 'The last-option count was not read.');
     }
 
     public function testDeleteAttributeHandlerRemovesAndSweepsInsideTheLock(): void
@@ -418,6 +427,70 @@ final class CategoryTreeLockTest extends KernelTestCase
         $this->assertReadsWereUnderTheLock($categories->calls(), ['lineageOf', 'subtreeHeightOf', 'descendantsOf']);
         $this->assertReadsWereUnderTheLock($attributes->calls(), ['codesDefinedOn']);
         $this->assertEveryCallWasUnderTheLock($categories->calls(), 'save');
+    }
+
+    // listing-schema-drift AC-15: the four new Catalog writes take the exclusive lock like every other.
+
+    public function testArchiveAttributeHandlerReadsAndSavesInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->text()->create();
+        [$lock, $attributes] = $this->observeAttributes();
+        $handler = self::getContainer()->get(ArchiveAttributeHandler::class);
+        self::assertInstanceOf(ArchiveAttributeHandler::class, $handler);
+
+        $handler(new ArchiveAttribute($attribute->id()->toString()));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertReadsWereUnderTheLock($attributes->calls(), ['get', 'save']);
+        $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'save');
+        self::assertSame(1, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute WHERE archived_at IS NOT NULL'), 'The archive did not run (a vacuous pass otherwise).');
+    }
+
+    public function testRestoreAttributeHandlerReadsAndSavesInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->text()->archived()->create();
+        [$lock, $attributes] = $this->observeAttributes();
+        $handler = self::getContainer()->get(RestoreAttributeHandler::class);
+        self::assertInstanceOf(RestoreAttributeHandler::class, $handler);
+
+        $handler(new RestoreAttribute($attribute->id()->toString()));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertReadsWereUnderTheLock($attributes->calls(), ['get', 'save']);
+        $this->assertEveryCallWasUnderTheLock($attributes->calls(), 'save');
+        self::assertSame(0, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute WHERE archived_at IS NOT NULL'), 'The restore did not run (a vacuous pass otherwise).');
+    }
+
+    public function testArchiveAttributeOptionHandlerReadsTheActiveCountAndSavesInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->choice(['Left', 'Right'])->create();
+        $optionId = $this->optionIdOf($attribute->id()->toString());
+        [$lock, $attributes, $options] = $this->observeAttributes();
+        $handler = self::getContainer()->get(ArchiveAttributeOptionHandler::class);
+        self::assertInstanceOf(ArchiveAttributeOptionHandler::class, $handler);
+
+        $handler(new ArchiveAttributeOption($attribute->id()->toString(), $optionId));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertReadsWereUnderTheLock($attributes->calls(), ['get']);
+        $this->assertReadsWereUnderTheLock($options->calls(), ['get', 'countActiveForAttribute', 'save']);
+        self::assertSame(1, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute_option WHERE archived_at IS NOT NULL'), 'The archive did not run (a vacuous pass otherwise).');
+    }
+
+    public function testRestoreAttributeOptionHandlerReadsAndSavesInsideTheLock(): void
+    {
+        $attribute = AttributeFactory::new()->choice(['Left'])->create();
+        $optionId = AttributeOptionFactory::new()->forAttribute($attribute)->labelled('Right')->archived()->create()->id()->toString();
+        [$lock, $attributes, $options] = $this->observeAttributes();
+        $handler = self::getContainer()->get(RestoreAttributeOptionHandler::class);
+        self::assertInstanceOf(RestoreAttributeOptionHandler::class, $handler);
+
+        $handler(new RestoreAttributeOption($attribute->id()->toString(), $optionId));
+
+        self::assertSame(1, $lock->entries());
+        $this->assertReadsWereUnderTheLock($attributes->calls(), ['get']);
+        $this->assertReadsWereUnderTheLock($options->calls(), ['get', 'save']);
+        self::assertSame(0, $this->db->fetchOne('SELECT count(*) FROM catalog_attribute_option WHERE archived_at IS NOT NULL'), 'The restore did not run (a vacuous pass otherwise).');
     }
 
     private function optionIdOf(string $attributeId): string
@@ -576,7 +649,7 @@ final class CategoryTreeLockTest extends KernelTestCase
 
     // ------------------------------------------------------------------------------------------
     // listing-attribute-values: AC-16 (schemaOf() and save() inside holdSteady(); the usage reads of
-    // C-25, C-26 and C-27 inside exclusively()).
+    // C-25 and C-26 inside exclusively(); C-27's was retired by listing-schema-drift).
     // ------------------------------------------------------------------------------------------
 
     public function testReviseListingHandlerReadsTheSchemaThenSavesTheValuesBothInsideHoldSteady(): void
@@ -706,8 +779,8 @@ final class CategoryTreeLockTest extends KernelTestCase
         $handler(new EditCategory($moving->id()->toString(), $moving->name()->toString(), $moving->slug()->toString(), $newParent->id()->toString()));
 
         self::assertSame(1, $lock->entries());
-        // listing-attribute-values (C-27) adds the second read on purpose, after C-24's.
-        self::assertSame([['hasListings', true], ['hasAttributeValues', true]], $usage->calls());
+        // listing-schema-drift retired C-27, so C-24's is the only read: a move asks nothing about values.
+        self::assertSame([['hasListings', true]], $usage->calls());
     }
 
     public function testEditCategoryHandlerReadsNoListingsWhenTheParentIsUnchanged(): void

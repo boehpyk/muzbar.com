@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Listing;
 
+use App\Application\Catalog\Command\ArchiveAttribute;
+use App\Application\Catalog\Command\ArchiveAttributeOption;
 use App\Application\Catalog\Command\DefineAttribute;
+use App\Application\Catalog\Handler\ArchiveAttributeHandler;
+use App\Application\Catalog\Handler\ArchiveAttributeOptionHandler;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
 use App\Application\Listing\Handler\ReviseListingHandler;
 use App\Domain\Catalog\Entity\Attribute;
@@ -1121,6 +1125,207 @@ final class SellTest extends WebTestCase
         }
 
         self::assertSame($before, $this->everything());
+    }
+
+    // ============================================================================================
+    // listing-schema-drift AC-20: the edit page over archived attributes and options
+    // ============================================================================================
+
+    private function archiveBrand(): void
+    {
+        $handler = self::getContainer()->get(ArchiveAttributeHandler::class);
+        self::assertInstanceOf(ArchiveAttributeHandler::class, $handler);
+        $handler(new ArchiveAttribute($this->brand->id()->toString()));
+    }
+
+    private function archiveFender(): void
+    {
+        $handler = self::getContainer()->get(ArchiveAttributeOptionHandler::class);
+        self::assertInstanceOf(ArchiveAttributeOptionHandler::class, $handler);
+        $handler(new ArchiveAttributeOption($this->brand->id()->toString(), $this->optionIdOf($this->brand, 'Fender')));
+    }
+
+    /**
+     * @return array<string, array<string, mixed>> D's value rows keyed by attribute id
+     */
+    private function valueRowsByAttribute(Listing $draft): array
+    {
+        $byAttribute = [];
+        foreach ($this->db->fetchAllAssociative('SELECT * FROM listing_attribute_value WHERE listing_id = ?', [$draft->id()->toString()]) as $row) {
+            self::assertIsString($row['attribute_id']);
+            $byAttribute[$row['attribute_id']] = $row;
+        }
+
+        return $byAttribute;
+    }
+
+    /**
+     * @return array<string, string> what the form sends for Electric once brand is gone: the other four, edited
+     */
+    private function fieldsWithoutBrand(): array
+    {
+        $inputs = $this->allFiveElectricInputs();
+        unset($inputs[$this->brand->id()->toString()]);
+        $inputs[$this->strings->id()->toString()] = '8';
+
+        return $inputs;
+    }
+
+    public function testWithBrandArchivedTheEditPageHasNoBrandFieldAndASaveLeavesItsRowUntouched(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $brandRowBefore = $this->valueRowsByAttribute($draft)[$this->brand->id()->toString()] ?? null;
+        self::assertNotNull($brandRowBefore, 'Control: D held a brand value.');
+        $this->archiveBrand();
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertNotContains($this->brand->id()->toString(), $this->detailFieldIds($page));
+        self::assertContains($this->condition->id()->toString(), $this->detailFieldIds($page));
+
+        $path = $this->detailsPath($draft);
+        $this->post($path, $this->electricFields($this->fieldsWithoutBrand()), tokenFrom: $path);
+
+        self::assertResponseStatusCodeSame(303);
+        $rows = $this->valueRowsByAttribute($draft);
+        self::assertSame($brandRowBefore, $rows[$this->brand->id()->toString()] ?? null, 'A save must not touch the dormant brand row.');
+        self::assertSame(8, $rows[$this->strings->id()->toString()]['value_int'] ?? null, 'Control: the in-force value was saved.');
+        $this->assertNothingReportedToSentry();
+    }
+
+    public function testWithFenderArchivedTheStoredFenderIsSelectedAndLabelledNoLongerOffered(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $this->archiveFender();
+        $fender = $this->optionIdOf($this->brand, 'Fender');
+        $gibson = $this->optionIdOf($this->brand, 'Gibson');
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        self::assertResponseStatusCodeSame(200);
+        $field = $this->field($this->brand);
+        self::assertSame($fender, $this->valueOf($page, $field));
+        self::assertEqualsCanonicalizing(
+            [['', '—'], [$fender, 'Fender (no longer offered)'], [$gibson, 'Gibson']],
+            array_map(static fn (array $option): array => [$option[0], '' === $option[0] ? '—' : $option[1]], $this->optionsOf($page, $field)),
+        );
+    }
+
+    public function testANewDraftsBrandSelectDoesNotOfferTheArchivedFender(): void
+    {
+        [$ann] = $this->annWithDraftD(filled: true);
+        $this->archiveFender();
+        $second = $this->draftOf($ann, $this->electric, 'Second draft');
+
+        $page = $this->client->request('GET', $this->detailsPath($second));
+
+        self::assertResponseStatusCodeSame(200);
+        $labels = array_map(static fn (array $option): string => $option[1], $this->optionsOf($page, $this->field($this->brand)));
+        self::assertNotContains('Fender', $labels);
+        self::assertNotContains('Fender (no longer offered)', $labels);
+        self::assertContains('Gibson', $labels);
+    }
+
+    public function testSubmittingTheArchivedFenderIs422NamingItAndWritesNothing(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $this->archiveFender();
+        $path = $this->detailsPath($draft);
+        $listings = $this->listings();
+        $values = $this->valueRows();
+
+        $page = $this->post($path, ['title' => 'Never saved'] + $this->electricFields($this->allFiveElectricInputs()), tokenFrom: $path);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(['Fender is no longer offered. Choose another.'], $this->errorsOn($page, $this->field($this->brand)));
+        self::assertSame($listings, $this->listings());
+        self::assertSame($values, $this->valueRows());
+        $this->assertNothingReportedToSentry();
+    }
+
+    public function testSaveAndPublishWithTheArchivedFenderIsTheSame422AndWritesNothing(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $this->archiveFender();
+        $path = $this->detailsPath($draft);
+        $listings = $this->listings();
+        $values = $this->valueRows();
+        $token = $this->token($path);
+
+        $page = $this->client->request('POST', $path, ['listing_form' => $this->electricFields($this->allFiveElectricInputs()) + ['_token' => $token], 'action' => 'publish']);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(['Fender is no longer offered. Choose another.'], $this->errorsOn($page, $this->field($this->brand)));
+        self::assertSame($listings, $this->listings());
+        self::assertSame($values, $this->valueRows());
+        $this->assertNothingReportedToSentry();
+    }
+
+    public function testAnOptionThatNeverExistedStillGetsTheOrdinaryRefusalNotTheNoLongerOfferedOne(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $this->archiveFender();
+        $path = $this->detailsPath($draft);
+
+        $page = $this->post($path, $this->electricFields([...$this->allFiveElectricInputs(), $this->brand->id()->toString() => '018f5b2a-0000-7000-8000-00000000ffff']), tokenFrom: $path);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(['Choose one of the listed options.'], $this->errorsOn($page, $this->field($this->brand)));
+    }
+
+    public function testChoosingGibsonInsteadOfTheArchivedFenderSaves(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $this->archiveFender();
+        $path = $this->detailsPath($draft);
+
+        $this->post($path, $this->electricFields([...$this->allFiveElectricInputs(), $this->brand->id()->toString() => $this->optionIdOf($this->brand, 'Gibson')]), tokenFrom: $path);
+
+        self::assertResponseStatusCodeSame(303);
+        self::assertSame($this->optionIdOf($this->brand, 'Gibson'), $this->valueRowsByAttribute($draft)[$this->brand->id()->toString()]['option_id'] ?? null);
+    }
+
+    public function testATextValueHoldingAnArchivedOptionsIdDoesNotPutItOnTheChoiceSelect(): void
+    {
+        $this->buildTree();
+        $this->buildTheAttributes();
+        $ann = $this->signIn();
+        // Fender's own id, typed into a text field: only a *choice* value may keep an archived option.
+        $lookalike = $this->optionIdOf($this->brand, 'Fender');
+        $draft = ListingFactory::new()->soldBy($ann)->inCategory($this->electric)->withValues([$this->serial->id()->toString() => $lookalike])->create();
+        $this->archiveFender();
+
+        $page = $this->client->request('GET', $this->detailsPath($draft));
+
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame($lookalike, $this->valueOf($page, $this->field($this->serial)));
+        $labels = array_map(static fn (array $option): string => $option[1], $this->optionsOf($page, $this->field($this->brand)));
+        self::assertNotContains('Fender (no longer offered)', $labels, 'A uuid-shaped text value must not smuggle an archived option onto the form.');
+    }
+
+    public function testTheEditPageStillIssuesFiveDataQueriesWithAnArchivedAttributeAndAnArchivedOption(): void
+    {
+        [, $draft] = $this->annWithDraftD(filled: true);
+        $this->archiveFender();
+        $handler = self::getContainer()->get(ArchiveAttributeHandler::class);
+        self::assertInstanceOf(ArchiveAttributeHandler::class, $handler);
+        $handler(new ArchiveAttribute($this->serial->id()->toString()));
+
+        $queries = $this->dataQueriesOfTheEditPage($draft);
+
+        self::assertCount(5, $queries, "With archived rows:\n".implode("\n", $queries));
+    }
+
+    public function testTheEditPageIssuesFourDataQueriesForACategoryWithNoDetails(): void
+    {
+        $this->buildTree();
+        $ann = $this->signIn();
+        $draft = $this->draftOf($ann, $this->bass, 'No details here');
+
+        $queries = $this->dataQueriesOfTheEditPage($draft);
+
+        self::assertCount(4, $queries, "A category with no attributes (no options query):\n".implode("\n", $queries));
     }
 
     /**
