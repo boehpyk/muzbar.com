@@ -30,7 +30,7 @@
       subtree ∩ lineage argument, "Phase 2 lifts this and its fixture"), `facetCount(browsed,
       attribute): array<string,int>`, `buildTheFacetFixture()` (spec §B table, through the handlers
       and `ListingFactory`), and AC-6 … AC-11. Exact expected maps, not "contains".
-- [ ] **T4:** AC-13: `testTheGenericIndexCanServeTheActiveFacetQuery()` — the three `SET LOCAL`
+- [x] **T4:** AC-13: `testTheGenericIndexCanServeTheActiveFacetQuery()` — the three `SET LOCAL`
       switches, `EXPLAIN (FORMAT JSON)`, a recursive walk of `Plans`, the two assertions, the plan in
       the failure message, and the docblock saying what it does **not** prove (plan D3, Risk 3).
 - [ ] **T5:** Bite proof (AC-17): mutations (a)…(k) one at a time, each turning its named test red;

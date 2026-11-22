@@ -451,4 +451,64 @@ final class SchemaMutationGateTest extends WebTestCase
 
         return $values;
     }
+
+    // ---------------------------------------------------------------- C. the index (keep this test last in the file)
+
+    /**
+     * AC-13: the generic index can serve the active facet query. Under `SET LOCAL` switches that
+     * disable sequential scans, nested loops and merge joins (what is left is the attribute-led hash
+     * join leg ADR-0004 section 2 promised the index would serve), the plan of the gate query for
+     * Instruments / Fretboard wood must contain a node on `idx_listing_attribute_value_option` whose
+     * Index Cond looks `attribute_id` up (a full index scan does not count), and
+     * no Seq Scan on `listing_attribute_value`. `SET LOCAL` dies with DAMA's rollback, and this is
+     * its own method so no other query runs under the switches.
+     *
+     * What this does NOT prove: which plan PostgreSQL picks on real, ANALYZEd data (a dozen
+     * unanalysed rows say nothing about choice), nor any timing or latency. It proves only that no
+     * clause made the value-table leg unindexable. The latency gate (10 000 rows, `EXPLAIN` on every
+     * facet, no planner switches) is Phase 2's.
+     */
+    public function testTheGenericIndexCanServeTheActiveFacetQuery(): void
+    {
+        $this->buildTheFacetFixture();
+        $this->db->executeStatement('SET LOCAL enable_seqscan = off');
+        $this->db->executeStatement('SET LOCAL enable_nestloop = off');
+        $this->db->executeStatement('SET LOCAL enable_mergejoin = off');
+
+        $json = $this->db->fetchOne('EXPLAIN (FORMAT JSON) '.self::FACET_COUNT, ['browsed' => $this->instruments->id()->toString(), 'attribute' => $this->fretboardWood]);
+        if (!\is_string($json)) {
+            self::fail('EXPLAIN returned no plan.');
+        }
+        $plan = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+        $message = "The plan was:\n".json_encode($plan, \JSON_PRETTY_PRINT);
+
+        $usesTheIndex = false;
+        $seqScansTheValues = false;
+        foreach ($this->planNodes(\is_array($plan) ? $plan : []) as $node) {
+            // Not merely "the index appears": with seq scans disabled a FULL index scan satisfies that
+            // (mutation (f) survived it), so the node must also look attribute_id up (Index Cond).
+            $usesTheIndex = $usesTheIndex || ('idx_listing_attribute_value_option' === ($node['Index Name'] ?? null) && \is_string($node['Index Cond'] ?? null) && str_contains($node['Index Cond'], 'attribute_id ='));
+            $seqScansTheValues = $seqScansTheValues || ('Seq Scan' === ($node['Node Type'] ?? null) && 'listing_attribute_value' === ($node['Relation Name'] ?? null));
+        }
+
+        self::assertTrue($usesTheIndex, 'No plan node uses idx_listing_attribute_value_option. '.$message);
+        self::assertFalse($seqScansTheValues, 'A Seq Scan reads listing_attribute_value. '.$message);
+    }
+
+    /**
+     * @param array<mixed> $plan any JSON value of an EXPLAIN plan
+     *
+     * @return list<array<mixed>> every plan node (an object with a "Node Type") found at any depth
+     */
+    private function planNodes(array $plan): array
+    {
+        $nodes = isset($plan['Node Type']) ? [$plan] : [];
+        foreach ($plan as $child) {
+            if (\is_array($child)) {
+                $nodes = [...$nodes, ...$this->planNodes($child)];
+            }
+        }
+
+        return $nodes;
+    }
 }
