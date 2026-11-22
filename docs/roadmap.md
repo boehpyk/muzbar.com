@@ -360,8 +360,8 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         "… (no longer offered)".
         [ADR-0022](./adr/0022-schema-drift-archive-reserved-names-dormant-values.md)
         + ADR-0004/0016/0017/0018/0020/0021 amendments. All fifteen AC-23 mutations bit. 1759 → 1883 tests.
-  - [ ] `phase1-gate` *(tests + runbook built 2026-11-22; **awaiting the owner's restore rehearsal on
-        the box** — tick when docs/infrastructure.md's *Rehearsal log* has its first entry)* — the Schema-Mutation PoC as a test (define "Fretboard Wood" through the admin
+  - [x] `phase1-gate` *(2026-11-22: `SchemaMutationGateTest` + the restore rehearsal, logged in
+        docs/infrastructure.md §*Rehearsal log*)* — the Schema-Mutation PoC as a test (define "Fretboard Wood" through the admin
         handlers → it renders on the draft form → a facet count `GROUP BY option_id` over the value
         layer returns it, with `EXPLAIN` on the generic index, existing rows untouched) **plus** the
         restore-from-backup rehearsal on the box. **The facet count must speak "active"**
@@ -375,8 +375,8 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 - **Gate — Schema-Mutation PoC** (PRD validation #2): add a new attribute (e.g. "Fretboard Wood") via
       the admin UI and confirm it propagates to the dynamic form-render path and to a facet query
       **without corrupting existing listing rows**. Restore-from-backup rehearsed once.
-      *Test half proven 2026-11-22 (`SchemaMutationGateTest`, ADR-0004 amendment 2026-11-22);
-      **not MET** until the restore rehearsal is logged.*
+      **MET 2026-11-22** — `SchemaMutationGateTest` (ADR-0004 amendment 2026-11-22) and the restore
+      rehearsal on the box (pg_restore exit 0, counts identical, both schema checks exit 0).
 
 ## Phase 2 — Faceted search & listing marketplace *(PRD Phase 2)*
 

@@ -45,7 +45,7 @@
       `doctrine:schema:validate --skip-mapping` against the scratch DB → `DROP DATABASE`; the `df`
       pre-check; an empty *Rehearsal log*; the Risk 6 note (no pre-deploy dump exists today).
       AC-15.
-- [ ] **T7 (MANUAL — owner, on the box):** run the runbook once; paste the evidence into the
+- [x] **T7 (MANUAL — owner, on the box):** run the runbook once; paste the evidence into the
       *Rehearsal log* (date, dump name and size, `pg_restore` exit 0, count diff, both console exit
       codes, durations, scratch DB dropped). AC-16. **The gate is not met until this is done.**
 
@@ -57,8 +57,7 @@
       date (after T7); add plan Risk 2's two carry-overs to Phase 2's `Search` item; move API-key
       issuance per the owner's Q4 answer. CLAUDE.md status line. FORboehpyk.md chapter (what a gate
       is, why each clause needs its own row, the honest `EXPLAIN`, the rehearsal's result). AC-18.
-      *(Done except the post-T7 edits: roadmap tick + gate **MET** with the date, CLAUDE.md status,
-      and the rehearsal's result in FORboehpyk.md Chapter 17.)*
+      *(Post-T7 edits done 2026-11-22: roadmap tick + gate **MET**, CLAUDE.md status, Chapter 17.)*
 
 ## Verify
 

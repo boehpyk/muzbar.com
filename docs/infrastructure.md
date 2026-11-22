@@ -512,7 +512,21 @@ One entry per run: date · dump file and size · dump duration · `pg_restore` e
 duration · count diff (empty, or each difference explained) · `migrations:up-to-date` exit ·
 `schema:validate --skip-mapping` exit · scratch database dropped (step 6 no longer lists it).
 
-- *(none yet — the `phase1-gate` gate is not met until the first entry is here)*
+- **2026-11-22 (17:11–17:17 UTC), on the box, by the owner — PASSED.** Dump
+  `backups/muzbar_20261122_171105.dump`, **21K**, dumped in **0.23 s**. `pg_restore` into
+  `muzbar_restore_rehearsal`: **exit 0**, **0.18 s**. Count diff **empty** ("counts identical"):
+  `catalog_attribute` 0, `catalog_attribute_option` 0, `catalog_category` 2,
+  `doctrine_migration_versions` 13, `identity_email_verification_request` 0,
+  `identity_password_reset_request` 0, `identity_user` 1, `listing_attribute_value` 0,
+  `listing_listing` 0, `messenger_messages` 0, `prelaunch_signup` 16.
+  `doctrine:migrations:up-to-date` **exit 0** ("Up-to-date! No migrations to execute");
+  `doctrine:schema:validate --skip-mapping` **exit 0** ("in sync"). Scratch database dropped: step 6
+  lists `postgres`, `template0`, `template1` only.
+  *What it proves and does not:* the dump is complete and restorable by the same Postgres major, and
+  the restored schema (all 13 migrations, through `listing-schema-drift`) is the one the deployed image
+  expects. Prod holds almost no catalog or listing data yet, so it proves little about restoring
+  **volume** — re-run after Phase 2 has real listings. Both console commands also print Doctrine DBAL
+  `deprecation` INFO lines to stderr in prod; harmless noise, not a failure.
 
 ## Monitoring & observability
 
