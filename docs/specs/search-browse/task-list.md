@@ -58,7 +58,7 @@
 - [x] T16: ADR amendments, dated: ADR-0019 (decision 4 exception; crossings count stops), ADR-0002
       (port shape, discharged consequence), ADR-0004 (carry-overs discharged, `is_facet` deferred,
       zero promoted columns).
-- [ ] T17: CLAUDE.md — status paragraph for `search-browse`; a **Search** block: ADR-0023's fence
+- [x] T17: CLAUDE.md — status paragraph for `search-browse`; a **Search** block: ADR-0023's fence
       (read-only, one directory, never `seller_id`), the watch item (schema changes in
       `listing_*`/`catalog_*` and new "not public" predicates → grep `Infrastructure/Search/`, add to
       the matching fragment), `InputBag::all()`/`getInt()` 400 on hostile query strings (D8), no lock

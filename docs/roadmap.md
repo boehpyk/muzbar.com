@@ -388,7 +388,7 @@ slices (7–9) have none on search and may be pulled forward. `/` stays the comi
 launch is not a Phase 2 item.
 
 - [ ] `Search` context — **too big for one cycle, sliced:**
-  - [ ] 1. `search-browse` — the `Search` context's first slice: `SearchPort` + `FacetedQuery` VO (in
+  - [x] 1. `search-browse` — the `Search` context's first slice: `SearchPort` + `FacetedQuery` VO (in
         Search's own words — local id copies, ADR-0019) + the Postgres adapter, for **category subtree +
         choice and boolean facets + counts + paging, newest first**, published listings only. Consumer:
         a minimal, unstyled, JS-free `GET` browse page (facets as a plain form) — the page is what
