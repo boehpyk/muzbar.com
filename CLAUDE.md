@@ -165,8 +165,20 @@ Docker Compose · Traefik · Nginx.
 > it **with its fixture**) speaks "active" in four clauses, each with a fixture row only it excludes.
 > The `EXPLAIN` proves **usability, not choice**, and needed an `Index Cond` check: with seq scans off,
 > a full index scan "uses the index" while looking nothing up (mutation (f) survived until then).
-> API-key issuance moved to Phase 3. ADR-0004 amendment. 1892 tests. Next: `/verify phase1-gate`;
-> `public-styles` before Phase 2's public search UI; seller contact channels before launch.
+> API-key issuance moved to Phase 3. ADR-0004 amendment. 1892 tests.
+> **Phase 2 sliced 2026-11-22** into 15 deployable slices ([roadmap](./docs/roadmap.md) §Phase 2).
+> `search-browse` (2026-11-22) — Search 1 of 15, and the first **bounded context with no aggregate**:
+> Search writes nothing, so it has no consistency boundary; what it has is a policy that can be wrong
+> (*which filters survive*, S-5; the page clamp, S-8), kept in the Domain as pure functions. **Parse,
+> don't validate, with two types:** `FilterRequest` (format) → `FacetedQuery::resolve()` (against the
+> `FacetSchema` the port reads); `SearchPort::search()` accepts only the second. `GET /browse`
+> (unstyled, JS-free, `noindex`): category subtree, choice + boolean facets, **disjunctive** counts,
+> 20 per page, newest first, ≤ 5 + k statements. Search **reads Catalog's and Listing's tables
+> directly**, fenced (ADR-0023). The phase1-gate's `FACET_COUNT` + fixture **moved** into
+> `BrowseListingsTest`/`SearchIndexUsageTest`. All seventeen AC-25 mutations bit — (l) `SELECT l.*`
+> only after a select-star scan was added. 2019 tests.
+> [ADR-0023](./docs/adr/0023-search-is-a-read-only-projection-over-catalog-and-listing-tables.md)
+> + ADR-0002/0004/0019 amendments. Next: `/verify search-browse`, then `search-range-facets` (2).
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -358,6 +370,36 @@ established by `listing-draft`, inherited by every context:
   event; listing-publish's AC-7 ("unchanged") was wrong in that one respect. Admit nothing else.
 - **Money is integer minor units, never a float** — `Price::fromDecimal(string, Currency)` parses
   with string and integer arithmetic; `PriceTest` scans the source for `float`. Never `MoneyType`.
+
+**Search is a read-only projection** ([ADR-0023](./docs/adr/0023-search-is-a-read-only-projection-over-catalog-and-listing-tables.md)) —
+established by `search-browse`:
+
+- **`Infrastructure/Search/` may read any context's tables and writes none** — the one exception to
+  ADR-0019 d.4. `SearchIsolationTest` fails on a write keyword, `seller_id`, or a select-star there
+  (`SELECT l.*` reads `seller_id` without naming it — mutation (l) survived until that scan existed);
+  `ListingIsolationTest`'s table scans admit that directory and no other. No Search table, no
+  migration: a Search-owned table is a new ADR.
+- **Watch item — the coupling breaks at runtime, not compile time.** A column rename or meaning change
+  in `listing_listing`, `listing_attribute_value`, `catalog_category`, `catalog_attribute` or
+  `catalog_attribute_option`, and **every new "not public" predicate** (`listing-expiry`'s), must grep
+  `Infrastructure/Search/` and go into `PostgresSearch`'s **one matching fragment** — S-1/S-2/S-6 have
+  exactly one definition there. `BrowseListingsTest` (the lifted fixture) is what fails.
+- **No lock, no transaction on reads** (D6) — each statement reads its own snapshot; a stale count for
+  one page view is accepted. Never wrap a Search read in `holdSteady()`.
+- **Never use `InputBag`'s typed getters on public query strings.** `$request->query->all('f')` throws
+  `BadRequestException` (400) when `f` is a string; `get()`/`getInt()` throw on arrays. `BrowseController`
+  reads `$request->query->all()` once and normalises shapes; the Domain decides meaning. Mutation (m).
+- **A malformed or non-string `category` is the same 404 as an unknown one** — handed to the handler
+  as `''` so one `catch` builds every 404, and no Search statement runs. A route `requirements` regex
+  cannot help: it does not apply to query parameters.
+- **The `EXPLAIN` test must `ANALYZE` its tables inside DAMA.** With seq scans off, the pkey and
+  `idx_listing_attribute_value_option` tie on a dozen rows; once autovacuum has seen earlier tests'
+  rolled-back rows the planner flips to a full pkey scan and the test fails on every run, while a
+  fresh test DB passes. `SearchIndexUsageTest` pins its statistics; the deleted phase1-gate copy was
+  green by luck.
+- **`QueryRecordingStatement` records bound values** (`uninstallWithValues()`): DBAL 4's PDO driver
+  binds every value through `bindValue()` with 1-based positions. The EXPLAIN replays the adapter's
+  own statements with them — no production code is shaped for the test.
 
 **Structurally identical aggregates still do not share a base class.** `PasswordResetRequest` is ~80%
 the same file as `EmailVerificationRequest` and shares no supertype with it. They share a *shape*,

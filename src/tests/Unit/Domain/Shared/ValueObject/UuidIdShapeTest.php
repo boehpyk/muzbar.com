@@ -15,12 +15,15 @@ use App\Domain\Listing\ValueObject\AttributeOptionId as ListingAttributeOptionId
 use App\Domain\Listing\ValueObject\CategoryId as ListingCategoryId;
 use App\Domain\Listing\ValueObject\ListingId;
 use App\Domain\Listing\ValueObject\SellerId;
+use App\Domain\Search\ValueObject\AttributeId as SearchAttributeId;
+use App\Domain\Search\ValueObject\CategoryId as SearchCategoryId;
+use App\Domain\Search\ValueObject\OptionId as SearchOptionId;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
  * The proof ADR-0009's 2026-11-14 amendment asked for: a cross-type `equals()` stays a `TypeError`
- * although all eleven ids now get `equals(self $other)` from one trait, because `self` in a trait
+ * although all fourteen ids now get `equals(self $other)` from one trait, because `self` in a trait
  * resolves to the *using* class. The ring (row n against row n+1, the last against the first) puts every
  * id on both sides of a comparison with a different type, and the same-named pairs across contexts
  * (Catalog/Listing `CategoryId`, `AttributeId`, `AttributeOptionId`) sit adjacent, where a shared
@@ -45,7 +48,16 @@ final class UuidIdShapeTest extends TestCase
         yield 'Catalog AttributeOptionId vs Listing AttributeOptionId' => [CatalogAttributeOptionId::class, ListingAttributeOptionId::class];
         yield 'Listing AttributeOptionId vs ListingId' => [ListingAttributeOptionId::class, ListingId::class];
         yield 'ListingId vs SellerId' => [ListingId::class, SellerId::class];
-        yield 'SellerId vs Identity UserId (closes the ring)' => [SellerId::class, UserId::class];
+        yield 'SellerId vs Search CategoryId' => [SellerId::class, SearchCategoryId::class];
+        yield 'Search CategoryId vs Catalog CategoryId' => [SearchCategoryId::class, CatalogCategoryId::class];
+        yield 'Catalog CategoryId vs Search AttributeId' => [CatalogCategoryId::class, SearchAttributeId::class];
+        yield 'Search AttributeId vs Catalog AttributeId' => [SearchAttributeId::class, CatalogAttributeId::class];
+        yield 'Catalog AttributeId vs Search OptionId' => [CatalogAttributeId::class, SearchOptionId::class];
+        yield 'Search OptionId vs Catalog AttributeOptionId' => [SearchOptionId::class, CatalogAttributeOptionId::class];
+        yield 'Catalog AttributeOptionId vs Search CategoryId' => [CatalogAttributeOptionId::class, SearchCategoryId::class];
+        yield 'Search CategoryId vs Search AttributeId' => [SearchCategoryId::class, SearchAttributeId::class];
+        yield 'Search AttributeId vs Search OptionId' => [SearchAttributeId::class, SearchOptionId::class];
+        yield 'Search OptionId vs Identity UserId (closes the ring)' => [SearchOptionId::class, UserId::class];
     }
 
     /**

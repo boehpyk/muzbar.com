@@ -144,3 +144,15 @@ this ADR named as the Phase 1 gate was run, and what it does and does not show.
    the `SearchPort` adapter (the fixture is what proves the four clauses); decide how `Search` reads
    Catalog's and Listing's tables — the single joined statement breaks ADR-0019's "table names only
    in their own context's Infrastructure" once it moves into `src/`.
+
+## Amendment, 2026-11-22 — the 2026-11-22 carry-overs are discharged; `is_facet` still deferred
+
+1. **Point 5's carry-overs are discharged by `search-browse`.** The gate query is generalised into
+   `PostgresSearch` (`Infrastructure/Search/`), its fixture moved with it into the
+   `BuildsTheFacetFixture` trait (`BrowseListingsTest`, `SearchIndexUsageTest`), and the `EXPLAIN`
+   now replays the adapter's own statements. How Search reads Catalog's and Listing's tables is
+   [ADR-0023](./0023-search-is-a-read-only-projection-over-catalog-and-listing-tables.md).
+2. **`is_facet` / `is_searchable` stay deferred** (2026-11-15 point 2): every active `choice` or
+   `boolean` attribute in the browsed category's lineage is a facet. Add the flag when an admin first
+   needs to hide one.
+3. **Still zero promoted columns.** Nothing measured asks for one; `search-benchmark` decides.

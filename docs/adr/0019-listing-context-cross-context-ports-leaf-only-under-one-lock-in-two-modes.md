@@ -282,3 +282,14 @@ Recorded by the `listing-publish` slice ([ADR-0021](./0021-listing-lifecycle-in-
    either read model is a change to `/listings/{id}`.
 4. **Withdraw runs inside `holdSteady()` too,** though it reads no catalog fact: decision 5's
    "every Listing write" stays without exceptions.
+
+## Amendment, 2026-11-22 — decision 4 gains one fenced exception: Search reads, it never writes; the crossings count stops
+
+1. **Decision 4 ("a table name appears only in its own context's Infrastructure") has one exception:**
+   `Infrastructure/Search/` may **read** any context's tables and writes none
+   ([ADR-0023](./0023-search-is-a-read-only-projection-over-catalog-and-listing-tables.md)). The two
+   table-ownership scans in `ListingIsolationTest` admit that directory and nothing else;
+   `SearchIsolationTest` fails on a write keyword or `seller_id` there.
+2. **The "crossings" count stops at five.** Search's joined reads are the rule ADR-0023 states, not a
+   sixth bend of this one. A new UI read of another context's read model is still a crossing and is
+   still recorded here.

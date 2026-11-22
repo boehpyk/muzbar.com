@@ -380,31 +380,106 @@ Stand up the skeleton the SDLC assumes. No product features yet.
 
 ## Phase 2 — Faceted search & listing marketplace *(PRD Phase 2)*
 
-- [ ] `Search` context: `SearchPort` + `FacetedQuery` value object + Postgres adapter (composite
-      indexes, facet counts); FTS + pg_trgm on title/description with identical write/read mangling +
-      tsquery sanitizer (ADR-0002).
-      **Carry-overs from `phase1-gate`:** (1) lift `SchemaMutationGateTest::FACET_COUNT` **and its
-      AC-6…AC-11 fixture** into the adapter — the fixture is what proves the four "active" clauses;
-      (2) decide how `Search` reads Catalog's and Listing's tables (an ADR-0019 amendment making
-      `Search` a read-only projection context, or composition through ports with id lists); (3) the
-      `EXPLAIN` that decides index tuning and hot-column promotion is taken on ANALYZEd 10k rows,
-      without planner switches.
-- [ ] Morphing single-page listing wizard as a **Symfony UX Live Component** — selecting a category
-      reshapes the lower form (parametric dropdowns) without a reload or data loss (US-1, UX §).
-- [ ] `public-styles` *(before the public search UI — `listing-publish` plan Q7)* — the public SCSS
-      pipeline (ADR-0006): `sass-bundle`, `public.css`, tokens. The sell pages and the public listing
-      page ship as unstyled semantic markup with stable class names until then, so styling is
-      purely additive. Its real customer is the search UI below, where the design is the product.
-- [ ] Public faceted search UI with dynamic, category-driven facets (US-2, FR-3).
-- [ ] **Seller contact channels** *(before public launch — `listing-publish` plan Q4)* — the public
-      listing page shows **no** seller data and no way to reach the seller. PRD §6 wants "explicitly
-      preferred external channels" (mail-relay form, phone, Telegram) without exposing the email
-      (Constitution §8). Its own slice; must ship before `/` stops being the coming-soon stub.
-- [ ] 30-day ad lifecycle: Symfony Scheduler expiry + hide, 3-day-prior warning email with 1-click
-      renewal link (Messenger + Mailer). Mailpit in dev.
-- [ ] "Subscribe to this Search": capture facet params + verified email on a 0-result page; the
-      `Notification` context evaluates new listings against active alerts and fires a match email
-      (US-5, FR-6).
+**Sliced 2026-11-22.** Same rule as Phase 1's Listing slices: **prod is consistent after each deploy
+on its own** — no port without a consumer (a `SearchPort` with no page is scaffolding, `phase1-gate`
+Q4's verdict on API keys), no mail without the readiness check that notices it is not leaving, no
+public state that a later slice must repair. Order is by dependency; the wizard (6) and the contact
+slices (7–9) have none on search and may be pulled forward. `/` stays the coming-soon stub throughout —
+launch is not a Phase 2 item.
+
+- [ ] `Search` context — **too big for one cycle, sliced:**
+  - [x] 1. `search-browse` — the `Search` context's first slice: `SearchPort` + `FacetedQuery` VO (in
+        Search's own words — local id copies, ADR-0019) + the Postgres adapter, for **category subtree +
+        choice and boolean facets + counts + paging, newest first**, published listings only. Consumer:
+        a minimal, unstyled, JS-free `GET` browse page (facets as a plain form) — the page is what
+        makes the port deployable. **Carry-overs from `phase1-gate`:** (1) lift
+        `SchemaMutationGateTest::FACET_COUNT` **and its AC-6…AC-11 fixture** into the adapter — the
+        fixture is what proves the four "active" clauses (subtree, published, active-schema
+        attribute, `archived_at IS NULL` option); (2) **decide how `Search` reads Catalog's and
+        Listing's tables** — a read-only projection context (ADR-0019 amendment: the fifth crossing,
+        formalised) or composition through ports with id lists. New ADR. `FacetedQuery` parsing is a
+        trust boundary: unknown attribute/option ids are dropped, never a 500.
+  - [ ] 2. `search-range-facets` — number attributes as min/max ranges (against `NumberRules`), and
+        **price**. Owes the decision `listing-draft` deferred: **price across currencies** (filter and
+        sort only within one chosen currency, or convert — and from what rate source). Owner decision
+        in the plan, not in the adapter.
+  - [ ] 3. `search-full-text` — FTS + `pg_trgm` on title/description (ADR-0002): `unaccent` on
+        **both** sides via one SQL function used by the write and the read, the **tsquery sanitizer**
+        (strips every operator, `:*` on the last token only — security-critical, Constitution §8),
+        trigram fallback only when FTS returns too few rows, RRF if ranks combine. Migration adds the
+        extensions — `muzbar_test` and the box both, so check the `postgres:16-alpine` contrib set and
+        the migration role's rights before planning.
+  - [ ] 4. `search-benchmark` — **taken early on purpose**, before any UI is built on the query: a
+        seeding command (10k+ listings over a realistic tree and Brand-sized option lists), `ANALYZE`,
+        `EXPLAIN` without planner switches (carry-over 3), and a 50-concurrent load run. **Index tuning
+        and hot-column promotion (ADR-0004) happen here or not at all.** The phase gate re-runs it on
+        the final query; this slice exists so the gate is a confirmation, not a discovery.
+        **Carry-over from `search-browse`'s `/verify` (2026-11-22): `/browse` has no rate limit.**
+        Statements are bounded (≤ 5 + k, k ≤ 20) but cost is not — 20 selected facets at the root
+        category is up to 25 statements, each count joining every published listing with up to 19
+        `EXISTS`. Measure that worst case under the load run; if it hurts, add a per-IP limiter on
+        the `cache.rate_limiter` pool (and to `ClearsRateLimiters`' list), or decide it is fine.
+- [ ] 5. `public-styles` *(before the public search UI — `listing-publish` plan Q7)* — the public SCSS
+      pipeline (ADR-0006): `sass-bundle`, `public.css`, tokens, and the **first public layout** — which
+      is also where the **Umami snippet** finally lands (Phase 0 left it with nowhere to live). The sell
+      pages, the listing page and the browse page ship as unstyled semantic markup with stable class
+      names until then, so styling is purely additive.
+- [ ] 6. `listing-wizard` — morphing single-page listing form as a **Symfony UX Live Component**:
+      selecting a category reshapes the lower form (parametric dropdowns) without a reload or data loss
+      (US-1, UX §). Replaces the server-rendered Details section; the POST still re-reads
+      `schemaOf()` under `holdSteady()` and a drift only refuses (ADR-0019). Dependent options (D14,
+      `parent_option_id`) are **not** in scope unless the owner pulls them in.
+- [ ] 7. `search-ui` — the public faceted search UI over slices 1–3 (US-2, FR-3): category-driven
+      facets that update with the selection, counts, ranges, text box, 0-result state. Progressive
+      enhancement of slice 1's `GET` form (Live Component or Turbo Frame — the plan decides); the URL
+      stays the query, so a search is a link. Leaves a **slot** on the 0-result page for slice 12.
+- [ ] Seller contact channels *(before public launch — `listing-publish` plan Q4)* — the public listing
+      page shows **no** seller data and no way to reach the seller. PRD §6: "explicitly preferred
+      external channels" without exposing the email (Constitution §8). Each slice reverses
+      `listing-publish`'s "the public read never selects `seller_id`" **for one named field only** —
+      an ADR-0021 amendment, and `PublicListingTest`'s SQL assertion widened by exactly that field.
+  - [ ] 8. `seller-contact-handles` — phone and Telegram handle on the seller's profile (real content
+        for the `/profile` placeholder, ADR-0015), opted in per channel, shown on their published
+        listings. Validated as VOs (a Telegram handle is not free text).
+  - [ ] 9. `ops-queue-age-readiness` *(devops; before the first new Phase 2 mail)* — teach
+        `/health/ready` the age of the oldest `messenger_messages` row and the `failed` count, so a
+        stopped worker stops looking healthy (infrastructure.md footgun #7, Phase 0 carry-over 2's
+        remainder). Phase 2 triples the mail kinds; this is the cheapest moment to stop being blind.
+        Also owns the decision on carry-over 4 (`messenger_messages` / `failed` growth).
+  - [ ] 10. `seller-contact-relay` — a "message the seller" form that mails through the relay;
+        neither side sees the other's address until the seller replies. Signed-in senders only
+        (overlay trigger, ADR-0015 shape), rate-limited per sender and per listing (one more
+        `cache.rate_limiter` limiter → `ClearsRateLimiters`), body is a free-text VO (`\p{Cc}` rule).
+- [ ] 30-day ad lifecycle (PRD §6):
+  - [ ] 11. `listing-expiry` — `expires_at` on publish (+30 days), **hidden from the public page and
+        search the moment it passes**, renew from "Your listings" (+30 days). Plan question to answer
+        first: is "expired" a **predicate** (`expires_at > now` in the public reads — no job can be
+        late, the `required`-is-never-retroactive argument again) or an L-12 **state** that a job
+        writes? Lean: predicate. **Backfill:** listings already published get `expires_at` = deploy
+        time + 30 days, not `published_at` + 30 (which would hide them on deploy).
+  - [ ] 12. `listing-renewal-reminder` — the 3-day-prior warning mail with a renewal link: the
+        slice's recurring work **re-opens ADR-0012 decision 5** (host cron vs Symfony Scheduler —
+        Constitution §3's parenthetical scopes Scheduler to exactly this feature, and the worker-image
+        gap that argued against it was fixed 2026-08-02). New ADR either way. **The renewal link's GET
+        must not renew** — ADR-0011 (mail scanners prefetch links) and ADR-0015's accepted risk (no GET
+        may change state for the signed-in user) — so "1-click" is a token link to a page with one
+        button. Owner sign-off on that wording against PRD §6. Idempotent per listing per period.
+- [ ] "Subscribe to this Search" (US-5, FR-6) — the `Notification` context:
+  - [ ] 13. `search-alert-subscribe` — `SearchAlert` aggregate: the facet params in Notification's
+        own words + the subscriber's `UserId` (a signed-in, therefore verified, user — the PRD's
+        overlay trigger), created from the 0-result slot; list and cancel own alerts; a one-click
+        unsubscribe token (needed for slice 14's `List-Unsubscribe` and the spam gate). An alert
+        whose attribute or option is later archived is a stale alert — decide: kept dormant, like
+        L-17, or pruned.
+  - [ ] 14. `search-alert-match` — **the first listener on `ListingPublished`**: evaluates the new
+        listing against active alerts (reusing `SearchPort` with an id filter — one definition of
+        "matches", never a second one in PHP) and queues one mail per match. Re-opens ADR-0021 d.5's
+        accepted loss (a crash between commit and dispatch drops the event — accepted because there
+        was **no listener**; there now is) and ADR-0010's outbox trigger. Decide whether a renewal
+        (slice 11/12) or re-publish of a withdrawn listing re-fires alerts.
+- [ ] 15. `phase2-gate` — both gates below, as one proof slice like `phase1-gate`: re-run slice 4's
+      benchmark on the final query; send renewal and alert mail through the production relay to
+      Gmail/Outlook/Yahoo test inboxes with SPF/DKIM/DMARC aligned, logged in docs/infrastructure.md.
 - **Gate — Search Latency Benchmark** (PRD metric + validation #1): seed 10k+ mock listings; prove
       **< 200 ms @ 50 concurrent** with `EXPLAIN` confirming every facet hits an index. **Gate —
       Spam-Filter Clearance** (validation #3): renewal/alert emails clear major inbox filters via the

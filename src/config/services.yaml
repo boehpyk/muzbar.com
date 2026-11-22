@@ -52,6 +52,8 @@ services:
     App\Domain\Listing\Port\Categories: '@App\Infrastructure\Catalog\Integration\CategoriesForListing'
     App\Domain\Catalog\Port\CategoryUsage: '@App\Infrastructure\Listing\Integration\ListingCategoryUsage'
     App\Domain\Catalog\Port\AttributeUsage: '@App\Infrastructure\Listing\Integration\ListingAttributeUsage'
+    # A read-only projection over Catalog's and Listing's tables (ADR-0023).
+    App\Domain\Search\Port\SearchPort: '@App\Infrastructure\Search\Persistence\Doctrine\PostgresSearch'
 
     # Its own slugger instance: no `&` -> `and` symbol map and no request-locale dependence, so a
     # name always derives the same slug (AC-25: "Bass & Guitars" -> bass-guitars).
