@@ -73,11 +73,11 @@
                 </select>
                 <label>
                     From
-                    <input type="number" min="0" step="1" inputmode="numeric" name="price[min]" value="{{ price.min ?? '' }}">
+                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" name="price[min]" value="{{ price.min ?? '' }}">
                 </label>
                 <label>
                     To
-                    <input type="number" min="0" step="1" inputmode="numeric" name="price[max]" value="{{ price.max ?? '' }}">
+                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" name="price[max]" value="{{ price.max ?? '' }}">
                 </label>
                 <p>Choosing a currency hides listings priced in other currencies.</p>
             </fieldset>

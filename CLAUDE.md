@@ -179,7 +179,7 @@ Docker Compose · Traefik · Nginx.
 > only after a select-star scan was added. 2019 tests.
 > [ADR-0023](./docs/adr/0023-search-is-a-read-only-projection-over-catalog-and-listing-tables.md)
 > + ADR-0002/0004/0019 amendments.
-> `search-range-facets` (2026-11-23) — Search 2 of 15: **number facets** (unit, count, observed
+> `search-range-facets` (2026-11-23, **passed `/verify` 2026-11-23 first time** — 1 MINOR fixed anyway: `max="9999999"` on the price inputs) — Search 2 of 15: **number facets** (unit, count, observed
 > range — disjunctive, folded into the **existing** count statement) and `r[<id>][min|max]` ranges
 > (`NumberRange`: never empty, swapped when inverted). **S-12 — a write rule is not a read rule:**
 > `NumberRules` bounds never clamp a read, or narrowing them would hide stored values (retroactivity
@@ -191,7 +191,7 @@ Docker Compose · Traefik · Nginx.
 > §*Listing: one-off pre-deploy check for `search-range-facets`*) — **run and log it before deploying**.
 > All 23 AC-25 mutations bit; 2158 tests.
 > [ADR-0024](./docs/adr/0024-price-is-compared-only-within-one-currency.md) + ADR-0019/0023 amendments.
-> Next: `/verify search-range-facets`, then `search-full-text` (3).
+> Next: `search-full-text` (3).
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).

@@ -72,4 +72,4 @@
       question; bugs hit.
 
 ## Verify
-- [ ] T17: `/verify` → reviewer PASS, AC-1…AC-29 checked, docs updated.
+- [x] T17: `/verify` → reviewer PASS, AC-1…AC-29 checked, docs updated.
