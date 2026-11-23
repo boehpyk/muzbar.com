@@ -424,6 +424,30 @@ existing row is active, `NULL`), no index, no pre-deploy query: no value is dorm
 archive or move, so prod is consistent after this deploy on its own. Retiring C-27 needs no data
 change.
 
+## Listing: one-off pre-deploy check for `search-range-facets`
+
+[ADR-0019](./adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
+2026-11-23 amendment, [ADR-0024](./adr/0024-price-is-compared-only-within-one-currency.md). `UAH`
+left `Currency`'s allow-list. A stored `listing_listing` row with `price_currency = 'UAH'` would no
+longer hydrate: a **500** (and a Sentry event) on its page, its seller's list, and **every `/browse`
+page whose hits include it**. There is no migration and no database guard (ADR-0019 amendment, point
+3). So, **once, before the first deploy of this slice**, run on the box:
+
+```bash
+# On the box (hand-run compose needs MUZBAR_IMAGE set, as for any manual op).
+docker compose exec app php bin/console dbal:run-sql "SELECT count(*) FROM listing_listing WHERE price_currency = 'UAH'"
+```
+
+- **`0` → deploy.**
+- **Non-zero → stop.** The owner decides, per row, to re-price (another currency) or delete, before
+  the deploy. Never after: the broken reads start the moment the new image serves.
+
+Result log (fill in **before** the deploy):
+
+| Date | Count | Action |
+|---|---|---|
+| | | |
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker

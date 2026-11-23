@@ -12,7 +12,7 @@
       three-code list `USD`, `EUR`, `SEK`; the mirror).
 
 ## Listing (owner decision Q10 — before any Search code)
-- [ ] T1: `UAH` leaves the allow-list (plan D12): `Domain/Listing/ValueObject/Currency` (case,
+- [x] T1: `UAH` leaves the allow-list (plan D12): `Domain/Listing/ValueObject/Currency` (case,
       `minorUnits()` arm, docblock "All three"); `ListingFormData` default `EUR`; swap `UAH` → `SEK`
       in `SellTest`, `ListingHandlersTest`, `CurrencyTest`, `PriceTest`, `ListingTest` (the default
       assertion → `'EUR'`); add the AC-28 refusal cases (`fromCode('UAH')`, tampered form POST,

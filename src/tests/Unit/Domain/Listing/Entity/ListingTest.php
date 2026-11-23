@@ -128,7 +128,7 @@ final class ListingTest extends TestCase
             AttributeSchema::none(),
             ListingTitle::fromString('Changed title'),
             ListingDescription::fromString('Changed'),
-            Price::fromMinorUnits(999, Currency::UAH),
+            Price::fromMinorUnits(999, Currency::SEK),
             AttributeInput::fromArray([]),
         );
     }
@@ -152,7 +152,7 @@ final class ListingTest extends TestCase
 
         $this->reviseBy($listing, self::ANN, self::ELECTRIC, CategoryStatus::Branch);
 
-        self::assertSame([self::ELECTRIC, 'Changed title', 'Changed', 999, Currency::UAH], $this->snapshot($listing));
+        self::assertSame([self::ELECTRIC, 'Changed title', 'Changed', 999, Currency::SEK], $this->snapshot($listing));
     }
 
     public function testTheSellerCanRefileToANewLeaf(): void
@@ -161,7 +161,7 @@ final class ListingTest extends TestCase
 
         $this->reviseBy($listing, self::ANN, self::BASS, CategoryStatus::Leaf);
 
-        self::assertSame([self::BASS, 'Changed title', 'Changed', 999, Currency::UAH], $this->snapshot($listing));
+        self::assertSame([self::BASS, 'Changed title', 'Changed', 999, Currency::SEK], $this->snapshot($listing));
     }
 
     public function testRefilingToAMissingCategoryIsRefusedAndNothingChanges(): void
@@ -223,7 +223,7 @@ final class ListingTest extends TestCase
             $schema,
             ListingTitle::fromString($title),
             ListingDescription::fromString($description),
-            Price::fromMinorUnits($minorUnits, Currency::UAH),
+            Price::fromMinorUnits($minorUnits, Currency::SEK),
             AttributeInput::fromArray($input),
         );
     }

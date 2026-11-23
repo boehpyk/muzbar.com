@@ -24,7 +24,7 @@ final class ListingFormData
     public ?string $price = null;
 
     /** Preselected per Q2: no per-user preference yet. */
-    public ?string $currency = Currency::UAH->value;
+    public ?string $currency = Currency::EUR->value;
 
     /** A category id from the leaf choices. */
     public ?string $category = null;
