@@ -290,7 +290,7 @@ Stand up the skeleton the SDLC assumes. No product features yet.
         with listings, are both refused (they would turn a listed-on leaf into a non-leaf).
         **Shipped:** L-2 decided by `Listing` inside `Categories::holdSteady()` (the tree lock's new
         **shared** mode); C-23 (delete) and C-24 (create-under, move-under) in Catalog's handlers
-        under the exclusive lock; price as integer minor units, `USD`/`EUR`/`SEK`/`UAH`.
+        under the exclusive lock; price as integer minor units, `USD`/`EUR`/`SEK`/`UAH` *(`UAH` removed 2026-11-23, ADR-0019 amendment)*.
         [ADR-0019](./adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
         + ADR-0007/0016 amendments. 1436 tests.
   - [x] `listing-attribute-values` (2026-11-18; **passed `/verify` 2026-11-20 first time**) — the value layer (ADR-0004 §2): `listing_attribute_value` with
@@ -399,10 +399,16 @@ launch is not a Phase 2 item.
         Listing's tables** — a read-only projection context (ADR-0019 amendment: the fifth crossing,
         formalised) or composition through ports with id lists. New ADR. `FacetedQuery` parsing is a
         trust boundary: unknown attribute/option ids are dropped, never a 500.
-  - [ ] 2. `search-range-facets` — number attributes as min/max ranges (against `NumberRules`), and
+  - [x] 2. `search-range-facets` (2026-11-23) — number attributes as min/max ranges (against `NumberRules`), and
         **price**. Owes the decision `listing-draft` deferred: **price across currencies** (filter and
         sort only within one chosen currency, or convert — and from what rate source). Owner decision
         in the plan, not in the adapter.
+        **Shipped:** number facets with unit, count and observed range (disjunctive, in the existing
+        count statement); `r[<id>][min|max]` ranges, swapped when inverted; **S-12** — `NumberRules`
+        never clamp a read; price **within one chosen currency** (ADR-0024, option A), whole units →
+        minor units in the Domain; Search-local `Currency` mirror + `CurrencyMirrorTest`. `UAH` left
+        Listing's allow-list (owner), sell default `EUR`, pre-deploy row check. All 23 AC-25
+        mutations bit; 2158 tests. ADR-0024 + ADR-0019/0023 amendments.
   - [ ] 3. `search-full-text` — FTS + `pg_trgm` on title/description (ADR-0002): `unaccent` on
         **both** sides via one SQL function used by the write and the read, the **tsquery sanitizer**
         (strips every operator, `:*` on the last token only — security-critical, Constitution §8),

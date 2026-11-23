@@ -448,6 +448,18 @@ Result log (fill in **before** the deploy):
 |---|---|---|
 | | | |
 
+## Search: ADR-0024's revisit trigger (price across currencies)
+
+[ADR-0024](./adr/0024-price-is-compared-only-within-one-currency.md) filters price within one chosen
+currency. Revisit it (option C, live rates, as its own ADR) when **one top-level category holds ≥ 2
+currencies each with ≥ 20 % of its published listings**. Run after launch, now and then:
+
+```bash
+docker compose exec app php bin/console dbal:run-sql "WITH RECURSIVE tree (id, root) AS (SELECT id, id FROM catalog_category WHERE parent_id IS NULL UNION ALL SELECT c.id, t.root FROM catalog_category c JOIN tree t ON c.parent_id = t.id), per AS (SELECT t.root, l.price_currency, count(*) AS n FROM listing_listing l JOIN tree t ON t.id = l.category_id WHERE l.status = 'published' GROUP BY 1, 2), share AS (SELECT root, price_currency, n::numeric / sum(n) OVER (PARTITION BY root) AS s FROM per) SELECT root, count(*) AS currencies FROM share WHERE s >= 0.2 GROUP BY root HAVING count(*) >= 2"
+```
+
+Zero rows → A still holds. Any row → that top-level category (by id) has met the trigger.
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker
