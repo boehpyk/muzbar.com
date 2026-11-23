@@ -53,7 +53,7 @@
 - [x] T11: `SearchIndexUsageTest` AC-19 (recorded browse with a range and a choice selection).
 - [x] T12: `BrowsePageTest` AC-20…AC-24; amend the no-category test (form with price only) and say
       so in the commit message.
-- [ ] T13: Mutation proof — AC-25 (a)…(w), each applied, run, reverted; catcher recorded in the
+- [x] T13: Mutation proof — AC-25 (a)…(w), each applied, run, reverted; catcher recorded in the
       commit message. `make test` twice; `php -d zend.assertions=-1 vendor/bin/phpunit` (AC-27).
       `make test filter=` breaks on `|` — run phpunit directly for alternations.
 
