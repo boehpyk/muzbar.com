@@ -8,6 +8,7 @@ use App\Application\Search\Handler\BrowseListingsHandler;
 use App\Application\Search\Query\BrowseListings;
 use App\Tests\Fixture\QueryRecordingStatement;
 use App\Tests\Support\BuildsTheFacetFixture;
+use App\Tests\Support\BuildsTheRangeFixture;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -29,6 +30,10 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  * planner's statistics to the fixture instead of to autovacuum's history); each statement has its own
  * test method so nothing else runs under the switches.
  *
+ * search-range-facets AC-19 repeats both over the range fixture: Electric with `r[Strings][min]=1` and
+ * Brand = Gibson, so the count statement with Strings' range omitted is replayed too. No claim is made
+ * about `listing_listing`'s price predicate: it is unindexed on purpose (`search-benchmark` decides).
+ *
  * What this does NOT prove: which plan PostgreSQL picks on real, ANALYZEd data (a dozen unanalysed
  * rows say nothing about choice), nor any timing. It proves only that no clause makes the value-table
  * leg unindexable. The latency budget, 10 000 rows and planner choice without switches are
@@ -37,6 +42,7 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 final class SearchIndexUsageTest extends KernelTestCase
 {
     use BuildsTheFacetFixture;
+    use BuildsTheRangeFixture;
 
     private Connection $db;
 
@@ -178,6 +184,62 @@ final class SearchIndexUsageTest extends KernelTestCase
         $hits = $this->picked($this->recordedBrowse(), static fn (string $sql): bool => str_contains($sql, 'ORDER BY l.published_at') && str_contains($sql, 'EXISTS'));
 
         self::assertCount(1, $hits, 'The recorder did not see the hits statement with a selection, so there is nothing to replay.');
+        $plan = $this->explained($hits[0]);
+
+        self::assertFalse($this->seqScansTheValues($plan), "A Seq Scan reads listing_attribute_value.\nThe statement was:\n".$hits[0]['sql']."\nThe plan was:\n".json_encode($plan, \JSON_PRETTY_PRINT));
+        self::assertNotSame([], $this->planNodes($plan), 'The plan had no nodes: the EXPLAIN output was not read.');
+    }
+
+    /**
+     * Electric with `r[Strings][min]=1` and Brand = Gibson, recording every statement sent.
+     *
+     * @return list<array{sql: string, params: array<int, array{mixed, int}>}>
+     */
+    private function recordedRangeBrowse(): array
+    {
+        $this->buildTheRangeFixture();
+        $handler = self::getContainer()->get(BrowseListingsHandler::class);
+        self::assertInstanceOf(BrowseListingsHandler::class, $handler);
+        $pdo = $this->db->getNativeConnection();
+        self::assertInstanceOf(\PDO::class, $pdo);
+
+        QueryRecordingStatement::install($pdo);
+        try {
+            $handler(new BrowseListings(
+                $this->electric->id()->toString(),
+                [$this->brand->id()->toString() => [$this->optionIdOf($this->brand, 'Gibson')]],
+                [$this->strings->id()->toString() => ['min' => '1', 'max' => null]],
+                ['currency' => null, 'min' => null, 'max' => null],
+                1,
+            ));
+        } finally {
+            $statements = QueryRecordingStatement::uninstallWithValues($pdo);
+        }
+
+        return $statements;
+    }
+
+    public function testEveryCountStatementOfARangeBrowseCanLookUpTheAttributeInTheGenericIndex(): void
+    {
+        $counts = $this->picked($this->recordedRangeBrowse(), static fn (string $sql): bool => 1 === preg_match('/FROM listing_attribute_value v\b/', $sql));
+
+        // Unselected facets (both selections applied), then Brand's (range applied), then Strings' (range omitted).
+        self::assertCount(3, $counts, 'The recorder did not see the three count statements, so there is nothing to replay.');
+        self::assertCount(2, array_filter($counts, static fn (array $s): bool => str_contains($s['sql'], 'value_int >=')), 'Two of them carry the range; the one for Strings omits it.');
+        foreach ($counts as $statement) {
+            $plan = $this->explained($statement);
+            $message = "\nThe statement was:\n".$statement['sql']."\nThe plan was:\n".json_encode($plan, \JSON_PRETTY_PRINT);
+
+            self::assertTrue($this->looksUpAttributeIdInTheGenericIndex($plan), 'No plan node looks attribute_id up in idx_listing_attribute_value_option.'.$message);
+            self::assertFalse($this->seqScansTheValues($plan), 'A Seq Scan reads listing_attribute_value.'.$message);
+        }
+    }
+
+    public function testTheHitsStatementWithARangeNeverSeqScansTheValueTable(): void
+    {
+        $hits = $this->picked($this->recordedRangeBrowse(), static fn (string $sql): bool => str_contains($sql, 'ORDER BY l.published_at') && str_contains($sql, 'value_int >='));
+
+        self::assertCount(1, $hits, 'The recorder did not see the hits statement with a range, so there is nothing to replay.');
         $plan = $this->explained($hits[0]);
 
         self::assertFalse($this->seqScansTheValues($plan), "A Seq Scan reads listing_attribute_value.\nThe statement was:\n".$hits[0]['sql']."\nThe plan was:\n".json_encode($plan, \JSON_PRETTY_PRINT));

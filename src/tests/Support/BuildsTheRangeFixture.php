@@ -41,12 +41,12 @@ trait BuildsTheRangeFixture
         $strings = $this->strings->id()->toString();
         $fender = $this->optionIdOf($this->brand, 'Fender');
         $gibson = $this->optionIdOf($this->brand, 'Gibson');
-        $this->listingN6a = $this->rangeListing($seller, $this->electric, $this->electricValues($fender) + [$strings => '6'])->pricedAt('300.00')->published()->create()->id()->toString();
-        $this->listingN6b = $this->rangeListing($seller, $this->electric, $this->electricValues($gibson) + [$strings => '6'])->pricedAt('1200.00')->published()->create()->id()->toString();
-        $this->listingN12 = $this->rangeListing($seller, $this->electric, $this->electricValues($fender) + [$strings => '12'])->pricedAt('300.00', Currency::USD)->published()->create()->id()->toString();
-        $this->listingN0 = $this->rangeListing($seller, $this->electric, $this->electricValues($gibson))->pricedAt('300.00')->published()->create()->id()->toString();
-        $this->rangeListing($seller, $this->electric, $this->electricValues($fender) + [$strings => '7'])->create(); // Dn
-        $this->rangeListing($seller, $this->electric, $this->electricValues($fender) + [$strings => '8'])->withdrawn()->create(); // Wn
+        $this->listingN6a = $this->rangeListing($seller, $this->electric, $this->rangeElectricValues($fender) + [$strings => '6'])->pricedAt('300.00')->published()->create()->id()->toString();
+        $this->listingN6b = $this->rangeListing($seller, $this->electric, $this->rangeElectricValues($gibson) + [$strings => '6'])->pricedAt('1200.00')->published()->create()->id()->toString();
+        $this->listingN12 = $this->rangeListing($seller, $this->electric, $this->rangeElectricValues($fender) + [$strings => '12'])->pricedAt('300.00', Currency::USD)->published()->create()->id()->toString();
+        $this->listingN0 = $this->rangeListing($seller, $this->electric, $this->rangeElectricValues($gibson))->pricedAt('300.00')->published()->create()->id()->toString();
+        $this->rangeListing($seller, $this->electric, $this->rangeElectricValues($fender) + [$strings => '7'])->create(); // Dn
+        $this->rangeListing($seller, $this->electric, $this->rangeElectricValues($fender) + [$strings => '8'])->withdrawn()->create(); // Wn
         $this->listingBb = $this->rangeListing($seller, $this->bass, [$condition => $used, $this->bassStrings->id()->toString() => '5000000000'])->pricedAt('300.00', Currency::SEK)->published()->create()->id()->toString();
     }
 
@@ -61,7 +61,7 @@ trait BuildsTheRangeFixture
     /**
      * @return array<string, string>
      */
-    private function electricValues(string $brandOption): array
+    private function rangeElectricValues(string $brandOption): array
     {
         return [$this->condition->id()->toString() => $this->optionIdOf($this->condition, 'Used'), $this->brand->id()->toString() => $brandOption];
     }
