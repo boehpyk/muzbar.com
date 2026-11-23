@@ -39,7 +39,7 @@
       never skipped by `$omit`); the fallback sequence in `search()` (D7) via
       `SearchTerms::fallsBackAt()`; `textMatch` into `SearchResult`; docblock (S-16/17/18, only the two
       functions, no GUC `SET`, newest first).
-- [ ] T7: `BrowseController` — `q` shape (`is_string` or `null`, from the one `all()` read), link
+- [x] T7: `BrowseController` — `q` shape (`is_string` or `null`, from the one `all()` read), link
       carrier `q` from the surviving terms; `browse.html.twig` — `<input type="search" name="q"
       maxlength=…>` in the always-rendered form, the similar-match notice (Q7 wording).
 

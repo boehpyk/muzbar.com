@@ -21,11 +21,12 @@ use Symfony\Component\Routing\Attribute\Route;
  * THE RULES THIS CLASS KEEPS:
  * - **Shapes only, from `$request->query->all()` read once** (plan D8, search-range-facets D9). Never
  *   `all('f')`, `all('r')`, `all('price')`, `get()` or `getInt()`: each throws `BadRequestException`
- *   — a 400 — on a hostile shape (`?f=x`, `?r=x`, `?price[currency][]=EUR`, `?page[]=1`), and
- *   S-5/S-10/S-13 say a hostile filter is a 200 with fewer filters. Every *meaning* (formats, caps,
+ *   — a 400 — on a hostile shape (`?f=x`, `?r=x`, `?price[currency][]=EUR`, `?page[]=1`, `?q[]=x`),
+ *   and S-5/S-10/S-13/S-15 say a hostile filter is a 200 with fewer filters. `q` is a string or
+ *   absent; what survives of it is `SearchTerms`' call, not this class's. Every *meaning* (formats, caps,
  *   schema, currency, whole units) is the Domain's.
- * - **Links carry what survived** (AC-24): `f`, `r` and `price` are rebuilt from the resolved query,
- *   never echoed from the request.
+ * - **Links carry what survived** (AC-24): `f`, `r`, `price` and `q` are rebuilt from the resolved
+ *   query, never echoed from the request — `q` is the surviving search terms.
  * - **One 404** for a category that is unknown, malformed or not a string — one `throw`, so the
  *   bodies cannot drift (AC-21). The route has **no `requirements`**: a route-level 404 would differ.
  * - **Bounded statements** (AC-23): the handler's, plus one outline read — read **after** the
@@ -51,7 +52,7 @@ final class BrowseController extends AbstractController
                 self::filters($raw['f'] ?? null),
                 self::ranges($raw['r'] ?? null),
                 self::price($raw['price'] ?? null),
-                null, // search-full-text T7 reads `q` here
+                \is_string($raw['q'] ?? null) ? $raw['q'] : null,
                 self::page($raw['page'] ?? null),
             ));
         } catch (UnknownCategory) {
@@ -111,6 +112,7 @@ final class BrowseController extends AbstractController
             'f' => $f,
             'r' => $r,
             'price' => $price,
+            'q' => $query->text()?->toString(),
             'currencies' => Currency::cases(),
             'perPage' => $query::PER_PAGE,
             'maxPage' => $query::MAX_PAGE,
