@@ -44,7 +44,7 @@
       maxlength=…>` in the always-rendered form, the similar-match notice (Q7 wording).
 
 ## Tests (qa)
-- [ ] T8: `tests/Support/BuildsTheTextFixture` (T1–T5, Tc, Td, Tw per feature-spec §C, T4 published
+- [x] T8: `tests/Support/BuildsTheTextFixture` (T1–T5, Tc, Td, Tw per feature-spec §C, T4 published
       last) + `FullTextSearchTest` AC-9…AC-15 (AC-10's corpus through the handler).
 - [ ] T9: `SearchIndexUsageTest` AC-16 — two recorded browses (`q=stratocaster`, `q=stratocster`),
       `ANALYZE search_listing_text` inside DAMA, `Index Cond` checks (`@@`, `%>`); add
