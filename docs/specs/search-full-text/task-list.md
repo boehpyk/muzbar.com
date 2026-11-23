@@ -32,7 +32,7 @@
       + comment. **With** `SearchTextSchemaTest` (AC-6) — the table's only shape guard lands with the
       table. Record AC-8 in the commit: `doctrine:schema:update --dump-sql` empty (dev + test), and
       the flip (filter entry removed → `DROP TABLE search_listing_text`, reverted).
-- [ ] T5: `SearchTextSyncTest` (AC-7): handler-created and Foundry-created drafts get a row; revise
+- [x] T5: `SearchTextSyncTest` (AC-7): handler-created and Foundry-created drafts get a row; revise
       description / title update it; publish / withdraw leave it byte-identical; row count = listing
       count.
 - [x] T6: `PostgresSearch` — `matching($query, $omit, TextMatch)` with the two predicates (plan D9,
