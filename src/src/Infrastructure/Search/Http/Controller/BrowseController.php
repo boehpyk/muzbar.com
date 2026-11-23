@@ -51,6 +51,7 @@ final class BrowseController extends AbstractController
                 self::filters($raw['f'] ?? null),
                 self::ranges($raw['r'] ?? null),
                 self::price($raw['price'] ?? null),
+                null, // search-full-text T7 reads `q` here
                 self::page($raw['page'] ?? null),
             ));
         } catch (UnknownCategory) {

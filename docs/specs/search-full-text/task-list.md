@@ -11,18 +11,18 @@
       `DROP`s). States that it replaces ADR-0023 fence 5.
 
 ## Domain (`src/Domain/Search/`)
-- [ ] T1: `SearchTerms` — `parse()` (S-15: UTF-8 check, first 100 chars, split on
+- [x] T1: `SearchTerms` — `parse()` (S-15: UTF-8 check, first 100 chars, split on
       `[^\p{L}\p{M}\p{N}]+`, drop runs without a letter/digit, first 8, `null` when none),
       `terms()`, `toString()`, `fallsBackAt()` + constants; docblock (why PHP does not fold; why the
       parser builds the query) + `SearchTermsTest` (AC-1, AC-2, AC-3, incl. the 1 000-input fuzz
       loop).
-- [ ] T2: `TextMatch` enum; `FilterRequest::parse(…, ?string $text)` + `text()`; `FacetedQuery::text()`
+- [x] T2: `TextMatch` enum; `FilterRequest::parse(…, ?string $text)` + `text()`; `FacetedQuery::text()`
       (carried independent of the schema); `SearchResult::textMatch()`; every existing `parse()` /
       `SearchResult` call site updated mechanically; `FacetedQueryTest`/`FilterRequestTest` (AC-4).
       `SearchPort` docblock (S-17, S-18, newest first with text).
 
 ## Application (`src/Application/Search/`)
-- [ ] T3: `BrowseListings` gains `?string $text` (required); handler passes it to `parse()`. Lands
+- [x] T3: `BrowseListings` gains `?string $text` (required); handler passes it to `parse()`. Lands
       **with** T7 (the controller is a call site) or with the controller passing `null` until T7.
 
 ## Infrastructure

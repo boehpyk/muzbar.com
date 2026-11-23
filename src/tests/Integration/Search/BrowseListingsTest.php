@@ -70,7 +70,7 @@ final class BrowseListingsTest extends KernelTestCase
         $handler = self::getContainer()->get(BrowseListingsHandler::class);
         self::assertInstanceOf(BrowseListingsHandler::class, $handler);
 
-        return $handler(new BrowseListings($category, $filters, [], ['currency' => null, 'min' => null, 'max' => null], $page));
+        return $handler(new BrowseListings($category, $filters, [], ['currency' => null, 'min' => null, 'max' => null], null, $page));
     }
 
     /**
