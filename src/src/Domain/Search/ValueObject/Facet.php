@@ -48,6 +48,7 @@ final readonly class Facet
         $buckets = match ($attribute->kind()) {
             FacetKind::Choice => self::choiceBuckets($counts, $labels, $selection, $query->facets()),
             FacetKind::Boolean => self::booleanBuckets($counts, $selection),
+            FacetKind::Number => throw new \LogicException(\sprintf('Attribute "%s" is a number facet: build it with RangeFacet::of().', $attribute->attributeId()->toString())),
         };
 
         return [] === $buckets ? null : new self($attribute, $buckets);

@@ -12,9 +12,19 @@ namespace App\Domain\Search\ValueObject;
  *
  * - **S-5, second half:** a selection survives only for a facet in the schema, keeping only values
  *   that are buckets of **that** facet — an active option of that attribute for a choice, `yes`/`no`
- *   for a boolean. Everything else is dropped, silently; a selection left empty is dropped whole.
- *   With no category the schema is `none()`, so every selection is dropped.
+ *   for a boolean. Values on a number facet are dropped. Everything else is dropped, silently; a
+ *   selection left empty is dropped whole. With no category the schema is `none()`, so every
+ *   selection is dropped.
+ * - **S-10:** a range survives only on a **number** facet in the schema; on any other kind, or an
+ *   attribute not in the schema, it is dropped. Nothing clamps it: the schema carries no `NumberRules`
+ *   bounds, on purpose (S-12) — a stored value outside today's rules stays findable.
  * - **S-8:** the page is clamped to `1 … MAX_PAGE`; `PER_PAGE` hits per page.
+ *
+ * At most one selection per attribute, by construction: values survive only on choice/boolean facets,
+ * ranges only on number facets, and `FilterRequest` keeps one range per attribute.
+ *
+ * The price filter (S-13) is carried through **independently of the schema**: it is no facet's
+ * selection, so it survives with no category at all.
  */
 final readonly class FacetedQuery
 {
@@ -30,6 +40,7 @@ final readonly class FacetedQuery
         private ?CategoryId $category,
         private array $selections,
         private FacetSchema $facets,
+        private ?PriceRange $price,
         private int $page,
     ) {
     }
@@ -52,14 +63,21 @@ final readonly class FacetedQuery
                     static fn (OptionId|bool $v): bool => $v instanceof OptionId && $schema->optionBelongsTo($v, $attribute),
                 )),
                 FacetKind::Boolean => array_values(array_filter($entry['values'], \is_bool(...))),
+                FacetKind::Number => [],
             };
 
             if ([] !== $values) {
-                $selections[] = new Selection($attribute, $facet->kind(), $values);
+                $selections[] = Selection::ofValues($attribute, $facet->kind(), $values);
             }
         }
 
-        return new self($category, $selections, $schema, max(1, min(self::MAX_PAGE, $page)));
+        foreach ($request->requestedRanges() as $entry) {
+            if (FacetKind::Number === $schema->facet($entry['attribute'])?->kind()) {
+                $selections[] = Selection::ofRange($entry['attribute'], $entry['range']);
+            }
+        }
+
+        return new self($category, $selections, $schema, $request->price(), max(1, min(self::MAX_PAGE, $page)));
     }
 
     public function category(): ?CategoryId
@@ -67,7 +85,7 @@ final readonly class FacetedQuery
         return $this->category;
     }
 
-    /** @return list<Selection> in request order */
+    /** @return list<Selection> value selections in request order, then range selections in request order */
     public function selections(): array
     {
         return $this->selections;
@@ -87,6 +105,12 @@ final readonly class FacetedQuery
     public function facets(): FacetSchema
     {
         return $this->facets;
+    }
+
+    /** The price filter (S-13) — whatever the category, or none. */
+    public function price(): ?PriceRange
+    {
+        return $this->price;
     }
 
     public function page(): int
