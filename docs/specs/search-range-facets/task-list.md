@@ -22,7 +22,7 @@
       and why).
 
 ## Domain (`src/Domain/Search/`)
-- [ ] T2: `NumberRange::of()` (null when empty, swap when inverted) + `NumberRangeTest` (AC-3).
+- [x] T2: `NumberRange::of()` (null when empty, swap when inverted) + `NumberRangeTest` (AC-3).
 - [ ] T3: Search-local `Currency` enum — **three codes**, `minorUnits()` — + `PriceRange` +
       `CurrencyMirrorTest` (AC-5) + `PriceRangeTest` (AC-4).
 - [ ] T4: `FilterRequest::parse($values, $ranges, $price)` — bound/price formats, blank = absent,
