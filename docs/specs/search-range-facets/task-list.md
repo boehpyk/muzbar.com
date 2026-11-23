@@ -51,7 +51,7 @@
 - [x] T10: `tests/Support/BuildsTheRangeFixture` + `BrowseListingsTest` AC-8…AC-18 (verify plan
       Risk 6, the int64 bind, first).
 - [x] T11: `SearchIndexUsageTest` AC-19 (recorded browse with a range and a choice selection).
-- [ ] T12: `BrowsePageTest` AC-20…AC-24; amend the no-category test (form with price only) and say
+- [x] T12: `BrowsePageTest` AC-20…AC-24; amend the no-category test (form with price only) and say
       so in the commit message.
 - [ ] T13: Mutation proof — AC-25 (a)…(w), each applied, run, reverted; catcher recorded in the
       commit message. `make test` twice; `php -d zend.assertions=-1 vendor/bin/phpunit` (AC-27).
