@@ -58,7 +58,7 @@ final class FacetedQueryTest extends TestCase
     {
         return FacetedQuery::resolve(
             CategoryId::fromString(self::CATEGORY),
-            FilterRequest::parse($filters),
+            FilterRequest::parse($filters, [], ['currency' => null, 'min' => null, 'max' => null]),
             $schema ?? $this->schema(),
             $page,
         );
@@ -140,7 +140,7 @@ final class FacetedQueryTest extends TestCase
 
     public function testWithNoCategoryTheSchemaIsEmptyAndEverySelectionIsDropped(): void
     {
-        $request = FilterRequest::parse([self::BRAND => [self::FENDER], self::HAS_CASE => ['yes']]);
+        $request = FilterRequest::parse([self::BRAND => [self::FENDER], self::HAS_CASE => ['yes']], [], ['currency' => null, 'min' => null, 'max' => null]);
 
         $query = FacetedQuery::resolve(null, $request, FacetSchema::none(), 1);
 

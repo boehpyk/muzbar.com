@@ -25,7 +25,7 @@
 - [x] T2: `NumberRange::of()` (null when empty, swap when inverted) + `NumberRangeTest` (AC-3).
 - [x] T3: Search-local `Currency` enum — **three codes**, `minorUnits()` — + `PriceRange` +
       `CurrencyMirrorTest` (AC-5) + `PriceRangeTest` (AC-4).
-- [ ] T4: `FilterRequest::parse($values, $ranges, $price)` — bound/price formats, blank = absent,
+- [x] T4: `FilterRequest::parse($values, $ranges, $price)` — bound/price formats, blank = absent,
       shared cap, `requestedRanges()`, `price()`; update the 18 existing call sites; extend
       `FilterRequestTest` (AC-1).
 - [ ] T5: `FacetKind::Number`; `FacetAttribute` gains `?unit`; `Selection` range form;
