@@ -65,14 +65,14 @@
 - [x] T13: ADR-0023 amendment (fence 5 → ADR-0025; S-17 in the fragment; the new scans; the trigger
       watch item); ADR-0002 amendment (*too few* = none; RRF trigger; `simple`; the sanitizer's two
       halves).
-- [ ] T14: `docs/infrastructure.md` §*Search: full-text — pre/post-deploy* (AC-22: the two box
+- [x] T14: `docs/infrastructure.md` §*Search: full-text — pre/post-deploy* (AC-22: the two box
       queries **run and logged before** the deploy, the post-deploy count, the rebuild statement and
       when; the restore-rehearsal note). CLAUDE.md — status paragraph; Search footguns: the trigger
       watch item (rename of `title`/`description`), `search_listing_text` invisible to Doctrine
       (AC-6 is its only shape guard), never `to_tsquery` on anything user-derived (the `ʼ` → `'`
       measurement), never `SET pg_trgm.*` per request, PHP never folds, the backfill/rebuild is
       `UPDATE … SET title = title`. Roadmap item 3 ticked with a "Shipped:" note.
-- [ ] T15: `FORboehpyk.md` chapter — the derived value Doctrine cannot see; the letter that became an
+- [x] T15: `FORboehpyk.md` chapter — the derived value Doctrine cannot see; the letter that became an
       operator; filter vs ranker (and why that deletes RRF); bugs hit.
 
 ## Verify

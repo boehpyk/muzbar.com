@@ -409,12 +409,19 @@ launch is not a Phase 2 item.
         minor units in the Domain; Search-local `Currency` mirror + `CurrencyMirrorTest`. `UAH` left
         Listing's allow-list (owner), sell default `EUR`, pre-deploy row check. All 23 AC-25
         mutations bit; 2158 tests. ADR-0024 + ADR-0019/0023 amendments.
-  - [ ] 3. `search-full-text` — FTS + `pg_trgm` on title/description (ADR-0002): `unaccent` on
+  - [x] 3. `search-full-text` — FTS + `pg_trgm` on title/description (ADR-0002): `unaccent` on
         **both** sides via one SQL function used by the write and the read, the **tsquery sanitizer**
         (strips every operator, `:*` on the last token only — security-critical, Constitution §8),
         trigram fallback only when FTS returns too few rows, RRF if ranks combine. Migration adds the
         extensions — `muzbar_test` and the box both, so check the `postgres:16-alpine` contrib set and
         the migration role's rights before planning.
+        **Shipped:** `q` on `/browse` — a Search-owned `search_listing_text` kept by a trigger on
+        `listing_listing` (ADR-0025, replaces ADR-0023 fence 5), one fold (`search_fold()`) for write
+        and read, the query built by `plainto_tsquery` inside `search_tsquery()` (a PHP-sanitize-then-
+        `to_tsquery` design was measured injectable: `unaccent` turns `ʼ` into `'`), `simple`,
+        trigram on the title only when the exact match finds nothing, newest first, no RRF. All 21
+        AC-21 mutations bit (two after strengthening); 2323 tests. ADR-0025 + ADR-0002/0009/0023
+        amendments.
   - [ ] 4. `search-benchmark` — **taken early on purpose**, before any UI is built on the query: a
         seeding command (10k+ listings over a realistic tree and Brand-sized option lists), `ANALYZE`,
         `EXPLAIN` without planner switches (carry-over 3), and a 50-concurrent load run. **Index tuning

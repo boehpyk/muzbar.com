@@ -460,6 +460,52 @@ docker compose exec app php bin/console dbal:run-sql "WITH RECURSIVE tree (id, r
 
 Zero rows → A still holds. Any row → that top-level category (by id) has met the trigger.
 
+## Search: full-text — pre/post-deploy (`search-full-text`)
+
+[ADR-0025](./adr/0025-full-text-search-trigger-maintained-text-table-parser-built-query.md). The
+migration runs `CREATE EXTENSION unaccent` and `CREATE EXTENSION pg_trgm`, adds `search_fold()`,
+`search_tsquery()`, the `search_listing_text` table and the trigger `trg_search_listing_text` on
+`listing_listing`, and fills the table for every existing listing. Doctrine sees none of it.
+
+**Before the first deploy of this slice**, on the box (hand-run compose needs `MUZBAR_IMAGE`):
+
+```bash
+docker compose exec app php bin/console dbal:run-sql "SELECT name FROM pg_available_extensions WHERE name IN ('unaccent','pg_trgm')"
+docker compose exec app php bin/console dbal:run-sql "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
+```
+
+- **Both names, and `t` → deploy.** If `rolsuper` is `f`, the role still needs `CREATE` on the
+  database (both extensions are *trusted*); without it the migration fails and the deploy stops
+  before switching.
+
+**After the deploy** — every listing has a text row:
+
+```bash
+docker compose exec app php bin/console dbal:run-sql "SELECT count(*) FROM listing_listing l WHERE NOT EXISTS (SELECT 1 FROM search_listing_text t WHERE t.listing_id = l.id)"
+```
+
+`0` → done. Non-zero → run the rebuild below and check again.
+
+**Rebuild** (re-runs the trigger for every row; the backfill is the same statement):
+
+```bash
+docker compose exec app php bin/console dbal:run-sql "UPDATE listing_listing SET title = title"
+```
+
+Run it after a **PostgreSQL major upgrade** (the `unaccent` rules may change) and after any change
+to `search_fold()`, `search_tsquery()` or the text search configuration. It takes a row lock on
+every listing for the length of the statement.
+
+**Restore:** `pg_dump -Fc` includes the extensions, functions and trigger; the functions call
+`public.unaccent` / `public.search_fold` schema-qualified so they work under `pg_restore`'s empty
+`search_path`. Check the "after" query on the next restore rehearsal.
+
+Result log (fill in **before** the deploy, and the after-count right after it):
+
+| Date | Extensions | rolsuper | Missing text rows after |
+|---|---|---|---|
+| | | | |
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker

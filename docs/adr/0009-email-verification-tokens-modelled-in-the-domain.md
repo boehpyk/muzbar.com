@@ -278,3 +278,13 @@ nine times.
 alternative, deferred there as "its own slice" — this is that slice, and it shares *code*, not a
 type, so decision 2 (each context its own id classes) stands; and ADR-0020's and ADR-0021's "eleven
 copies" consequences.
+
+## Amendment, 2026-11-23 — one foreign key, and it is not between aggregates
+
+`search-full-text` ([ADR-0025](./0025-full-text-search-trigger-maintained-text-table-parser-built-query.md))
+adds `search_listing_text.listing_id REFERENCES listing_listing (id) ON DELETE CASCADE`. Decision 4
+("no database foreign key between aggregates") is **unchanged**: `search_listing_text` is not an
+aggregate but a row the database derives from one listing, written only by a trigger. The cascade
+means the derivation dies with its source. Decision 4's re-diff concern does not apply, because
+`schema_filter` hides the referencing table from Doctrine (AC-8: `doctrine:schema:update` reports
+nothing). `ListingSchemaTest` now admits exactly this one FK and no other.
