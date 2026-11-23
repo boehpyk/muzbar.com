@@ -9,6 +9,7 @@ use App\Domain\Catalog\ValueObject\CategorySlug;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
 use App\Tests\Factory\ListingFactory;
+use App\Tests\Factory\UserFactory;
 use App\Tests\Fixture\QueryRecordingStatement;
 use App\Tests\Support\BuildsTheFacetFixture;
 use App\Tests\Support\ReadsListingPages;
@@ -507,5 +508,225 @@ final class BrowsePageTest extends WebTestCase
         foreach ($atInstruments->filter('a')->each(static fn (Crawler $a): string => (string) $a->attr('href')) as $href) {
             self::assertArrayNotHasKey('f', $this->queryOf($href), 'A link on the page still carries the dropped selection: '.$href);
         }
+    }
+
+    // ---------------------------------------------------------------- search-full-text helpers
+
+    /**
+     * Publishes `$count` listings called `$title` on Electric under Brand = Fender (search-full-text's
+     * pages need titles the lifted fixture does not have; adding them in `setUp()` would move every
+     * older count).
+     */
+    private function publishTitled(string $title, int $count = 1): void
+    {
+        $seller = UserFactory::createOne();
+        for ($i = 0; $i < $count; ++$i) {
+            $this->listingOf($seller, $this->electric, $this->electricValues($this->optionIdOf($this->brand, 'Fender')))->titled($title)->published()->create();
+        }
+    }
+
+    /**
+     * @param list<string> $sql
+     *
+     * @return list<string> the statements that read the text index
+     */
+    private function textStatements(array $sql): array
+    {
+        return array_values(array_filter($sql, static fn (string $q): bool => str_contains($q, 'search_listing_text')));
+    }
+
+    /**
+     * @param list<string> $sql
+     */
+    private function assertOnlyTheTwoFunctions(array $sql): void
+    {
+        $this->assertNoWrite($sql);
+        foreach ($sql as $query) {
+            self::assertStringNotContainsString('seller_id', $query);
+            self::assertSame(0, preg_match('/(?:to_tsquery|plainto_tsquery|websearch_to_tsquery|phraseto_tsquery|unaccent)\s*\(/i', $query), 'A query function the adapter must not call: '.$query);
+        }
+        foreach ($this->textStatements($sql) as $query) {
+            self::assertSame(1, preg_match('/search_(?:tsquery|fold)\(/', $query), 'A statement on the text index without search_tsquery()/search_fold(): '.$query);
+        }
+    }
+
+    // ---------------------------------------------------------------- AC-17 (search-full-text)
+
+    public function testTheSearchBoxIsOneSearchInputInTheGetFormWithAndWithoutACategory(): void
+    {
+        foreach ([[], ['category' => $this->guitars->id()->toString()]] as $query) {
+            $page = $this->client->request('GET', $this->browseUrl($query));
+
+            self::assertResponseStatusCodeSame(200);
+            $input = $page->filter('form[method="get"][action="/browse"] input[type="search"][name="q"]');
+            self::assertCount(1, $input);
+            self::assertSame('100', $input->attr('maxlength'));
+            self::assertSame('', $input->attr('value'));
+        }
+    }
+
+    public function testTheSearchBoxShowsTheSurvivingTermsNotWhatWasTyped(): void
+    {
+        $page = $this->client->request('GET', '/browse?q='.rawurlencode('fender & strat:*'));
+
+        self::assertSame('fender strat', $page->filter('input[type="search"][name="q"]')->attr('value'));
+    }
+
+    public function testASimilarPageSaysSoWithTheTermsAndAnExactPageDoesNot(): void
+    {
+        $this->publishTitled('Fender Stratocaster 1962');
+
+        $similar = $this->client->request('GET', $this->browseUrl(['q' => 'stratocster']));
+        self::assertCount(1, $similar->filter('p.search-similar'));
+        $notice = $similar->filter('p.search-similar')->text();
+        self::assertStringContainsString('stratocster', $notice);
+        self::assertStringContainsString('similar titles', $notice);
+        self::assertSame(1, $similar->filter('li.search-hit')->count(), 'The typo finds the one stratocaster.');
+
+        $exact = $this->client->request('GET', $this->browseUrl(['q' => 'stratocaster']));
+        self::assertCount(0, $exact->filter('.search-similar'));
+        self::assertSame(1, $exact->filter('li.search-hit')->count());
+
+        $none = $this->client->request('GET', $this->browseUrl([]));
+        self::assertCount(0, $none->filter('.search-similar'));
+    }
+
+    // ---------------------------------------------------------------- AC-18 (search-full-text)
+
+    /**
+     * @return array<string, array{string}> raw query strings
+     */
+    public static function hostileSearchTexts(): array
+    {
+        $texts = ['ʼfoo', 'fooː1', 'x ː y', 'ŉ x¼', "a & b | !c <-> (d):* 'e' \\f", "'", '\\', "''''", ':*', 'fender:*A', '!fender', 'fender | gibson', str_repeat('x', 10000)];
+        $cases = [
+            'array' => ['q[]=x'],
+            'keyed array' => ['q[a]=x'],
+            'NUL' => ['q=%00'],
+            'invalid UTF-8' => ['q=%C3%28'],
+            'modifier letter apostrophe' => ['q=%CA%BCfoo'],
+            'blank' => ['q='],
+            '100 000 bytes' => ['q='.str_repeat('a', 100000)],
+        ];
+        foreach ($texts as $i => $text) {
+            $cases['text #'.$i] = ['q='.rawurlencode($text)];
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('hostileSearchTexts')]
+    public function testAHostileSearchTextIsAnOrdinary200(string $query): void
+    {
+        $this->client->request('GET', '/browse?'.$query);
+        self::assertResponseStatusCodeSame(200);
+
+        $this->client->request('GET', '/browse?category='.$this->guitars->id()->toString().'&'.$query);
+        self::assertResponseStatusCodeSame(200);
+    }
+
+    public function testABlankSearchTextBehavesAsIfItWasNotThere(): void
+    {
+        $filter = 'f['.$this->brandId().'][]='.$this->optionIdOf($this->brand, 'Gibson');
+        $category = 'category='.$this->guitars->id()->toString();
+
+        $with = $this->mainOf($this->client->request('GET', '/browse?q=&'.$category.'&'.$filter));
+        $without = $this->mainOf($this->client->request('GET', '/browse?'.$category.'&'.$filter));
+
+        self::assertSame($without, $with);
+    }
+
+    // ---------------------------------------------------------------- AC-19 (search-full-text)
+
+    public function testAnExactTextBrowseSendsAtMostFivePlusKStatementsAndOnlyReadsWithTheTwoFunctions(): void
+    {
+        $this->publishTitled('Fender Stratocaster 1962');
+        $category = $this->guitars->id()->toString();
+        $fender = [$this->brandId() => [$this->optionIdOf($this->brand, 'Fender')]];
+
+        foreach ([[0, ['category' => $category, 'q' => 'stratocaster']], [1, ['category' => $category, 'q' => 'stratocaster', 'f' => $fender]]] as [$k, $query]) {
+            $sql = $this->recordedGet($this->browseUrl($query));
+
+            self::assertResponseStatusCodeSame(200);
+            self::assertCount(0, $this->client->getCrawler()->filter('.search-similar'), 'Control: this must be the exact path.');
+            self::assertNotSame([], $this->textStatements($sql), 'The recorder saw no statement on the text index, so the bound proves nothing.');
+            self::assertLessThanOrEqual(5 + $k, \count($sql), "k = $k, statements:\n".implode("\n", $sql));
+            $this->assertOnlyTheTwoFunctions($sql);
+        }
+    }
+
+    public function testASimilarTextBrowseSendsAtMostSixPlusKStatements(): void
+    {
+        $this->publishTitled('Fender Stratocaster 1962');
+        $category = $this->guitars->id()->toString();
+        $fender = [$this->brandId() => [$this->optionIdOf($this->brand, 'Fender')]];
+
+        foreach ([[0, ['category' => $category, 'q' => 'stratocster']], [1, ['category' => $category, 'q' => 'stratocster', 'f' => $fender]]] as [$k, $query]) {
+            $sql = $this->recordedGet($this->browseUrl($query));
+
+            self::assertResponseStatusCodeSame(200);
+            self::assertCount(1, $this->client->getCrawler()->filter('.search-similar'), 'Control: this must be the similar path.');
+            self::assertLessThanOrEqual(6 + $k, \count($sql), "k = $k, statements:\n".implode("\n", $sql));
+            $this->assertOnlyTheTwoFunctions($sql);
+        }
+    }
+
+    public function testATextBrowseWithoutACategorySendsAtMostThreeStatementsExactAndFourSimilar(): void
+    {
+        $this->publishTitled('Fender Stratocaster 1962');
+
+        $exact = $this->recordedGet($this->browseUrl(['q' => 'stratocaster']));
+        self::assertCount(0, $this->client->getCrawler()->filter('.search-similar'));
+        self::assertNotSame([], $this->textStatements($exact));
+        self::assertLessThanOrEqual(3, \count($exact), "Statements:\n".implode("\n", $exact));
+        $this->assertOnlyTheTwoFunctions($exact);
+
+        $similar = $this->recordedGet($this->browseUrl(['q' => 'stratocster']));
+        self::assertCount(1, $this->client->getCrawler()->filter('.search-similar'));
+        self::assertLessThanOrEqual(4, \count($similar), "Statements:\n".implode("\n", $similar));
+        $this->assertOnlyTheTwoFunctions($similar);
+    }
+
+    // ---------------------------------------------------------------- AC-20 (search-full-text)
+
+    public function testEveryLinkCarriesTheSurvivingTermsAndClearFiltersDropsThem(): void
+    {
+        $this->publishTitled('Fender Stratocaster 1962', 21);
+        $category = $this->guitars->id()->toString();
+
+        $page = $this->client->request('GET', $this->browseUrl(['category' => $category, 'q' => 'Fender: Strat!']));
+        self::assertResponseStatusCodeSame(200);
+        self::assertSame(20, $page->filter('li.search-hit')->count(), 'Control: 20 per page, so the pager shows.');
+
+        $hrefs = $page->filter('nav.search-breadcrumb a, ul.search-categories a, nav.search-pager a')->each(static fn (Crawler $a): string => (string) $a->attr('href'));
+        self::assertGreaterThanOrEqual(4, \count($hrefs), 'All-categories and Instruments and Guitars crumbs, Electric, and Next.');
+        foreach ($hrefs as $href) {
+            self::assertSame('Fender Strat', $this->queryOf($href)['q'] ?? null, 'A link lost the search terms (or echoed the raw text): '.$href);
+        }
+
+        $next = $page->filter('nav.search-pager a[rel="next"]');
+        self::assertCount(1, $next);
+        $second = $this->client->click($next->link());
+        $previous = $second->filter('nav.search-pager a[rel="prev"]');
+        self::assertCount(1, $previous);
+        self::assertSame('Fender Strat', $this->queryOf((string) $previous->attr('href'))['q'] ?? null);
+
+        $clear = $page->filter('form.search-facets a')->reduce(static fn (Crawler $a): bool => 'Clear filters' === trim($a->text()));
+        self::assertSame($this->browseUrl(['category' => $category]), $clear->attr('href'));
+    }
+
+    public function testACategoryLinkFromASimilarPageDecidesTheMatchAgainForTheNewCategory(): void
+    {
+        $this->publishTitled('Fender Stratocaster 1962');
+
+        $atBass = $this->client->request('GET', $this->browseUrl(['category' => $this->bass->id()->toString(), 'q' => 'stratocaster']));
+        self::assertCount(1, $atBass->filter('.search-similar'), 'Control: nothing exact at Bass.');
+
+        $toInstruments = $atBass->filter('nav.search-breadcrumb a')->reduce(static fn (Crawler $a): bool => 'Instruments' === trim($a->text()));
+        self::assertSame(['category' => $this->instruments->id()->toString(), 'q' => 'stratocaster'], $this->queryOf((string) $toInstruments->attr('href')), 'Only the terms travel; no match mode.');
+        $atInstruments = $this->client->click($toInstruments->link());
+
+        self::assertCount(0, $atInstruments->filter('.search-similar'));
+        self::assertSame(1, $atInstruments->filter('li.search-hit')->count());
     }
 }

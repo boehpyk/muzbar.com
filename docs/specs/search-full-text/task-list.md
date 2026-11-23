@@ -50,7 +50,7 @@
       `ANALYZE search_listing_text` inside DAMA, `Index Cond` checks (`@@`, `%>`); add
       `enable_indexscan = off` to the trigram replay only if the planner picks a full pkey scan, and
       say why in the docblock.
-- [ ] T10: `BrowsePageTest` AC-17…AC-20 (`QueryRecordingStatement` for AC-19's statement count and
+- [x] T10: `BrowsePageTest` AC-17…AC-20 (`QueryRecordingStatement` for AC-19's statement count and
       function-name assertions).
 - [ ] T11: `SearchIsolationTest` — fail on `to_tsquery(`, `plainto_tsquery(`, `websearch_to_tsquery(`,
       `phraseto_tsquery(`, `unaccent(` in `Infrastructure/Search` code (comments stripped), with a
