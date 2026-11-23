@@ -35,7 +35,7 @@
 - [ ] T5: `SearchTextSyncTest` (AC-7): handler-created and Foundry-created drafts get a row; revise
       description / title update it; publish / withdraw leave it byte-identical; row count = listing
       count.
-- [ ] T6: `PostgresSearch` — `matching($query, $omit, TextMatch)` with the two predicates (plan D9,
+- [x] T6: `PostgresSearch` — `matching($query, $omit, TextMatch)` with the two predicates (plan D9,
       never skipped by `$omit`); the fallback sequence in `search()` (D7) via
       `SearchTerms::fallsBackAt()`; `textMatch` into `SearchResult`; docblock (S-16/17/18, only the two
       functions, no GUC `SET`, newest first).
