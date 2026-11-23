@@ -52,7 +52,7 @@
       say why in the docblock.
 - [x] T10: `BrowsePageTest` AC-17…AC-20 (`QueryRecordingStatement` for AC-19's statement count and
       function-name assertions).
-- [ ] T11: `SearchIsolationTest` — fail on `to_tsquery(`, `plainto_tsquery(`, `websearch_to_tsquery(`,
+- [x] T11: `SearchIsolationTest` — fail on `to_tsquery(`, `plainto_tsquery(`, `websearch_to_tsquery(`,
       `phraseto_tsquery(`, `unaccent(` in `Infrastructure/Search` code (comments stripped), with a
       self-test that the pattern bites; `search_listing_text` named only under `Infrastructure/Search`
       (asserting the scan found it at all, so it cannot pass vacuously).
