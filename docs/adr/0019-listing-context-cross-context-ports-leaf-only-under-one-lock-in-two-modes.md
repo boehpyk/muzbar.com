@@ -293,3 +293,23 @@ Recorded by the `listing-publish` slice ([ADR-0021](./0021-listing-lifecycle-in-
 2. **The "crossings" count stops at five.** Search's joined reads are the rule ADR-0023 states, not a
    sixth bend of this one. A new UI read of another context's read model is still a crossing and is
    still recorded here.
+
+## Amendment, 2026-11-23 — decision 7's allow-list narrows to three codes; no database guard
+
+1. **`Currency` is `USD`, `EUR`, `SEK`** (owner, 2026-11-23 — `UAH` removed, "we'll add other
+   currencies later"; `search-range-facets` D12). The sell form defaults to `EUR`. The promise of
+   decision 7 holds the other way round: **re-adding a code is a code change and a test, never a
+   migration** — now in two enums, Listing's and Search's mirror (`CurrencyMirrorTest`,
+   [ADR-0024](./0024-price-is-compared-only-within-one-currency.md)).
+2. **Removing a code is a data question before it is a code question.** `price_currency` maps to the
+   enum, so a stored row naming a removed code no longer hydrates — a 500 on its page, its seller's
+   list and every `/browse` page showing it. The guard is a **one-off pre-deploy query**
+   (`docs/infrastructure.md` §*Listing: one-off pre-deploy check for `search-range-facets`*), run and
+   logged before the deploy; non-zero → the owner re-prices or deletes first.
+3. **No database guard** (no CHECK, no Postgres enum type): pre-launch, the pre-deploy query covers
+   the one moment such rows could exist, and a CHECK would turn "re-adding a currency is never a
+   migration" into a migration every time. The Domain enum stays the only allow-list; the column
+   stays `varchar(3)`.
+4. **Consequences, "cross-currency comparison is undecided"** — answered by
+   [ADR-0024](./0024-price-is-compared-only-within-one-currency.md): a price filter is one currency,
+   no conversion. "Nothing filters on price" is no longer true; "nothing sorts" still is.

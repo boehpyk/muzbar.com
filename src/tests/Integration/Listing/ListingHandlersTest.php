@@ -107,7 +107,7 @@ final class ListingHandlersTest extends KernelTestCase
         return ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision V', '', $price, $currency));
     }
 
-    private function revision(ListingId $id, string $by, string $category, string $title = 'Changed title', string $price = '99', string $currency = 'UAH'): ReviseListing
+    private function revision(ListingId $id, string $by, string $category, string $title = 'Changed title', string $price = '99', string $currency = 'SEK'): ReviseListing
     {
         return new ReviseListing($id->toString(), $by, $category, $title, 'Changed', $price, $currency, [], false);
     }
@@ -171,7 +171,7 @@ final class ListingHandlersTest extends KernelTestCase
         $listing = $repository->get($id);
         self::assertSame('Changed title', $listing->title()->toString());
         self::assertSame(9900, $listing->price()->amountInMinorUnits());
-        self::assertSame(Currency::UAH, $listing->price()->currency());
+        self::assertSame(Currency::SEK, $listing->price()->currency());
         self::assertSame($this->bass->id()->toString(), $listing->categoryId()->toString());
         self::assertSame($this->ann, $listing->sellerId()->toString());
     }
@@ -221,7 +221,7 @@ final class ListingHandlersTest extends KernelTestCase
         $before = $this->table();
 
         try {
-            ($this->revise)(new ReviseListing(Uuid::v7()->toRfc4122(), $this->ann, $this->bass->id()->toString(), 'Changed title', '', '99', 'UAH', [], false));
+            ($this->revise)(new ReviseListing(Uuid::v7()->toRfc4122(), $this->ann, $this->bass->id()->toString(), 'Changed title', '', '99', 'SEK', [], false));
             self::fail('Expected ListingNotFound.');
         } catch (ListingNotFound) {
             self::assertSame($before, $this->table());
@@ -232,7 +232,7 @@ final class ListingHandlersTest extends KernelTestCase
     {
         $this->expectException(ListingNotFound::class);
 
-        ($this->revise)(new ReviseListing('not-a-uuid', $this->ann, $this->bass->id()->toString(), 'Changed title', '', '99', 'UAH', [], false));
+        ($this->revise)(new ReviseListing('not-a-uuid', $this->ann, $this->bass->id()->toString(), 'Changed title', '', '99', 'SEK', [], false));
     }
 
     public function testAnInvalidPriceOnReviseLeavesTheRowUnchanged(): void
@@ -243,6 +243,19 @@ final class ListingHandlersTest extends KernelTestCase
         try {
             ($this->revise)($this->revision($id, $this->ann, $this->bass->id()->toString(), price: '1.234'));
             self::fail('Expected InvalidPrice.');
+        } catch (InvalidPrice) {
+            self::assertSame($before, $this->table());
+        }
+    }
+
+    public function testRevisingWithTheRemovedUahIsInvalidPriceAndLeavesTheRowUnchanged(): void
+    {
+        $id = $this->draftOnElectric();
+        $before = $this->table();
+
+        try {
+            ($this->revise)($this->revision($id, $this->ann, $this->bass->id()->toString(), currency: 'UAH'));
+            self::fail('Expected InvalidPrice for UAH (AC-28).');
         } catch (InvalidPrice) {
             self::assertSame($before, $this->table());
         }
@@ -264,7 +277,7 @@ final class ListingHandlersTest extends KernelTestCase
      */
     private function reviseDetails(ListingId $id, string $by, string $category, array $attributes, string $title = 'Changed title', string $price = '99'): void
     {
-        ($this->revise)(new ReviseListing($id->toString(), $by, $category, $title, 'Changed', $price, 'UAH', $attributes, false));
+        ($this->revise)(new ReviseListing($id->toString(), $by, $category, $title, 'Changed', $price, 'SEK', $attributes, false));
     }
 
     /**

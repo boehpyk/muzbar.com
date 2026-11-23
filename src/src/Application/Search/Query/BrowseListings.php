@@ -12,12 +12,16 @@ namespace App\Application\Search\Query;
 final readonly class BrowseListings
 {
     /**
-     * @param ?string                     $category a category id as typed in the URL, null for none
-     * @param array<string, list<string>> $filters  `f[<attribute id>][]=<option id|yes|no>`
+     * @param ?string                                              $category a category id as typed in the URL, null for none
+     * @param array<string, list<string>>                          $filters  `f[<attribute id>][]=<option id|yes|no>`
+     * @param array<string, array{min: ?string, max: ?string}>     $ranges   `r[<attribute id>][min|max]=<whole number>`
+     * @param array{currency: ?string, min: ?string, max: ?string} $price    `price[currency|min|max]`, bounds in whole units
      */
     public function __construct(
         public ?string $category,
         public array $filters,
+        public array $ranges,
+        public array $price,
         public int $page,
     ) {
     }

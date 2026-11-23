@@ -178,7 +178,20 @@ Docker Compose · Traefik · Nginx.
 > `BrowseListingsTest`/`SearchIndexUsageTest`. All seventeen AC-25 mutations bit — (l) `SELECT l.*`
 > only after a select-star scan was added. 2019 tests.
 > [ADR-0023](./docs/adr/0023-search-is-a-read-only-projection-over-catalog-and-listing-tables.md)
-> + ADR-0002/0004/0019 amendments. Next: `/verify search-browse`, then `search-range-facets` (2).
+> + ADR-0002/0004/0019 amendments.
+> `search-range-facets` (2026-11-23, **passed `/verify` 2026-11-23 first time** — 1 MINOR fixed anyway: `max="9999999"` on the price inputs) — Search 2 of 15: **number facets** (unit, count, observed
+> range — disjunctive, folded into the **existing** count statement) and `r[<id>][min|max]` ranges
+> (`NumberRange`: never empty, swapped when inverted). **S-12 — a write rule is not a read rule:**
+> `NumberRules` bounds never clamp a read, or narrowing them would hide stored values (retroactivity
+> through the back door). **Price is compared only within one chosen currency** (ADR-0024, option A —
+> `Price` has no cross-currency order, so neither does Search); whole units → minor units in the
+> Domain (`PriceRange::inWholeUnits()`), bounds without a currency dropped. Search holds a
+> `Currency` **mirror** of Listing's, pinned by `CurrencyMirrorTest`. **`UAH` left Listing's
+> allow-list** (owner): sell default `EUR`, and a one-off **pre-deploy row check** (docs/infrastructure.md
+> §*Listing: one-off pre-deploy check for `search-range-facets`*) — **run and log it before deploying**.
+> All 23 AC-25 mutations bit; 2158 tests.
+> [ADR-0024](./docs/adr/0024-price-is-compared-only-within-one-currency.md) + ADR-0019/0023 amendments.
+> Next: `search-full-text` (3).
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -400,6 +413,22 @@ established by `search-browse`:
 - **`QueryRecordingStatement` records bound values** (`uninstallWithValues()`): DBAL 4's PDO driver
   binds every value through `bindValue()` with 1-based positions. The EXPLAIN replays the adapter's
   own statements with them — no production code is shaped for the test.
+- **S-12 — never clamp a range to `NumberRules` on a read** (no rules clause, no HTML `min`/`max` on
+  the range inputs). Bounds bite on writes only (ADR-0021); a read clamp would hide stored values the
+  moment an admin narrows them. Mutation (m).
+- **Number stats ride the count statement — never `GROUP BY value_int`** (that yields one row per
+  value, not per attribute; mutation t). The filter keeps `v.value_int IS NOT NULL` beside the option
+  and boolean arms (mutation n).
+- **No casts on bounds.** `value_int` and `price_amount` are `bigint`; pdo_pgsql sends
+  `ParameterType::INTEGER` untyped, so the column decides. A `::int` breaks above 2^31 (mutation i).
+- **Blank = absent, not zero.** A JS-free form submits every empty `r[…][min|max]`; `FilterRequest`
+  drops `''` (mutation q). Never `all('r')`/`all('price')` — the `InputBag` footgun again (mutation p).
+- **Price is one currency, and lives in the one fragment** — `$omit` never skips it, so it filters every
+  count (mutation s). Bounds without a valid currency are dropped whole (ADR-0024).
+- **Two `Currency` enums: add a currency to both.** Search's `Domain/Search/ValueObject/Currency`
+  mirrors Listing's; `CurrencyMirrorTest` pins cases **and** `minorUnits()` (an exponent drift is a
+  ×100 bug). The allow-list is `USD`/`EUR`/`SEK`. **Removing a code is a data question**: a stored row
+  naming it no longer hydrates (500 on `/browse` too) — run a pre-deploy row check, like `UAH`'s.
 
 **Structurally identical aggregates still do not share a base class.** `PasswordResetRequest` is ~80%
 the same file as `EmailVerificationRequest` and shares no supertype with it. They share a *shape*,

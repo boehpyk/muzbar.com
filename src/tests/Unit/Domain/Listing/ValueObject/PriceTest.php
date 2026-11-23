@@ -20,7 +20,7 @@ final class PriceTest extends TestCase
     {
         yield 'one decimal digit' => ['1234.5', Currency::EUR, 123450];
         yield 'comma separator' => ['1234,50', Currency::EUR, 123450];
-        yield 'whole number in UAH' => ['7', Currency::UAH, 700];
+        yield 'whole number in SEK' => ['7', Currency::SEK, 700];
         yield 'surrounding whitespace' => [' 12.00 ', Currency::USD, 1200];
         yield 'one short through a float (0.29)' => ['0.29', Currency::EUR, 29];
         yield 'one short through a float (1.15)' => ['1.15', Currency::EUR, 115];
@@ -85,7 +85,7 @@ final class PriceTest extends TestCase
     public function testRendersEveryMinorDigit(): void
     {
         self::assertSame('1234.50', Price::fromMinorUnits(123450, Currency::EUR)->toDecimalString());
-        self::assertSame('7.00', Price::fromMinorUnits(700, Currency::UAH)->toDecimalString());
+        self::assertSame('7.00', Price::fromMinorUnits(700, Currency::SEK)->toDecimalString());
         self::assertSame('0.05', Price::fromMinorUnits(5, Currency::USD)->toDecimalString());
     }
 

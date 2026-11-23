@@ -15,7 +15,7 @@ final class CurrencyTest extends TestCase
     public function testTheCasesAreExactlyTheAllowedCodes(): void
     {
         self::assertSame(
-            ['USD', 'EUR', 'SEK', 'UAH'],
+            ['USD', 'EUR', 'SEK'],
             array_map(static fn (Currency $c): string => $c->name, Currency::cases()),
         );
         foreach (Currency::cases() as $currency) {
@@ -32,7 +32,7 @@ final class CurrencyTest extends TestCase
 
     public function testFromCodeResolvesAnExactCode(): void
     {
-        self::assertSame(Currency::UAH, Currency::fromCode('UAH'));
+        self::assertSame(Currency::SEK, Currency::fromCode('SEK'));
     }
 
     /**
@@ -43,6 +43,7 @@ final class CurrencyTest extends TestCase
         yield 'not on the list' => ['GBP'];
         yield 'lower case' => ['eur'];
         yield 'empty' => [''];
+        yield 'removed from the list 2026-11-23 (AC-28)' => ['UAH'];
     }
 
     #[DataProvider('unsupported')]

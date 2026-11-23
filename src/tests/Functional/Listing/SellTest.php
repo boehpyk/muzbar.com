@@ -240,7 +240,7 @@ final class SellTest extends WebTestCase
 
         $currencies = $page->filter('#listing_form_currency option')->each(static fn (Crawler $o): string => (string) $o->attr('value'));
         self::assertSame(array_map(static fn (Currency $c): string => $c->value, Currency::cases()), $currencies);
-        self::assertSame('UAH', $this->valueOf($page, 'currency'));
+        self::assertSame('EUR', $this->valueOf($page, 'currency'));
 
         $options = $page->filter('#listing_form_category option')->each(static fn (Crawler $o): array => [(string) $o->attr('value'), trim($o->text())]);
         self::assertSame(
@@ -328,6 +328,7 @@ final class SellTest extends WebTestCase
         yield 'price too many decimals' => [['price' => '1.234'], 'price', 'Enter a price like 1250 or 1250.50, up to 9 999 999.99.'];
         yield 'price over the maximum' => [['price' => '10000000'], 'price', 'Enter a price like 1250 or 1250.50, up to 9 999 999.99.'];
         yield 'currency tampered' => [['currency' => 'GBP'], 'currency', ListingFormType::UNSUPPORTED_CURRENCY];
+        yield 'currency removed from the list (UAH, AC-28)' => [['currency' => 'UAH'], 'currency', ListingFormType::UNSUPPORTED_CURRENCY];
         yield 'category malformed' => [['category' => 'not-a-uuid'], 'category', ListingFormType::UNKNOWN_CATEGORY];
     }
 
@@ -409,7 +410,7 @@ final class SellTest extends WebTestCase
         $ann = $this->signIn();
         $bob = $this->user('bob@example.com');
         $first = $this->draftOf($ann, $this->electric, 'Older draft');
-        $second = ListingFactory::new()->soldBy($ann)->inCategory($this->bass)->titled('Newer draft')->pricedAt('7', Currency::UAH)->create();
+        $second = ListingFactory::new()->soldBy($ann)->inCategory($this->bass)->titled('Newer draft')->pricedAt('7', Currency::SEK)->create();
         $this->draftOf($bob, $this->bass, 'Bobs secret draft');
 
         $page = $this->client->request('GET', '/sell/drafts');
@@ -418,7 +419,7 @@ final class SellTest extends WebTestCase
         $drafts = $page->filter('li.draft');
         self::assertCount(2, $drafts);
         self::assertSame('Newer draft', trim($drafts->eq(0)->filter('.draft-title')->text()));
-        self::assertSame('7.00 UAH', trim($drafts->eq(0)->filter('.draft-price')->text()));
+        self::assertSame('7.00 SEK', trim($drafts->eq(0)->filter('.draft-price')->text()));
         self::assertSame('Instruments › Bass', trim($drafts->eq(0)->filter('.draft-category')->text()));
         self::assertSame('/sell/drafts/'.$second->id()->toString().'/edit', $drafts->eq(0)->selectLink('Edit')->attr('href'));
         self::assertSame('Older draft', trim($drafts->eq(1)->filter('.draft-title')->text()));
@@ -490,7 +491,7 @@ final class SellTest extends WebTestCase
         $draft = $this->draftOf($ann);
         $path = '/sell/drafts/'.$draft->id()->toString().'/edit';
 
-        $this->post($path, ['title' => 'Changed title', 'price' => '99', 'currency' => 'UAH', 'category' => $this->bass->id()->toString(), 'description' => 'New'], tokenFrom: $path);
+        $this->post($path, ['title' => 'Changed title', 'price' => '99', 'currency' => 'SEK', 'category' => $this->bass->id()->toString(), 'description' => 'New'], tokenFrom: $path);
 
         self::assertResponseStatusCodeSame(303);
         // This edit re-files the draft (Electric → Bass), so since listing-attribute-values (AC-21)
@@ -500,7 +501,7 @@ final class SellTest extends WebTestCase
         self::assertIsArray($row);
         self::assertSame('Changed title', $row['title']);
         self::assertSame(9900, $row['price_amount']);
-        self::assertSame('UAH', $row['price_currency']);
+        self::assertSame('SEK', $row['price_currency']);
         self::assertSame($this->bass->id()->toString(), $row['category_id']);
         self::assertSame($ann->id()->toString(), $row['seller_id']);
         $this->client->followRedirect();
@@ -519,6 +520,21 @@ final class SellTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(422);
         self::assertSame(['Give the listing a title of 3 to 120 characters, on one line.'], $this->errorsOn($page, 'title'));
+        self::assertSame($before, $this->listings());
+    }
+
+    public function testATamperedUahOnTheEditPageIsRefusedWith422AndLeavesTheRowUnchanged(): void
+    {
+        $this->buildTree();
+        $ann = $this->signIn();
+        $draft = $this->draftOf($ann);
+        $path = '/sell/drafts/'.$draft->id()->toString().'/edit';
+        $before = $this->listings();
+
+        $page = $this->post($path, ['currency' => 'UAH'] + $this->validFields(), tokenFrom: $path);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame([ListingFormType::UNSUPPORTED_CURRENCY], $this->errorsOn($page, 'currency'));
         self::assertSame($before, $this->listings());
     }
 

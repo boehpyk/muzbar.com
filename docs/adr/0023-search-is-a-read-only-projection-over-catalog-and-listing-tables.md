@@ -80,3 +80,25 @@ is **derived**.
   `listing-expiry`'s), must grep `Infrastructure/Search/` and update the matching fragment — once,
   where S-1/S-2/S-6 have their single definition.
 - The "crossings" count in ADR-0019 stops: Search's reads are the rule, not a sixth crossing.
+
+## Amendment, 2026-11-23 — number facets, range selections, price in the fragment; write rules are not read rules
+
+Established by `search-range-facets` ([spec](../specs/search-range-facets/feature-spec.md)).
+
+1. **S-3 widens to `number`.** A facet is an active `choice`, `boolean` or `number` attribute of the
+   lineage. A number facet's count and observed range (`min`/`max(value_int)`) ride the **existing**
+   count statement: number rows have `option_id`, `label` and `value_bool` all NULL, so the unchanged
+   `GROUP BY` folds them into one row per attribute. **Never add `value_int` to that `GROUP BY`.**
+2. **Range selections live in the one matching fragment** (S-11): one `EXISTS (… value_int >= :lo
+   AND value_int <= :hi)` per range, bounds bound as integers, **no cast** (`value_int` is `bigint`;
+   pdo_pgsql sends integers untyped and the column decides). A selected range facet's own stats use
+   the existing `$omit` path — disjunctive, like a choice facet.
+3. **S-12 — a write rule is not re-enforced on a read.** `NumberRules` bounds bite when a seller saves
+   (ADR-0021: never retroactive). Search reads no rules clause, clamps no bound and renders no HTML
+   `min`/`max`: a value stored before the bounds narrowed stays findable by the filter that describes
+   it.
+4. **The price predicate lives in the same fragment** (S-13, [ADR-0024](./0024-price-is-compared-only-within-one-currency.md)):
+   `l.price_currency = :pc [AND l.price_amount >= :plo] [AND l.price_amount <= :phi]`. It is no facet's
+   own selection, so `$omit` never skips it — it applies to the total, the hits and every count.
+5. **Fence point 4 admits enum mirrors as local copies.** Search's `Currency` copies Listing's cases by
+   value (like `FacetKind` ↔ `AttributeType`); `CurrencyMirrorTest` pins cases and exponents.

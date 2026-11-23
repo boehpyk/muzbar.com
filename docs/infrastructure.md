@@ -424,6 +424,42 @@ existing row is active, `NULL`), no index, no pre-deploy query: no value is dorm
 archive or move, so prod is consistent after this deploy on its own. Retiring C-27 needs no data
 change.
 
+## Listing: one-off pre-deploy check for `search-range-facets`
+
+[ADR-0019](./adr/0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
+2026-11-23 amendment, [ADR-0024](./adr/0024-price-is-compared-only-within-one-currency.md). `UAH`
+left `Currency`'s allow-list. A stored `listing_listing` row with `price_currency = 'UAH'` would no
+longer hydrate: a **500** (and a Sentry event) on its page, its seller's list, and **every `/browse`
+page whose hits include it**. There is no migration and no database guard (ADR-0019 amendment, point
+3). So, **once, before the first deploy of this slice**, run on the box:
+
+```bash
+# On the box (hand-run compose needs MUZBAR_IMAGE set, as for any manual op).
+docker compose exec app php bin/console dbal:run-sql "SELECT count(*) FROM listing_listing WHERE price_currency = 'UAH'"
+```
+
+- **`0` → deploy.**
+- **Non-zero → stop.** The owner decides, per row, to re-price (another currency) or delete, before
+  the deploy. Never after: the broken reads start the moment the new image serves.
+
+Result log (fill in **before** the deploy):
+
+| Date | Count | Action |
+|---|---|---|
+| | | |
+
+## Search: ADR-0024's revisit trigger (price across currencies)
+
+[ADR-0024](./adr/0024-price-is-compared-only-within-one-currency.md) filters price within one chosen
+currency. Revisit it (option C, live rates, as its own ADR) when **one top-level category holds ≥ 2
+currencies each with ≥ 20 % of its published listings**. Run after launch, now and then:
+
+```bash
+docker compose exec app php bin/console dbal:run-sql "WITH RECURSIVE tree (id, root) AS (SELECT id, id FROM catalog_category WHERE parent_id IS NULL UNION ALL SELECT c.id, t.root FROM catalog_category c JOIN tree t ON c.parent_id = t.id), per AS (SELECT t.root, l.price_currency, count(*) AS n FROM listing_listing l JOIN tree t ON t.id = l.category_id WHERE l.status = 'published' GROUP BY 1, 2), share AS (SELECT root, price_currency, n::numeric / sum(n) OVER (PARTITION BY root) AS s FROM per) SELECT root, count(*) AS currencies FROM share WHERE s >= 0.2 GROUP BY root HAVING count(*) >= 2"
+```
+
+Zero rows → A still holds. Any row → that top-level category (by id) has met the trigger.
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker
