@@ -310,3 +310,6 @@ Recorded by the `listing-publish` slice ([ADR-0021](./0021-listing-lifecycle-in-
    the one moment such rows could exist, and a CHECK would turn "re-adding a currency is never a
    migration" into a migration every time. The Domain enum stays the only allow-list; the column
    stays `varchar(3)`.
+4. **Consequences, "cross-currency comparison is undecided"** — answered by
+   [ADR-0024](./0024-price-is-compared-only-within-one-currency.md): a price filter is one currency,
+   no conversion. "Nothing filters on price" is no longer true; "nothing sorts" still is.

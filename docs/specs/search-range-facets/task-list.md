@@ -58,9 +58,9 @@
       `make test filter=` breaks on `|` — run phpunit directly for alternations.
 
 ## Docs
-- [ ] T14: ADR-0023 amendment (number facets, ranges, S-12, mirrors as local copies, price in the
+- [x] T14: ADR-0023 amendment (number facets, ranges, S-12, mirrors as local copies, price in the
       fragment); ADR-0019 Consequences amendment (cross-currency clause → ADR-0024).
-- [ ] T15: CLAUDE.md — status paragraph; Search footguns: S-12 (never clamp to `NumberRules` on a
+- [x] T15: CLAUDE.md — status paragraph; Search footguns: S-12 (never clamp to `NumberRules` on a
       read), the `Currency` mirror + its test (add a currency in **both** enums), number stats ride
       the count statement (never `GROUP BY value_int`), blank = absent, no casts on bounds, price is
       one currency; the allow-list is `USD`/`EUR`/`SEK` and a removed code needs a pre-deploy row
