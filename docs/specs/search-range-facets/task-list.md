@@ -67,7 +67,7 @@
       check. Roadmap item 2 ticked (and the listing-draft line's four-code list annotated, not
       rewritten). `docs/infrastructure.md`: the Q1 revisit-trigger query; the AC-29 result logged
       **before** the deploy.
-- [ ] T16: `FORboehpyk.md` chapter — write rules are not read rules; "not comparable" as a domain
+- [x] T16: `FORboehpyk.md` chapter — write rules are not read rules; "not comparable" as a domain
       fact; intervals that cannot be inverted; narrowing an enum is a data question, not a code
       question; bugs hit.
 
