@@ -40,9 +40,10 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  * each is replayed. Exact: a node on `idx_search_listing_text_document` whose `Index Cond` contains `@@`.
  * Similar: a node on `idx_search_listing_text_title` whose `Index Cond` contains `%>`. Neither may
  * `Seq Scan` `search_listing_text`. The same `ANALYZE` (now also of `search_listing_text`) pins the
- * statistics. The **trigram replay alone** also sets `enable_indexscan = off`: on a dozen rows the planner
- * prefers a full `search_listing_text_pkey` index scan with the `%>` as a `Filter` even with seq scans,
- * nested loops and merge joins off (measured while planning, and again here), so only bitmap paths are
+ * statistics. **Both text replays** also set `enable_indexscan = off`: on a dozen rows the planner
+ * prefers a full `search_listing_text_pkey` index scan with `@@` / `%>` as a `Filter` even with seq scans,
+ * nested loops and merge joins off (the trigram leg always; the `@@` leg once the database is freshly
+ * created — AC-24's from-scratch run caught it, an earlier full run flaked on it), so only bitmap paths are
  * left to consider. That proves the predicate *can* use the GIN trigram index — usability, not choice.
  * Choice on real data is `search-benchmark`'s (ADR-0025).
  *
@@ -320,7 +321,7 @@ final class SearchIndexUsageTest extends KernelTestCase
         $hits = $this->picked($this->recordedTextBrowse('stratocaster'), static fn (string $sql): bool => str_contains($sql, 'ORDER BY l.published_at') && str_contains($sql, 'search_tsquery('));
 
         self::assertCount(1, $hits, 'The recorder did not see the exact hits statement, so there is nothing to replay.');
-        $plan = $this->explained($hits[0]);
+        $plan = $this->explained($hits[0], true);
         $message = "\nThe statement was:\n".$hits[0]['sql']."\nThe plan was:\n".json_encode($plan, \JSON_PRETTY_PRINT);
 
         self::assertTrue($this->looksUpTheTextIndex($plan, 'idx_search_listing_text_document', '@@'), 'No plan node looks the document up with @@ in idx_search_listing_text_document.'.$message);

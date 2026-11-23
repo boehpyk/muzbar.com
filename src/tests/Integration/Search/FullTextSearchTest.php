@@ -348,4 +348,18 @@ final class FullTextSearchTest extends KernelTestCase
         self::assertSame($expected, $withText, 'With text the order is the one without it, restricted to the matches.');
         self::assertSame($this->idsOf(['T4', 'T2', 'T1']), $withText, 'T4 was published last; a relevance order would put its description-only match below the title matches.');
     }
+
+    public function testAnEarlierListingRepeatingTheWordStaysBelowNewerOnes(): void
+    {
+        // ts_rank (frequency) would put this one first; newest-first puts it last. Without it the fixture's
+        // three matches all hold the word once, so a default-weight rank order ties and falls back to the date.
+        $seller = \App\Tests\Factory\UserFactory::createOne();
+        $early = \App\Tests\Factory\ListingFactory::new()->soldBy($seller)->inCategory($this->electric)
+            ->withValues($this->electricTextValues('Fender'))->titled('Stratocaster Stratocaster Stratocaster Stratocaster')
+            ->published($this->at('09:00'))->create()->id()->toString();
+
+        $ids = $this->ids($this->search('stratocaster'));
+
+        self::assertSame([...$this->idsOf(['T4', 'T2', 'T1']), $early], $ids);
+    }
 }

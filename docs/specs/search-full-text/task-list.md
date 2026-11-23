@@ -56,7 +56,7 @@
       `phraseto_tsquery(`, `unaccent(` in `Infrastructure/Search` code (comments stripped), with a
       self-test that the pattern bites; `search_listing_text` named only under `Infrastructure/Search`
       (asserting the scan found it at all, so it cannot pass vacuously).
-- [ ] T12: Mutation proof — AC-21 (a)…(u), each applied, run, reverted; catcher recorded in the
+- [x] T12: Mutation proof — AC-21 (a)…(u), each applied, run, reverted; catcher recorded in the
       commit message. `make test` twice; `php -d zend.assertions=-1 vendor/bin/phpunit`; drop
       `muzbar_test` and `make test.db` from scratch (AC-24). `make test filter=` breaks on `|` — run
       phpunit directly for alternations.

@@ -128,6 +128,18 @@ final class SearchTextSyncTest extends KernelTestCase
         self::assertSame($before['title_folded'], $after['title_folded']);
     }
 
+    public function testAnUpdateOfOnlyTheDescriptionColumnReplacesTheDocument(): void
+    {
+        // The handler's UPDATE always lists title too (revise() swaps VO instances), so it cannot tell a
+        // trigger that watches `title` alone from the real one. A bare statement can.
+        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision', 'oldword', '100', 'EUR'))->toString();
+
+        $this->db->executeStatement('UPDATE listing_listing SET description = ? WHERE id = ?', ['newword', $id]);
+
+        self::assertTrue($this->documentMatches($id, 'newword'));
+        self::assertFalse($this->documentMatches($id, 'oldword'));
+    }
+
     public function testRevisingOnlyTheTitleReplacesTheFoldedTitle(): void
     {
         $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision', 'same words', '100', 'EUR'))->toString();
