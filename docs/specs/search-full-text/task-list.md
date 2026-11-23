@@ -26,7 +26,7 @@
       **with** T7 (the controller is a call site) or with the controller passing `null` until T7.
 
 ## Infrastructure
-- [ ] T4: Migration (plan D5): extensions, `search_fold()`, `search_tsquery()`,
+- [x] T4: Migration (plan D5): extensions, `search_fold()`, `search_tsquery()`,
       `search_listing_text` + FK + two GIN indexes, `search_listing_text_sync()` + trigger, backfill by
       `UPDATE listing_listing SET title = title`; `down()` in reverse. `doctrine.yaml` `schema_filter`
       + comment. **With** `SearchTextSchemaTest` (AC-6) — the table's only shape guard lands with the

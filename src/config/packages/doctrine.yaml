@@ -16,7 +16,12 @@ doctrine:
         # is its only writer and `ListingAttributeValuesLoader` its reader. Hiding it here means its
         # hand-written CHECK can never re-diff — and also that no Doctrine safety net sees the table
         # at all; its shape is guarded only by AC-6's catalogue test.
-        schema_filter: '~^(?!(prelaunch_signup|listing_attribute_value)$)~'
+        #
+        # `search_listing_text` (ADR-0025) is Search's derived text index, written only by a database
+        # trigger on `listing_listing` — no PHP writes it and nothing maps it. Unfiltered, every diff
+        # proposes `DROP TABLE search_listing_text` (measured). Its shape, and that of the functions
+        # and trigger Doctrine never reads, is guarded only by `SearchTextSchemaTest`.
+        schema_filter: '~^(?!(prelaunch_signup|listing_attribute_value|search_listing_text)$)~'
 
         # Custom DBAL types map Identity's value objects onto columns.
         #
