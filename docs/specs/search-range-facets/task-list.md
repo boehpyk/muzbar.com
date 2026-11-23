@@ -31,7 +31,7 @@
 - [x] T5: `FacetKind::Number`; `FacetAttribute` gains `?unit`; `Selection` range form;
       `FacetedQuery::resolve()` keeps ranges on number facets only, drops `f` on them, carries
       `price()` + `FacetedQueryTest` (AC-2).
-- [ ] T6: `RangeFacet::of()`, `SearchResult::facets(): list<Facet|RangeFacet>`, `Facet::of()`
+- [x] T6: `RangeFacet::of()`, `SearchResult::facets(): list<Facet|RangeFacet>`, `Facet::of()`
       refuses a number attribute (`\LogicException`) + `RangeFacetTest` (AC-6). `SearchPort`
       docblocks.
 

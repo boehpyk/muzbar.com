@@ -18,6 +18,8 @@ use App\Domain\Catalog\Entity\Category;
 use App\Domain\Catalog\ValueObject\CategoryName;
 use App\Domain\Catalog\ValueObject\CategorySlug;
 use App\Domain\Search\Exception\UnknownCategory;
+use App\Domain\Search\ValueObject\Facet;
+use App\Domain\Search\ValueObject\RangeFacet;
 use App\Domain\Search\ValueObject\SearchResult;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\CategoryFactory;
@@ -78,7 +80,7 @@ final class BrowseListingsTest extends KernelTestCase
     {
         $counts = [];
         foreach ($result->facets() as $facet) {
-            if ($label === $facet->attribute()->label()) {
+            if ($facet instanceof Facet && $label === $facet->attribute()->label()) {
                 foreach ($facet->buckets() as $bucket) {
                     $counts[$bucket->label()] = $bucket->count();
                 }
@@ -115,7 +117,9 @@ final class BrowseListingsTest extends KernelTestCase
             'total' => $result->total(),
             'hits' => $this->hitIds($result),
             'facets' => array_map(
-                static fn ($facet): array => [$facet->attribute()->label(), array_map(static fn ($b): array => [$b->value(), $b->label(), $b->count(), $b->selected()], $facet->buckets())],
+                static fn (Facet|RangeFacet $facet): array => $facet instanceof Facet
+                    ? [$facet->attribute()->label(), array_map(static fn ($b): array => [$b->value(), $b->label(), $b->count(), $b->selected()], $facet->buckets())]
+                    : [$facet->attribute()->label(), $facet->count(), $facet->observed()?->min(), $facet->observed()?->max(), $facet->selected()?->min(), $facet->selected()?->max()],
                 $result->facets(),
             ),
             'selections' => \count($result->query()->selections()),
@@ -352,7 +356,7 @@ final class BrowseListingsTest extends KernelTestCase
     {
         $labels = [];
         foreach ($result->facets() as $facet) {
-            foreach ($facet->buckets() as $bucket) {
+            foreach ($facet instanceof Facet ? $facet->buckets() : [] as $bucket) {
                 if ($bucket->selected()) {
                     $labels[] = $bucket->label();
                 }
