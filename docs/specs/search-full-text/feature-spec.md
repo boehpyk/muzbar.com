@@ -164,7 +164,7 @@ have in mind without knowing which category it was filed under, and without sign
 - [ ] **AC-7 (S-19, kept current by every writer)** — A draft created through `DraftListingHandler`
       **and** one created by a bare Foundry `create()` each have one `search_listing_text` row;
       `ReviseListing` changing only the description updates `document` (the new word is found, the
-      old one is not); changing only the title updates `title_folded`; `PublishListing` and
+      old one is not); changing only the title updates `title_folded`; publishing (`ReviseListing` with `$publish`) and
       `WithdrawListing` leave the row byte-identical; the number of rows equals the number of
       listings after the fixture is built.
 - [ ] **AC-8 (no re-diff, proved by flipping)** — After `make migrate`, `doctrine:schema:update
@@ -225,7 +225,9 @@ strings, left-handed" (SEK). Not public: **Td** draft "Fender Stratocaster proto
       — the similar hits statement has a node on `idx_search_listing_text_title` whose `Index Cond`
       contains `%>`. Neither has a `Seq Scan` on `search_listing_text`. *(Planning note: on tiny tables
       the planner prefers a full pkey scan with a `Filter` even with seq scans off; if so the trigram
-      replay adds `enable_indexscan = off` so only bitmap paths remain — usability, not choice.)*
+      replay adds `enable_indexscan = off` so only bitmap paths remain — usability, not choice.)* *(Amended
+      at `/verify`: **both** replays set it — AC-24's from-scratch `muzbar_test` planned a full pkey
+      scan for the `@@` leg too.)*
 
 ### E. The page (functional, `KernelBrowser`)
 
@@ -292,7 +294,7 @@ strings, left-handed" (SEK). Not public: **Td** draft "Fender Stratocaster proto
 | `q` not a string, an array, blank, only operators/punctuation, invalid UTF-8 | No text filter (S-15); 200 (AC-18). |
 | `q` longer than 100 characters / more than 8 terms | Read up to the cap; the rest ignored, silently. The box shows what survived. |
 | A letter that folds to tsquery syntax (`ʼ`, `ː`, `ŉ`, `¼`) | Folded inside the parser; never parsed as an operator; 200 (AC-10). |
-| A term that folds to nothing | No lexeme; that term constrains nothing; never an error. |
+| A term that folds to nothing | No lexeme; **beside another term** it constrains nothing; never an error. *(Amended at `/verify`, 2026-11-23 — the test won, on purpose:)* a query whose **every** term folds to nothing (a lone `ʼ`) is an empty tsquery: it matches nothing in either mode — `Similar`, 0 results, 200. Treating it as "no filter" would need a SQL branch to keep a box showing a term that filters nothing; not worth it. |
 | Exact match finds nothing | The request is answered by similar matching (S-18) and the page says so. |
 | Similar match finds nothing | Empty page, 200, the existing 0-result state. |
 | A listing write (any path, any status) | The trigger rewrites its row in the same transaction; a failing trigger fails the write (loud). |

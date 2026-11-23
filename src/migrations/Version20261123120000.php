@@ -98,7 +98,7 @@ final class Version20261123120000 extends AbstractMigration
         $this->addSql('DROP TABLE search_listing_text');
         $this->addSql('DROP FUNCTION search_tsquery(text)');
         $this->addSql('DROP FUNCTION search_fold(text)');
-        $this->addSql('DROP EXTENSION pg_trgm');
-        $this->addSql('DROP EXTENSION unaccent');
+        $this->addSql('DROP EXTENSION IF EXISTS pg_trgm');
+        $this->addSql('DROP EXTENSION IF EXISTS unaccent');
     }
 }

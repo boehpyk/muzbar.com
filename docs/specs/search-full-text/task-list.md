@@ -76,4 +76,4 @@
       operator; filter vs ranker (and why that deletes RRF); bugs hit.
 
 ## Verify
-- [ ] T16: `/verify` → reviewer PASS, AC-1…AC-24 checked, docs updated.
+- [x] T16: `/verify` → reviewer PASS, AC-1…AC-24 checked, docs updated.

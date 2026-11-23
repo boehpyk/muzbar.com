@@ -7,10 +7,13 @@ namespace App\Tests\Integration\Search;
 use App\Application\Search\Handler\BrowseListingsHandler;
 use App\Application\Search\Query\BrowseListings;
 use App\Domain\Catalog\Entity\Category;
+use App\Domain\Listing\ValueObject\Currency;
 use App\Domain\Search\ValueObject\Facet;
 use App\Domain\Search\ValueObject\SearchResult;
 use App\Domain\Search\ValueObject\TextMatch;
+use App\Tests\Factory\UserFactory;
 use App\Tests\Support\BuildsTheTextFixture;
+use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
@@ -139,7 +142,7 @@ final class FullTextSearchTest extends KernelTestCase
         yield 'every operator' => ["a & b | !c <-> (d):* 'e' \\f", 0];
         yield 'NUL inside a word' => ["Fen\0der", 0];
         yield 'one 10 000 character word' => [str_repeat('x', 10000), 0];
-        // A term that folds to no lexeme at all: an empty tsquery matches nothing (and the similar match finds nothing either).
+        // Every term folds to no lexeme: an empty tsquery matches nothing, nor does the similar match (feature-spec failure contract, amended at /verify).
         yield 'one 3 000 character word of letters that fold to nothing' => [str_repeat('ʼ', 3000), 0];
     }
 
@@ -312,13 +315,30 @@ final class FullTextSearchTest extends KernelTestCase
         self::assertNotContains($this->listing['Tw'], $this->ids($result));
     }
 
+    /**
+     * Mutation (j), both forms: a threshold above 1, and a union of exact and similar. The extra
+     * listing "Fendder Precision" is word-similar to `fender` (0.67 ≥ the 0.6 default — asserted
+     * below, so the test cannot pass vacuously) but not an exact or prefix match, so a union would
+     * add it to this page.
+     */
     public function testAnExactMatchIsNeverPaddedWithSimilarOnes(): void
     {
+        $this->publishOnElectric(UserFactory::createOne(), 'Ts', 'Fendder Precision', '', 'Fender', Currency::EUR, '10:07');
+
+        $similarity = self::getContainer()->get(Connection::class)->fetchOne(
+            "SELECT t.title_folded %> search_fold('fender') FROM search_listing_text t WHERE t.listing_id = :id",
+            ['id' => $this->listing['Ts']],
+        );
+        if (true !== $similarity) {
+            self::fail('Fixture: "Fendder Precision" must be a similar match for "fender", or this test proves nothing.');
+        }
+
         $result = $this->search('fender', $this->electric);
 
         self::assertSame(TextMatch::Exact, $result->textMatch());
         self::assertSame(2, $result->total(), 'Two exact matches (T1, T5): fewer than three must not trigger the fallback.');
         self::assertEqualsCanonicalizing($this->idsOf(['T1', 'T5']), $this->ids($result));
+        self::assertNotContains($this->listing['Ts'], $this->ids($result), 'A similar-only listing never pads an exact page.');
     }
 
     public function testNothingSimilarEitherIsAnEmptyPage(): void
@@ -353,7 +373,7 @@ final class FullTextSearchTest extends KernelTestCase
     {
         // ts_rank (frequency) would put this one first; newest-first puts it last. Without it the fixture's
         // three matches all hold the word once, so a default-weight rank order ties and falls back to the date.
-        $seller = \App\Tests\Factory\UserFactory::createOne();
+        $seller = UserFactory::createOne();
         $early = \App\Tests\Factory\ListingFactory::new()->soldBy($seller)->inCategory($this->electric)
             ->withValues($this->electricTextValues('Fender'))->titled('Stratocaster Stratocaster Stratocaster Stratocaster')
             ->published($this->at('09:00'))->create()->id()->toString();

@@ -200,7 +200,7 @@ Docker Compose · Traefik · Nginx.
 > roadmap's "sanitize in PHP, then `to_tsquery`" was measured injectable**: `unaccent` turns the
 > letter `ʼ` into `'`. Text is a **filter**, not a ranker (newest first); trigram on the title only,
 > **only when the exact match finds nothing** — a page is never mixed, so no RRF. All 21 AC-21
-> mutations bit (two after strengthening); 2323 tests. **Before deploying, run and log the
+> mutations bit (three after strengthening — (j)'s union form at `/verify`); 2323 tests. **Before deploying, run and log the
 > extension/role check** (docs/infrastructure.md §*Search: full-text*).
 > [ADR-0025](./docs/adr/0025-full-text-search-trigger-maintained-text-table-parser-built-query.md)
 > + ADR-0002/0009/0023 amendments.
@@ -451,7 +451,7 @@ established by `search-browse`:
   `search_tsquery()` and `search_fold()` (a `SearchIsolationTest` scan). `unaccent` maps letters
   (`ʼ`, `ː`) to tsquery syntax *after* any PHP sanitizer has run, so `to_tsquery` on anything
   user-derived is a 500. **PHP never folds or lower-cases** — that would be a second mangling.
-- **Never `SET pg_trgm.*` per request** — it leaks into the pooled session. Tuning is `ALTER
+- **Never `SET pg_trgm.*` per request** — it leaks into every later statement on that request's connection. Tuning is `ALTER
   DATABASE … SET`, `search-benchmark`'s call.
 - **Rebuild = `UPDATE listing_listing SET title = title`** (the backfill is the write path). Run it
   after a PostgreSQL major upgrade or any change to the fold or configuration.

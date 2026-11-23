@@ -55,7 +55,7 @@ operator and puts `:*` on the last token only. What it left open, and what the p
    enforces it.
 5. **Configuration `simple`** — no stemming, no stopwords: language-neutral and predictable for names.
 6. **Trigram over the title only**, `title_folded %> search_fold(:q)` at the default
-   `word_similarity_threshold` (0.6), never `SET` per request (it would leak into the pooled session).
+   `word_similarity_threshold` (0.6), never `SET` per request (it would leak into every later statement on that request's connection).
 7. **Fallback only when the exact match finds nothing** (`SearchTerms::FALLBACK_BELOW = 1`), decided
    once per request with every selection applied; then every statement uses that mode. A page is
    all-exact or all-similar.

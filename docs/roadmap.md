@@ -420,7 +420,7 @@ launch is not a Phase 2 item.
         and read, the query built by `plainto_tsquery` inside `search_tsquery()` (a PHP-sanitize-then-
         `to_tsquery` design was measured injectable: `unaccent` turns `ʼ` into `'`), `simple`,
         trigram on the title only when the exact match finds nothing, newest first, no RRF. All 21
-        AC-21 mutations bit (two after strengthening); 2323 tests. ADR-0025 + ADR-0002/0009/0023
+        AC-21 mutations bit (three after strengthening — (j)'s union form at `/verify`); 2323 tests. ADR-0025 + ADR-0002/0009/0023
         amendments.
   - [ ] 4. `search-benchmark` — **taken early on purpose**, before any UI is built on the query: a
         seeding command (10k+ listings over a realistic tree and Brand-sized option lists), `ANALYZE`,
