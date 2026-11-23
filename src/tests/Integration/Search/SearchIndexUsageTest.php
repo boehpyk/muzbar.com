@@ -61,7 +61,7 @@ final class SearchIndexUsageTest extends KernelTestCase
 
         QueryRecordingStatement::install($pdo);
         try {
-            $handler(new BrowseListings($this->guitars->id()->toString(), [$this->brand->id()->toString() => [$this->optionIdOf($this->brand, 'Gibson')]], 1));
+            $handler(new BrowseListings($this->guitars->id()->toString(), [$this->brand->id()->toString() => [$this->optionIdOf($this->brand, 'Gibson')]], [], ['currency' => null, 'min' => null, 'max' => null], 1));
         } finally {
             $statements = QueryRecordingStatement::uninstallWithValues($pdo);
         }

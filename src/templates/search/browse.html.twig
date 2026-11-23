@@ -15,9 +15,9 @@
 
         {% if breadcrumb is not empty %}
             <nav class="search-breadcrumb" aria-label="Breadcrumb">
-                <a href="{{ path('app_browse', {f: f}) }}">All categories</a>
+                <a href="{{ path('app_browse', {f: f, r: r, price: price}) }}">All categories</a>
                 {% for crumb in breadcrumb %}
-                    › <a href="{{ path('app_browse', {category: crumb.id, f: f}) }}">{{ crumb.name }}</a>
+                    › <a href="{{ path('app_browse', {category: crumb.id, f: f, r: r, price: price}) }}">{{ crumb.name }}</a>
                 {% endfor %}
             </nav>
         {% endif %}
@@ -25,16 +25,33 @@
         {% if children is not empty %}
             <ul class="search-categories">
                 {% for child in children %}
-                    <li><a href="{{ path('app_browse', {category: child.id, f: f}) }}">{{ child.name }}</a></li>
+                    <li><a href="{{ path('app_browse', {category: child.id, f: f, r: r, price: price}) }}">{{ child.name }}</a></li>
                 {% endfor %}
             </ul>
         {% endif %}
 
-        {% if result.facets is not empty %}
-            <form class="search-facets" method="get" action="{{ path('app_browse') }}">
+        {# Always rendered: the price filter applies with or without a category (search-range-facets Q7). #}
+        <form class="search-facets" method="get" action="{{ path('app_browse') }}">
+            {% if categoryId %}
                 <input type="hidden" name="category" value="{{ categoryId }}">
-                {% for facet in result.facets %}
-                    {% set attributeId = facet.attribute.attributeId.toString %}
+            {% endif %}
+            {% for facet in result.facets %}
+                {% set attributeId = facet.attribute.attributeId.toString %}
+                {% if facet.attribute.kind.value == 'number' %}
+                    {# No min/max attributes: the rules' bounds are a write rule, not a search limit (S-12). #}
+                    <fieldset class="search-facet search-facet--range">
+                        <legend>{{ facet.attribute.label }}{% if facet.attribute.unit %} ({{ facet.attribute.unit }}){% endif %}</legend>
+                        <label>
+                            From
+                            <input type="number" step="1" inputmode="numeric" name="r[{{ attributeId }}][min]" value="{{ facet.selected.min ?? '' }}" placeholder="{{ facet.observed.min ?? '' }}">
+                        </label>
+                        <label>
+                            To
+                            <input type="number" step="1" inputmode="numeric" name="r[{{ attributeId }}][max]" value="{{ facet.selected.max ?? '' }}" placeholder="{{ facet.observed.max ?? '' }}">
+                        </label>
+                        <p>{{ facet.count }} {{ facet.count == 1 ? 'listing' : 'listings' }}{% if facet.observed %}, {{ facet.observed.min }}–{{ facet.observed.max }}{% endif %}</p>
+                    </fieldset>
+                {% else %}
                     <fieldset class="search-facet">
                         <legend>{{ facet.attribute.label }}</legend>
                         {% for bucket in facet.buckets %}
@@ -44,11 +61,29 @@
                             </label>
                         {% endfor %}
                     </fieldset>
-                {% endfor %}
-                <button type="submit">Apply filters</button>
-                <a href="{{ path('app_browse', {category: categoryId}) }}">Clear filters</a>
-            </form>
-        {% endif %}
+                {% endif %}
+            {% endfor %}
+            <fieldset class="search-price">
+                <legend>Price</legend>
+                <select name="price[currency]">
+                    <option value="">Any currency</option>
+                    {% for currency in currencies %}
+                        <option value="{{ currency.value }}"{% if currency.value == (price.currency ?? '') %} selected{% endif %}>{{ currency.value }}</option>
+                    {% endfor %}
+                </select>
+                <label>
+                    From
+                    <input type="number" min="0" step="1" inputmode="numeric" name="price[min]" value="{{ price.min ?? '' }}">
+                </label>
+                <label>
+                    To
+                    <input type="number" min="0" step="1" inputmode="numeric" name="price[max]" value="{{ price.max ?? '' }}">
+                </label>
+                <p>Choosing a currency hides listings priced in other currencies.</p>
+            </fieldset>
+            <button type="submit">Apply filters</button>
+            <a href="{{ path('app_browse', {category: categoryId}) }}">Clear filters</a>
+        </form>
 
         <section class="search-results">
             <p>{{ result.total }} {{ result.total == 1 ? 'listing' : 'listings' }}</p>
@@ -71,12 +106,12 @@
             {% if query.page > 1 or hasNext %}
                 <nav class="search-pager" aria-label="Pages">
                     {% if query.page > 1 and result.hits is empty %}
-                        <a href="{{ path('app_browse', {category: categoryId, f: f}) }}">First page</a>
+                        <a href="{{ path('app_browse', {category: categoryId, f: f, r: r, price: price}) }}">First page</a>
                     {% elseif query.page > 1 %}
-                        <a href="{{ path('app_browse', {category: categoryId, f: f, page: query.page - 1}) }}" rel="prev">Previous</a>
+                        <a href="{{ path('app_browse', {category: categoryId, f: f, r: r, price: price, page: query.page - 1}) }}" rel="prev">Previous</a>
                     {% endif %}
                     {% if hasNext %}
-                        <a href="{{ path('app_browse', {category: categoryId, f: f, page: query.page + 1}) }}" rel="next">Next</a>
+                        <a href="{{ path('app_browse', {category: categoryId, f: f, r: r, price: price, page: query.page + 1}) }}" rel="next">Next</a>
                     {% endif %}
                 </nav>
             {% endif %}

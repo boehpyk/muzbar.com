@@ -187,18 +187,20 @@ final class BrowsePageTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(200);
         self::assertStringContainsString('No listings found.', $page->filter('section.search-results')->text());
-        self::assertCount(0, $page->filter('form.search-facets'));
+        self::assertCount(0, $page->filter('form.search-facets fieldset.search-facet'));
+        self::assertCount(1, $page->filter('form.search-facets fieldset.search-price'));
         self::assertSame(['Empty child'], $page->filter('ul.search-categories a')->each(static fn (Crawler $a): string => trim($a->text())));
     }
 
-    public function testWithNoCategoryThePageListsEveryPublishedListingTheRootsAndNoFacetForm(): void
+    public function testWithNoCategoryThePageListsEveryPublishedListingTheRootsAndOnlyThePriceFilter(): void
     {
         $page = $this->client->request('GET', '/browse');
 
         self::assertResponseStatusCodeSame(200);
         self::assertSame('All categories', trim($page->filter('main.search-browse h1')->text()));
         self::assertCount(5, $page->filter('li.search-hit'));
-        self::assertCount(0, $page->filter('form.search-facets'));
+        self::assertCount(0, $page->filter('form.search-facets fieldset.search-facet'));
+        self::assertCount(1, $page->filter('form.search-facets fieldset.search-price'));
         self::assertSame(['Instruments'], $page->filter('ul.search-categories a')->each(static fn (Crawler $a): string => trim($a->text())));
     }
 

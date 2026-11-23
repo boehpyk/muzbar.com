@@ -36,14 +36,14 @@
       docblocks.
 
 ## Application (`src/Application/Search/`)
-- [ ] T7: `BrowseListings` gains `ranges`, `price` (required); handler passes them to `parse()`.
+- [x] T7: `BrowseListings` gains `ranges`, `price` (required); handler passes them to `parse()`.
       Lands **with** T8 and T9 (the controller is a call site).
 
 ## Infrastructure (`src/Infrastructure/Search/`)
-- [ ] T8: `PostgresSearch` — `number` in `facetSchemaFor()` + unit; range `EXISTS` and price
+- [x] T8: `PostgresSearch` — `number` in `facetSchemaFor()` + unit; range `EXISTS` and price
       predicate in `matching()` (no casts); `lo`/`hi` + `value_int IS NOT NULL` in the count
       statement; `RangeFacet` assembly; docblock (S-12, one fragment, no cast).
-- [ ] T9: `BrowseController` — `r` / `price` shape normalisers (never `all('r')`), link carrier for
+- [x] T9: `BrowseController` — `r` / `price` shape normalisers (never `all('r')`), link carrier for
       `r` and `price`; `browse.html.twig` — form always rendered, range fieldsets (no `min`/`max`
       attributes), price fieldset (three codes) + note.
 
