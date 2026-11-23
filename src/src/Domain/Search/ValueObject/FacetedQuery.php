@@ -23,8 +23,8 @@ namespace App\Domain\Search\ValueObject;
  * At most one selection per attribute, by construction: values survive only on choice/boolean facets,
  * ranges only on number facets, and `FilterRequest` keeps one range per attribute.
  *
- * The price filter (S-13) is carried through **independently of the schema**: it is no facet's
- * selection, so it survives with no category at all.
+ * The price filter (S-13) and the search terms (S-17) are carried through **independently of the
+ * schema**: neither is a facet's selection, so both survive with no category at all.
  */
 final readonly class FacetedQuery
 {
@@ -41,6 +41,7 @@ final readonly class FacetedQuery
         private array $selections,
         private FacetSchema $facets,
         private ?PriceRange $price,
+        private ?SearchTerms $text,
         private int $page,
     ) {
     }
@@ -77,7 +78,7 @@ final readonly class FacetedQuery
             }
         }
 
-        return new self($category, $selections, $schema, $request->price(), max(1, min(self::MAX_PAGE, $page)));
+        return new self($category, $selections, $schema, $request->price(), $request->text(), max(1, min(self::MAX_PAGE, $page)));
     }
 
     public function category(): ?CategoryId
@@ -111,6 +112,12 @@ final readonly class FacetedQuery
     public function price(): ?PriceRange
     {
         return $this->price;
+    }
+
+    /** The search terms (S-17) — whatever the category, or none. */
+    public function text(): ?SearchTerms
+    {
+        return $this->text;
     }
 
     public function page(): int

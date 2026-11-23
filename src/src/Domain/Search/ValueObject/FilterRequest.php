@@ -28,7 +28,8 @@ use App\Domain\Search\Exception\InvalidOptionId;
  * - caps apply **after** the above, first N in request order: `MAX_ATTRIBUTES` **distinct**
  *   attributes across values and ranges together (values first, then ranges), `MAX_VALUES` values per
  *   attribute. They bound the SQL (one `EXISTS` per selection, one count statement per selected
- *   facet — plan D5), not the visitor.
+ *   facet — plan D5), not the visitor;
+ * - search text survives as {@see SearchTerms} or not at all (S-15) — the sanitizer is that class's.
  *
  * A value's kind is not decided here: `yes` on a choice, an option id on a boolean or a range on
  * either is well-formed, and only `resolve()`, which knows the facet's kind, drops it.
@@ -46,6 +47,7 @@ final readonly class FilterRequest
         private array $requested,
         private array $ranges,
         private ?PriceRange $price,
+        private ?SearchTerms $text,
     ) {
     }
 
@@ -55,8 +57,9 @@ final readonly class FilterRequest
      *                                                                     turns a numeric string key into an int
      * @param array<array-key, array{min: ?string, max: ?string}>  $ranges attribute id => bounds, as `r[<attribute>][min|max]`
      * @param array{currency: ?string, min: ?string, max: ?string} $price  as `price[currency|min|max]`
+     * @param ?string                                              $text   as `q`, null when absent
      */
-    public static function parse(array $values, array $ranges, array $price): self
+    public static function parse(array $values, array $ranges, array $price, ?string $text): self
     {
         /** @var array<string, array{attribute: AttributeId, values: array<string, OptionId|bool>}> $byAttribute */
         $byAttribute = [];
@@ -129,6 +132,7 @@ final readonly class FilterRequest
             )),
             array_values($rangeByAttribute),
             self::priceFilter($price),
+            null === $text ? null : SearchTerms::parse($text),
         );
     }
 
@@ -177,6 +181,12 @@ final readonly class FilterRequest
     public function price(): ?PriceRange
     {
         return $this->price;
+    }
+
+    /** The search terms, or `null` when none were typed or none survived (S-15). */
+    public function text(): ?SearchTerms
+    {
+        return $this->text;
     }
 
     private static function attribute(int|string $key): ?AttributeId

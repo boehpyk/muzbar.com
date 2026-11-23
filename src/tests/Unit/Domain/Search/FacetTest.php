@@ -63,7 +63,7 @@ final class FacetTest extends TestCase
 
         return FacetedQuery::resolve(
             CategoryId::fromString(self::CATEGORY),
-            FilterRequest::parse($filters, [], ['currency' => null, 'min' => null, 'max' => null]),
+            FilterRequest::parse($filters, [], ['currency' => null, 'min' => null, 'max' => null], null),
             FacetSchema::of([$this->brand(), $this->hasCase()], $options),
             1,
         );

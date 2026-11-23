@@ -67,7 +67,7 @@ final class FacetedQueryTest extends TestCase
     {
         return FacetedQuery::resolve(
             CategoryId::fromString(self::CATEGORY),
-            FilterRequest::parse($filters, $ranges, $price),
+            FilterRequest::parse($filters, $ranges, $price, null),
             $schema ?? $this->schema(),
             $page,
         );
@@ -154,7 +154,7 @@ final class FacetedQueryTest extends TestCase
 
     public function testWithNoCategoryTheSchemaIsEmptyAndEverySelectionIsDropped(): void
     {
-        $request = FilterRequest::parse([self::BRAND => [self::FENDER], self::HAS_CASE => ['yes']], [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse([self::BRAND => [self::FENDER], self::HAS_CASE => ['yes']], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         $query = FacetedQuery::resolve(null, $request, FacetSchema::none(), 1);
 
@@ -235,6 +235,7 @@ final class FacetedQueryTest extends TestCase
             [self::BRAND => [self::FENDER]],
             [self::STRINGS => ['min' => '6', 'max' => null]],
             ['currency' => 'EUR', 'min' => '100', 'max' => '500'],
+            null,
         );
 
         $query = FacetedQuery::resolve(null, $request, FacetSchema::none(), 1);
@@ -282,5 +283,34 @@ final class FacetedQueryTest extends TestCase
         self::assertSame(980, $this->resolve([], null, 50)->offset());
         self::assertSame(980, $this->resolve([], null, \PHP_INT_MAX)->offset(), 'a clamped page bounds OFFSET');
         self::assertSame(0, $this->resolve([], null, -3)->offset());
+    }
+
+    // ---------------------------------------------------------------- search-full-text AC-4: search terms
+
+    public function testSearchTermsAreCarriedWithACategory(): void
+    {
+        $query = FacetedQuery::resolve(
+            CategoryId::fromString(self::CATEGORY),
+            FilterRequest::parse([], [], self::NO_PRICE, 'stratocaster 1962'),
+            $this->schema(),
+            1,
+        );
+
+        self::assertSame(['stratocaster', '1962'], $query->text()?->terms());
+    }
+
+    public function testSearchTermsSurviveWithNoCategoryAndAnEmptySchema(): void
+    {
+        $request = FilterRequest::parse([self::BRAND => [self::FENDER]], [], self::NO_PRICE, 'stratocaster');
+
+        $query = FacetedQuery::resolve(null, $request, FacetSchema::none(), 1);
+
+        self::assertSame([], $query->selections());
+        self::assertSame('stratocaster', $query->text()?->toString());
+    }
+
+    public function testNoSearchTextIsNoSearchTerms(): void
+    {
+        self::assertNull($this->resolve([self::BRAND => [self::FENDER]])->text());
     }
 }

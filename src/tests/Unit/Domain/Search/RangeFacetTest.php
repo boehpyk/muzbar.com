@@ -35,7 +35,7 @@ final class RangeFacetTest extends TestCase
     {
         return FacetedQuery::resolve(
             CategoryId::fromString(self::CATEGORY),
-            FilterRequest::parse([], [self::STRINGS => ['min' => $min, 'max' => $max]], ['currency' => null, 'min' => null, 'max' => null]),
+            FilterRequest::parse([], [self::STRINGS => ['min' => $min, 'max' => $max]], ['currency' => null, 'min' => null, 'max' => null], null),
             FacetSchema::of([$this->strings()], []),
             1,
         );

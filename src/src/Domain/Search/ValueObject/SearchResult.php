@@ -8,7 +8,8 @@ namespace App\Domain\Search\ValueObject;
  * One results page: the hits (S-8 order), the total matching **every** selection and the price
  * filter, the facets to show in the schema's display order — a choice or boolean one assembled by
  * `Facet::of()`, a number one by `RangeFacet::of()` — and the resolved query, so a page shows only
- * the selections that survived S-5, S-10 and S-13.
+ * the selections that survived S-5, S-10 and S-13 — and, when the query has search terms, which
+ * match answered it (S-18).
  */
 final readonly class SearchResult
 {
@@ -21,6 +22,7 @@ final readonly class SearchResult
         private int $total,
         private array $facets,
         private FacetedQuery $query,
+        private ?TextMatch $textMatch,
     ) {
     }
 
@@ -44,5 +46,11 @@ final readonly class SearchResult
     public function query(): FacetedQuery
     {
         return $this->query;
+    }
+
+    /** Which match answered the request (S-18); `null` when it had no search terms. */
+    public function textMatch(): ?TextMatch
+    {
+        return $this->textMatch;
     }
 }

@@ -147,7 +147,8 @@ final readonly class PostgresSearch implements SearchPort
             );
         }, $rows);
 
-        return new SearchResult($hits, $total, $this->facets($query), $query);
+        // search-full-text T6 replaces this null: the text predicate and the S-18 fallback are not built yet.
+        return new SearchResult($hits, $total, $this->facets($query), $query, null);
     }
 
     /**

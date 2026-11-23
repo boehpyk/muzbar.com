@@ -30,7 +30,7 @@ final readonly class BrowseListingsHandler
     public function __invoke(BrowseListings $query): SearchResult
     {
         $category = null === $query->category ? null : self::categoryId($query->category);
-        $request = FilterRequest::parse($query->filters, $query->ranges, $query->price);
+        $request = FilterRequest::parse($query->filters, $query->ranges, $query->price, null);
         $schema = $this->search->facetSchemaFor($category, $request)
             ?? throw UnknownCategory::withId($query->category ?? '');
 
