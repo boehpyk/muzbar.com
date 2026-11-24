@@ -42,7 +42,7 @@
       Bite proof (a)–(e) from the plan's test plan, noted in the commit message.
 
 ## Measure (by hand, recorded)
-- [ ] T9: Local run — AC-8 (empty database fails the run), AC-6 (memory), all three passes; fix the
+- [x] T9: Local run — AC-8 (empty database fails the run), AC-6 (memory), all three passes; fix the
       `PostgresSearch` docblock's trigram GUC wording (`word_similarity_threshold`).
 - [ ] T10: Box run — AC-9, AC-10, AC-11, AC-13 at 10 000; one ungated 50 000 run (Q8); B9 and the
       rate-limit decision (AC-12, plan D7); cleanup (AC-14). Everything logged.

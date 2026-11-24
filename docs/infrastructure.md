@@ -583,6 +583,12 @@ grep -A12 '"Node Type": "Seq Scan"' bench/out/plans.log | grep -E '"Relation Nam
 grep -B2 -A12 'title_folded' bench/out/plans.log | grep -E '"Plan Rows"|"Actual Rows"'  # B7: trigram estimate vs actual
 ```
 
+**`auto_explain`'s `duration` is execution only — planning is invisible to it.** If a scenario's
+service time is far above its statements' sum, measure planning: `ALTER DATABASE muzbar_bench SET
+log_min_duration_statement = 0`, one request, then sum the log's `parse` / `bind` / `execute`
+durations (pdo_pgsql plans unnamed statements at **bind**), and `RESET ALL`. That is how B9's
+1.5 s was found.
+
 A seq scan on `listing_attribute_value` or `search_listing_text` in a gating scenario is recorded
 **with its row count and the planner's reason**, not "fixed" (ADR-0026 d.3).
 
@@ -615,7 +621,32 @@ Results log (one row per run; the box decides, local rows are marked as such):
 
 | Date | Where | Image SHA | Cores/RAM | Published | Scenario | Service p50/p95 | Load p50/p95/max | req/s | Failures | Slowest statement · top node | Verdict | Changes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| | | | | | | | | | | | | |
+| 2026-11-24 | **local** (iteration) | `b124c97`+, local prod build | 12 / dev box | 10 000 (+1 000 draft, 500 withdrawn; seed 168 s, 46 MB flat) | B1 | 31 / 37 ms | 504 / 606 / 1 029 ms | 74 total | 0 | ≤ 56 ms any statement (explain pass, 414 statements) | **FAIL** (queueing) | none |
+| | | | | | B2 | 51 / 59 | 977 / 1 185 / 1 730 | | 0 | | FAIL | |
+| | | | | | B3 | 46 / 58 | 888 / 1 058 / 1 837 | | 0 | | FAIL | |
+| | | | | | B4 | 57 / 69 | 1 024 / 1 115 / 2 120 | | 0 | | FAIL | |
+| | | | | | B5 | 41 / 46 | 755 / 895 / 1 579 | | 0 | | FAIL | |
+| | | | | | B6 | 40 / 43 | 757 / 852 / 1 340 | | 0 | | FAIL | |
+| | | | | | B7 | 47 / 89 | 975 / 1 175 / 2 003 | | 0 | | FAIL | |
+| | | | | | B8 | 50 / 60 | 977 / 1 213 / 2 038 | | 0 | | FAIL | |
+| | | | | | B9 | 1 737 / 1 954 | 30 593 / 33 664 / 34 149 (n = 14) | | 0 | execution 18 ms total; **bind (planning) 1 511 ms** over 24 statements | reported | |
+
+Local findings (2026-11-24), to be confirmed on the box:
+
+- **B1–B8 are queueing-bound, not SQL-bound.** Load p95 ≈ 10–20 × service time with load average
+  5.6 on 12 cores: 50 in flight against the stock `pm.max_children = 5` (measured: 5 children,
+  ~40 MB RSS each). Little's law: 5 workers ÷ ~50 ms ≈ 100 req/s, so 50 clients wait ~500 ms.
+  Plan D6 step 5 — the pool (T11a, Q6), never an index.
+- **B9 is planner-bound.** `log_min_duration_statement` shows 1 511 ms in `bind` (pdo_pgsql's
+  unnamed statements are planned at bind) against 18 ms of execution; latency grows superlinearly
+  with selections (5 → 150 ms, 10 → 300 ms, 15 → 870 ms, 20 → 1.6 s). **`auto_explain` cannot see
+  this** — its `duration` is execution only. Each of the 20 count statements carries up to 19
+  `EXISTS` legs (`geqo_threshold` 12, collapse limits 8). One B9 request ≈ 1.5 s of PostgreSQL CPU:
+  the input to the `/browse` rate-limit decision (Q7).
+- **AC-8 bites:** against a migrated, unseeded `muzbar_bench` the service pass exits 99 (0 % "has
+  results", category URLs 404).
+- Seq scans in the plans are on `catalog_category` (the subtree recursion, a few dozen rows) and on
+  `listing_listing` legs; one on `search_listing_text`. Per-scenario attribution is the box run's job.
 
 ## Secrets & configuration
 
