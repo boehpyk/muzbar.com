@@ -515,8 +515,8 @@ built production image) are iteration only. Never point any of this at `muzbar`.
 
 The pieces: `docker-compose.bench.yml` (`app-bench` + `nginx-bench`, internal network
 `muzbar_bench`, no ports, no Traefik, `SENTRY_DSN` empty), `bench/search.js` (k6, three modes), and
-`muzbar:search:seed-benchmark` (in the image). The box has neither file: copy both next to
-`docker-compose.yml` for the run (`scp docker-compose.bench.yml bench/search.js …`).
+`muzbar:search:seed-benchmark` (in the image). The box has none of these files: copy them next to
+`docker-compose.yml` for the run (`scp docker-compose.bench.yml bench/search.js docker/php/zz-pool.conf …`, keeping the paths).
 
 ```bash
 export MUZBAR_IMAGE=ghcr.io/<owner>/muzbar:<deployed sha>      # locally: docker build --target production -f docker/php/Dockerfile -t muzbar-app:bench . && export MUZBAR_IMAGE=muzbar-app:bench
@@ -599,6 +599,18 @@ uptime
 $K6 -e BENCH_MODE=load --summary-export /bench/out/load.json /bench/search.js; echo "exit=$?"
 uptime
 ```
+
+**5b. Load pass with the chosen pool** (T11a — only while `docker/php/zz-pool.conf` is not yet in
+the image; production is untouched, the file lands in `app-bench` alone):
+
+```bash
+docker cp docker/php/zz-pool.conf muzbar-app-bench-1:/usr/local/etc/php-fpm.d/zz-pool.conf
+$B restart app-bench
+docker top muzbar-app-bench-1 | grep -c 'pool www'                     # ≥ 4 children now
+$K6 -e BENCH_MODE=load --summary-export /bench/out/load-pool.json /bench/search.js; echo "exit=$?"
+```
+
+Copy `docker/php/zz-pool.conf` to the box with the other two files.
 
 A run whose load average exceeds the core count is repeated, not used. The per-scenario numbers are
 the `http_req_duration{bn:Bn,phase:measure}` lines; service numbers are `http_req_duration{bn:Bn}`
