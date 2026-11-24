@@ -65,3 +65,19 @@ need or a proven facet-count bottleneck appears.
    the unselected facets plus one per selected facet.
 3. The "design `SearchPort` and `FacetedQuery` before the read model" consequence is **discharged**.
    The latency benchmark remains `search-benchmark`'s (Phase 2 item 4).
+
+## Amendment, 2026-11-23 — free text decided
+
+`search-full-text` ([ADR-0025](./0025-full-text-search-trigger-maintained-text-table-parser-built-query.md))
+settles the free-text bullets:
+
+1. **"Too few rows" means none** (`SearchTerms::FALLBACK_BELOW = 1`); the fallback is trigram on the
+   title only, and a page is never a mix of exact and similar matches.
+2. **No ranks combine, so RRF is not built.** Revisit when the threshold rises above 1 or a relevance
+   sort is added.
+3. **Configuration `simple`.**
+4. **"The sanitizer strips every operator and appends `:*` to the last token" is kept by two halves:**
+   PHP `SearchTerms` (letters, marks, digits only) **plus** SQL `search_tsquery()`, which lets
+   `plainto_tsquery` parse the folded text and appends `:*` to PostgreSQL's own output. A single PHP
+   sanitizer followed by `to_tsquery(unaccent(…))` was measured injectable: `unaccent` turns some
+   letters (`ʼ`, `ː`) into tsquery syntax.

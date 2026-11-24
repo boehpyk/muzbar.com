@@ -43,6 +43,15 @@ interface SearchPort
      * - The **price filter** keeps only listings priced in its currency and, when bounds are given,
      *   within them in minor units (S-13, ADR-0024). It is no facet's own selection, so it applies to
      *   the total, the hits **and every facet's count**, with or without a category.
+     * - **Search terms narrow, everywhere** (S-17): with `$query->text()`, a listing matches iff it is
+     *   a text match **and** every selection and the price filter. Like price, the text is no facet's
+     *   own selection, so it applies to the total, the hits and every count.
+     * - **Fallback only on nothing** (S-18): the request is answered by the exact match unless its
+     *   exact total, every selection applied, `fallsBackAt()` — then every statement of the request
+     *   uses the similar match instead. Exact and similar hits are never mixed; the result's
+     *   `textMatch()` says which answered, `null` without search terms.
+     * - Hits are ordered **newest first** (S-8) with or without search terms — text is a filter,
+     *   never a ranking.
      */
     public function search(FacetedQuery $query): SearchResult;
 }

@@ -44,7 +44,7 @@ final class BrowseRangeFacetsTest extends KernelTestCase
         $handler = self::getContainer()->get(BrowseListingsHandler::class);
         self::assertInstanceOf(BrowseListingsHandler::class, $handler);
 
-        return $handler(new BrowseListings($category?->id()->toString(), $filters, $ranges, $price ?? ['currency' => null, 'min' => null, 'max' => null], 1));
+        return $handler(new BrowseListings($category?->id()->toString(), $filters, $ranges, $price ?? ['currency' => null, 'min' => null, 'max' => null], null, 1));
     }
 
     /**

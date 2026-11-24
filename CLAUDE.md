@@ -191,7 +191,20 @@ Docker Compose · Traefik · Nginx.
 > §*Listing: one-off pre-deploy check for `search-range-facets`*) — **run and log it before deploying**.
 > All 23 AC-25 mutations bit; 2158 tests.
 > [ADR-0024](./docs/adr/0024-price-is-compared-only-within-one-currency.md) + ADR-0019/0023 amendments.
-> Next: `search-full-text` (3).
+> `search-full-text` (2026-11-23) — Search 3 of 15: free text `q` on `/browse`. The vector lives in a
+> **Search-owned table written only by a database trigger** — `search_listing_text`, filled by
+> `trg_search_listing_text` on `listing_listing` in the writer's transaction, hidden from Doctrine by
+> `schema_filter` (ADR-0023 fence 5 replaced: Search's **PHP** still writes nothing). One fold
+> (`search_fold()`, an IMMUTABLE `unaccent` wrapper) for write and read; the query is built by
+> `search_tsquery()` = `plainto_tsquery('simple', …)` + `:*` on PostgreSQL's own last lexeme. **The
+> roadmap's "sanitize in PHP, then `to_tsquery`" was measured injectable**: `unaccent` turns the
+> letter `ʼ` into `'`. Text is a **filter**, not a ranker (newest first); trigram on the title only,
+> **only when the exact match finds nothing** — a page is never mixed, so no RRF. All 21 AC-21
+> mutations bit (three after strengthening — (j)'s union form at `/verify`); 2323 tests. **Before deploying, run and log the
+> extension/role check** (docs/infrastructure.md §*Search: full-text*).
+> [ADR-0025](./docs/adr/0025-full-text-search-trigger-maintained-text-table-parser-built-query.md)
+> + ADR-0002/0009/0023 amendments.
+> Next: `search-benchmark` (4).
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -429,6 +442,25 @@ established by `search-browse`:
   mirrors Listing's; `CurrencyMirrorTest` pins cases **and** `minorUnits()` (an exponent drift is a
   ×100 bug). The allow-list is `USD`/`EUR`/`SEK`. **Removing a code is a data question**: a stored row
   naming it no longer hydrates (500 on `/browse` too) — run a pre-deploy row check, like `UAH`'s.
+- **The text index is a trigger, and the trigger names `title` and `description`** (ADR-0025). A
+  rename or type change of either column must redefine `search_listing_text_sync()` **in the same
+  migration** — otherwise every listing write fails at runtime, not at the rename. Doctrine will not
+  help: the table, both functions and the trigger are invisible to `schema:validate` and
+  `migration.make`; `SearchTextSchemaTest` (AC-6) is their only shape guard.
+- **Never `to_tsquery`, `plainto_tsquery` or `unaccent` in `Infrastructure/Search`** — only
+  `search_tsquery()` and `search_fold()` (a `SearchIsolationTest` scan). `unaccent` maps letters
+  (`ʼ`, `ː`) to tsquery syntax *after* any PHP sanitizer has run, so `to_tsquery` on anything
+  user-derived is a 500. **PHP never folds or lower-cases** — that would be a second mangling.
+- **Never `SET pg_trgm.*` per request** — it leaks into every later statement on that request's connection. Tuning is `ALTER
+  DATABASE … SET`, `search-benchmark`'s call.
+- **Rebuild = `UPDATE listing_listing SET title = title`** (the backfill is the write path). Run it
+  after a PostgreSQL major upgrade or any change to the fold or configuration.
+- **A raw `UPDATE` of `description` alone must refresh the text** — the trigger is `UPDATE OF title,
+  description`; handler tests cannot tell (every revise lists `title`), so `SearchTextSyncTest` does
+  it with raw SQL (mutation m).
+- **The text EXPLAINs need `enable_indexscan = off`** on top of seq scans off: on a fresh
+  `muzbar_test` the planner picks a full `search_listing_text_pkey` scan for both legs. That proves
+  usability only; choice on real volume is `search-benchmark`'s.
 
 **Structurally identical aggregates still do not share a base class.** `PasswordResetRequest` is ~80%
 the same file as `EmailVerificationRequest` and shares no supertype with it. They share a *shape*,

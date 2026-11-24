@@ -9,6 +9,7 @@ use App\Application\Search\Query\BrowseListings;
 use App\Tests\Fixture\QueryRecordingStatement;
 use App\Tests\Support\BuildsTheFacetFixture;
 use App\Tests\Support\BuildsTheRangeFixture;
+use App\Tests\Support\BuildsTheTextFixture;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -34,6 +35,18 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  * Brand = Gibson, so the count statement with Strings' range omitted is replayed too. No claim is made
  * about `listing_listing`'s price predicate: it is unindexed on purpose (`search-benchmark` decides).
  *
+ * search-full-text AC-16 repeats it for the text predicate: `q=stratocaster` (exact) and `q=stratocster`
+ * (similar, since the exact total is 0) are browsed over the text fixture and the **hits** statement of
+ * each is replayed. Exact: a node on `idx_search_listing_text_document` whose `Index Cond` contains `@@`.
+ * Similar: a node on `idx_search_listing_text_title` whose `Index Cond` contains `%>`. Neither may
+ * `Seq Scan` `search_listing_text`. The same `ANALYZE` (now also of `search_listing_text`) pins the
+ * statistics. **Both text replays** also set `enable_indexscan = off`: on a dozen rows the planner
+ * prefers a full `search_listing_text_pkey` index scan with `@@` / `%>` as a `Filter` even with seq scans,
+ * nested loops and merge joins off (the trigram leg always; the `@@` leg once the database is freshly
+ * created — AC-24's from-scratch run caught it, an earlier full run flaked on it), so only bitmap paths are
+ * left to consider. That proves the predicate *can* use the GIN trigram index — usability, not choice.
+ * Choice on real data is `search-benchmark`'s (ADR-0025).
+ *
  * What this does NOT prove: which plan PostgreSQL picks on real, ANALYZEd data (a dozen unanalysed
  * rows say nothing about choice), nor any timing. It proves only that no clause makes the value-table
  * leg unindexable. The latency budget, 10 000 rows and planner choice without switches are
@@ -43,6 +56,7 @@ final class SearchIndexUsageTest extends KernelTestCase
 {
     use BuildsTheFacetFixture;
     use BuildsTheRangeFixture;
+    use BuildsTheTextFixture;
 
     private Connection $db;
 
@@ -67,7 +81,7 @@ final class SearchIndexUsageTest extends KernelTestCase
 
         QueryRecordingStatement::install($pdo);
         try {
-            $handler(new BrowseListings($this->guitars->id()->toString(), [$this->brand->id()->toString() => [$this->optionIdOf($this->brand, 'Gibson')]], [], ['currency' => null, 'min' => null, 'max' => null], 1));
+            $handler(new BrowseListings($this->guitars->id()->toString(), [$this->brand->id()->toString() => [$this->optionIdOf($this->brand, 'Gibson')]], [], ['currency' => null, 'min' => null, 'max' => null], null, 1));
         } finally {
             $statements = QueryRecordingStatement::uninstallWithValues($pdo);
         }
@@ -88,10 +102,11 @@ final class SearchIndexUsageTest extends KernelTestCase
 
     /**
      * @param array{sql: string, params: array<int, array{mixed, int}>} $statement
+     * @param bool                                                      $bitmapOnly also `enable_indexscan = off`, leaving only bitmap paths (see the class docblock)
      *
      * @return array<mixed> the decoded `EXPLAIN (FORMAT JSON)` plan of that statement with its recorded values
      */
-    private function explained(array $statement): array
+    private function explained(array $statement, bool $bitmapOnly = false): array
     {
         $values = [];
         $types = [];
@@ -103,12 +118,15 @@ final class SearchIndexUsageTest extends KernelTestCase
         // The planner's statistics for these tables depend on what autovacuum last saw of every earlier test's
         // rolled-back rows, so without this the plan (pkey vs generic index on a dozen rows, where their costs tie)
         // flips between runs. ANALYZE inside DAMA's transaction describes exactly the fixture and is rolled back.
-        foreach (['listing_listing', 'listing_attribute_value', 'catalog_attribute_option', 'catalog_category'] as $table) {
+        foreach (['listing_listing', 'listing_attribute_value', 'catalog_attribute_option', 'catalog_category', 'search_listing_text'] as $table) {
             $this->db->executeStatement('ANALYZE '.$table);
         }
         $this->db->executeStatement('SET LOCAL enable_seqscan = off');
         $this->db->executeStatement('SET LOCAL enable_nestloop = off');
         $this->db->executeStatement('SET LOCAL enable_mergejoin = off');
+        if ($bitmapOnly) {
+            $this->db->executeStatement('SET LOCAL enable_indexscan = off');
+        }
 
         $json = $this->db->fetchOne('EXPLAIN (FORMAT JSON) '.$statement['sql'], $values, $types);
         if (!\is_string($json)) {
@@ -210,6 +228,7 @@ final class SearchIndexUsageTest extends KernelTestCase
                 [$this->brand->id()->toString() => [$this->optionIdOf($this->brand, 'Gibson')]],
                 [$this->strings->id()->toString() => ['min' => '1', 'max' => null]],
                 ['currency' => null, 'min' => null, 'max' => null],
+                null,
                 1,
             ));
         } finally {
@@ -244,5 +263,80 @@ final class SearchIndexUsageTest extends KernelTestCase
 
         self::assertFalse($this->seqScansTheValues($plan), "A Seq Scan reads listing_attribute_value.\nThe statement was:\n".$hits[0]['sql']."\nThe plan was:\n".json_encode($plan, \JSON_PRETTY_PRINT));
         self::assertNotSame([], $this->planNodes($plan), 'The plan had no nodes: the EXPLAIN output was not read.');
+    }
+
+    /**
+     * Browses with search text over the text fixture (no category), recording every statement sent.
+     *
+     * @return list<array{sql: string, params: array<int, array{mixed, int}>}>
+     */
+    private function recordedTextBrowse(string $text): array
+    {
+        $this->buildTheTextFixture();
+        $handler = self::getContainer()->get(BrowseListingsHandler::class);
+        self::assertInstanceOf(BrowseListingsHandler::class, $handler);
+        $pdo = $this->db->getNativeConnection();
+        self::assertInstanceOf(\PDO::class, $pdo);
+
+        QueryRecordingStatement::install($pdo);
+        try {
+            $handler(new BrowseListings(null, [], [], ['currency' => null, 'min' => null, 'max' => null], $text, 1));
+        } finally {
+            $statements = QueryRecordingStatement::uninstallWithValues($pdo);
+        }
+
+        return $statements;
+    }
+
+    /**
+     * @param array<mixed> $plan
+     */
+    private function looksUpTheTextIndex(array $plan, string $index, string $operator): bool
+    {
+        foreach ($this->planNodes($plan) as $node) {
+            if ($index === ($node['Index Name'] ?? null) && \is_string($node['Index Cond'] ?? null) && str_contains($node['Index Cond'], $operator)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<mixed> $plan
+     */
+    private function seqScansTheText(array $plan): bool
+    {
+        foreach ($this->planNodes($plan) as $node) {
+            if ('Seq Scan' === ($node['Node Type'] ?? null) && 'search_listing_text' === ($node['Relation Name'] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function testTheExactHitsStatementLooksTheDocumentUpInItsGinIndex(): void
+    {
+        $hits = $this->picked($this->recordedTextBrowse('stratocaster'), static fn (string $sql): bool => str_contains($sql, 'ORDER BY l.published_at') && str_contains($sql, 'search_tsquery('));
+
+        self::assertCount(1, $hits, 'The recorder did not see the exact hits statement, so there is nothing to replay.');
+        $plan = $this->explained($hits[0], true);
+        $message = "\nThe statement was:\n".$hits[0]['sql']."\nThe plan was:\n".json_encode($plan, \JSON_PRETTY_PRINT);
+
+        self::assertTrue($this->looksUpTheTextIndex($plan, 'idx_search_listing_text_document', '@@'), 'No plan node looks the document up with @@ in idx_search_listing_text_document.'.$message);
+        self::assertFalse($this->seqScansTheText($plan), 'A Seq Scan reads search_listing_text.'.$message);
+    }
+
+    public function testTheSimilarHitsStatementLooksTheTitleUpInItsTrigramIndex(): void
+    {
+        $hits = $this->picked($this->recordedTextBrowse('stratocster'), static fn (string $sql): bool => str_contains($sql, 'ORDER BY l.published_at') && str_contains($sql, '%>'));
+
+        self::assertCount(1, $hits, 'The recorder did not see the similar hits statement, so there is nothing to replay.');
+        $plan = $this->explained($hits[0], true);
+        $message = "\nThe statement was:\n".$hits[0]['sql']."\nThe plan was:\n".json_encode($plan, \JSON_PRETTY_PRINT);
+
+        self::assertTrue($this->looksUpTheTextIndex($plan, 'idx_search_listing_text_title', '%>'), 'No plan node looks the title up with %> in idx_search_listing_text_title.'.$message);
+        self::assertFalse($this->seqScansTheText($plan), 'A Seq Scan reads search_listing_text.'.$message);
     }
 }

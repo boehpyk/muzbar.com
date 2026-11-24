@@ -11,7 +11,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * search-browse AC-1: `FilterRequest::parse(, [], ['currency' => null, 'min' => null, 'max' => null])` decides format only, drops what is malformed, collapses
+ * search-browse AC-1: `FilterRequest::parse()` decides format only, drops what is malformed, collapses
  * duplicates, applies the caps and never throws.
  */
 final class FilterRequestTest extends TestCase
@@ -60,7 +60,7 @@ final class FilterRequestTest extends TestCase
     #[DataProvider('malformedAttributeKeys')]
     public function testAnAttributeKeyThatIsNotAWellFormedUuidIsDropped(string $key): void
     {
-        $request = FilterRequest::parse([$key => ['yes'], self::ATTRIBUTE => ['no']], [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse([$key => ['yes'], self::ATTRIBUTE => ['no']], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame([self::ATTRIBUTE], $this->attributes($request));
     }
@@ -89,21 +89,21 @@ final class FilterRequestTest extends TestCase
     #[DataProvider('malformedValues')]
     public function testAValueThatIsNeitherAUuidNorExactlyYesOrNoIsDropped(string $value): void
     {
-        $request = FilterRequest::parse([self::ATTRIBUTE => [$value, 'yes']], [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse([self::ATTRIBUTE => [$value, 'yes']], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame(['yes'], $this->values($request), 'only the well-formed sibling survives');
     }
 
     public function testWellFormedValuesSurviveInRequestOrderAndAnUpperCaseUuidIsLowerCased(): void
     {
-        $request = FilterRequest::parse([self::ATTRIBUTE => ['no', strtoupper(self::OPTION), 'yes']], [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse([self::ATTRIBUTE => ['no', strtoupper(self::OPTION), 'yes']], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame(['no', self::OPTION, 'yes'], $this->values($request));
     }
 
     public function testDuplicateValuesCollapseIncludingAnIdDifferingOnlyInCase(): void
     {
-        $request = FilterRequest::parse([self::ATTRIBUTE => [self::OPTION, 'yes', strtoupper(self::OPTION), 'yes', self::OPTION]], [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse([self::ATTRIBUTE => [self::OPTION, 'yes', strtoupper(self::OPTION), 'yes', self::OPTION]], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame([self::OPTION, 'yes'], $this->values($request));
     }
@@ -114,14 +114,14 @@ final class FilterRequestTest extends TestCase
             self::uuid(1) => ['nonsense', 'YES'],
             self::uuid(2) => [],
             self::uuid(3) => ['yes'],
-        ], [], ['currency' => null, 'min' => null, 'max' => null]);
+        ], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame([self::uuid(3)], $this->attributes($request));
     }
 
     public function testAnEmptyRequestHasNoAttributesAndNoOptionIds(): void
     {
-        $request = FilterRequest::parse([], [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse([], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame([], $request->requested());
         self::assertSame([], $request->requestedOptionIds());
@@ -134,7 +134,7 @@ final class FilterRequestTest extends TestCase
             $raw[self::uuid($i)] = ['yes'];
         }
 
-        $request = FilterRequest::parse($raw, [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse($raw, [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame(FilterRequest::MAX_ATTRIBUTES, \count($request->requested()));
         self::assertSame(array_map(self::uuid(...), range(1, 20)), $this->attributes($request));
@@ -150,7 +150,7 @@ final class FilterRequestTest extends TestCase
             $raw[self::uuid($i)] = ['yes'];
         }
 
-        $request = FilterRequest::parse($raw, [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse($raw, [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame(array_map(self::uuid(...), range(1, 20)), $this->attributes($request));
     }
@@ -163,7 +163,7 @@ final class FilterRequestTest extends TestCase
         }
         $raw[self::uuid(100)] = ['yes'];
 
-        $request = FilterRequest::parse($raw, [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse($raw, [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame([self::uuid(100)], $this->attributes($request));
     }
@@ -175,7 +175,7 @@ final class FilterRequestTest extends TestCase
             $values[] = self::uuid(1000 + $i);
         }
 
-        $request = FilterRequest::parse([self::ATTRIBUTE => $values], [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse([self::ATTRIBUTE => $values], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame(FilterRequest::MAX_VALUES, \count($request->requested()[0]['values']));
         self::assertSame(\array_slice($values, 0, 50), $this->values($request));
@@ -192,7 +192,7 @@ final class FilterRequestTest extends TestCase
             $values[] = self::uuid(1000 + $i);
         }
 
-        $request = FilterRequest::parse([self::ATTRIBUTE => $values], [], ['currency' => null, 'min' => null, 'max' => null]);
+        $request = FilterRequest::parse([self::ATTRIBUTE => $values], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame(array_map(static fn (int $i): string => self::uuid(1000 + $i), range(1, 50)), $this->values($request));
     }
@@ -202,7 +202,7 @@ final class FilterRequestTest extends TestCase
         $request = FilterRequest::parse([
             self::uuid(1) => [self::uuid(11), 'yes', self::uuid(12)],
             self::uuid(2) => [self::uuid(12), 'no', self::uuid(13)],
-        ], [], ['currency' => null, 'min' => null, 'max' => null]);
+        ], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame(
             [self::uuid(11), self::uuid(12), self::uuid(13)],
@@ -218,7 +218,7 @@ final class FilterRequestTest extends TestCase
             self::ATTRIBUTE => ["\0", "\xff\xfe", "yes\0", self::OPTION],
             '99999999999999999999' => ['yes'],
             -5 => ['yes'],
-        ], [], ['currency' => null, 'min' => null, 'max' => null]);
+        ], [], ['currency' => null, 'min' => null, 'max' => null], null);
 
         self::assertSame([self::ATTRIBUTE], $this->attributes($request));
         self::assertSame([self::OPTION], $this->values($request));
@@ -237,7 +237,7 @@ final class FilterRequestTest extends TestCase
     {
         return array_map(
             static fn (array $e): array => [$e['attribute']->toString(), $e['range']->min(), $e['range']->max()],
-            FilterRequest::parse([], $ranges, self::NO_PRICE)->requestedRanges(),
+            FilterRequest::parse([], $ranges, self::NO_PRICE, null)->requestedRanges(),
         );
     }
 
@@ -316,7 +316,7 @@ final class FilterRequestTest extends TestCase
 
     public function testRangesDoNotAddOptionIds(): void
     {
-        self::assertSame([], FilterRequest::parse([], [self::ATTRIBUTE => ['min' => '1', 'max' => null]], self::NO_PRICE)->requestedOptionIds());
+        self::assertSame([], FilterRequest::parse([], [self::ATTRIBUTE => ['min' => '1', 'max' => null]], self::NO_PRICE, null)->requestedOptionIds());
     }
 
     // ---------------------------------------------------------------- the cap across `f` and `r`
@@ -332,7 +332,7 @@ final class FilterRequestTest extends TestCase
             $ranges[self::uuid($i)] = ['min' => '1', 'max' => null];
         }
 
-        $request = FilterRequest::parse($values, $ranges, self::NO_PRICE);
+        $request = FilterRequest::parse($values, $ranges, self::NO_PRICE, null);
 
         self::assertCount(15, $request->requested());
         self::assertSame(
@@ -352,7 +352,7 @@ final class FilterRequestTest extends TestCase
         $request = FilterRequest::parse($values, [
             self::uuid(3) => ['min' => '1', 'max' => null],
             self::uuid(200) => ['min' => '1', 'max' => null],
-        ], self::NO_PRICE);
+        ], self::NO_PRICE, null);
 
         self::assertSame(
             [self::uuid(3)],
@@ -380,7 +380,7 @@ final class FilterRequestTest extends TestCase
      */
     private function price(array $price): ?array
     {
-        $parsed = FilterRequest::parse([], [], $price)->price();
+        $parsed = FilterRequest::parse([], [], $price, null)->price();
 
         return null === $parsed ? null : [$parsed->currency()->value, $parsed->range()?->min(), $parsed->range()?->max()];
     }
@@ -456,9 +456,42 @@ final class FilterRequestTest extends TestCase
             '' => ['min' => '1', 'max' => '1'],
             -5 => ['min' => '1', 'max' => '1'],
             self::ATTRIBUTE => ['min' => str_repeat('9', 100000), 'max' => '3'],
-        ], ['currency' => "\xff\xfe", 'min' => "\0", 'max' => str_repeat('9', 100000)]);
+        ], ['currency' => "\xff\xfe", 'min' => "\0", 'max' => str_repeat('9', 100000)], null);
 
         self::assertSame([self::ATTRIBUTE], array_map(static fn (array $e): string => $e['attribute']->toString(), $request->requestedRanges()));
         self::assertNull($request->price());
+    }
+
+    // ---------------------------------------------------------------- search-full-text AC-4: search text
+
+    public function testSearchTextIsParsedIntoSearchTerms(): void
+    {
+        self::assertSame('Fender Strat', FilterRequest::parse([], [], self::NO_PRICE, ' Fender:* & Strat ')->text()?->toString());
+    }
+
+    /**
+     * @return iterable<string, array{?string}>
+     */
+    public static function noText(): iterable
+    {
+        yield 'absent' => [null];
+        yield 'blank' => ['   '];
+        yield 'only operators' => ['&|!:*'];
+        yield 'invalid UTF-8' => ["\xC3\x28"];
+    }
+
+    #[DataProvider('noText')]
+    public function testTextWithNoTermsIsNoTextFilter(?string $text): void
+    {
+        self::assertNull(FilterRequest::parse([], [], self::NO_PRICE, $text)->text());
+    }
+
+    public function testSearchTextLeavesTheOtherFiltersAlone(): void
+    {
+        $request = FilterRequest::parse([self::ATTRIBUTE => ['yes']], [], ['currency' => 'EUR', 'min' => null, 'max' => null], 'fender');
+
+        self::assertSame([self::ATTRIBUTE], $this->attributes($request));
+        self::assertSame(Currency::EUR, $request->price()?->currency());
+        self::assertSame('fender', $request->text()?->toString());
     }
 }

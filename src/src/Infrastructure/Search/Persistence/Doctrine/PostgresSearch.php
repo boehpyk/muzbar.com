@@ -20,6 +20,7 @@ use App\Domain\Search\ValueObject\ListingHit;
 use App\Domain\Search\ValueObject\RangeFacet;
 use App\Domain\Search\ValueObject\SearchResult;
 use App\Domain\Search\ValueObject\Selection;
+use App\Domain\Search\ValueObject\TextMatch;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
@@ -43,7 +44,9 @@ use Doctrine\DBAL\ParameterType;
  * 2. `facetSchemaFor()` — the lineage's active choice/boolean/number attributes (a number's unit is
  *    the only `number_rules` field read) and, of the requested option ids only, the active ones.
  *    None without a category.
- * 3. total, 4. hits — the matching fragment.
+ * 3. total — with search terms, in the exact match; 3b. **only when S-18 falls back** (that total is
+ *    below `SearchTerms::FALLBACK_BELOW`), the total again in the similar match. 4. hits — the
+ *    matching fragment, in the match decided by 3/3b.
  * 5. counts for every unselected facet, and one count statement per selected facet with that
  *    facet's own selection left out (S-7, S-11: disjunctive). Labels come from the same join; a
  *    number attribute's rows fold into **one** row through the same `GROUP BY` (`option_id`, `label`
@@ -53,6 +56,20 @@ use Doctrine\DBAL\ParameterType;
  * **The one fragment** ({@see matching()}) holds every predicate — status, subtree, choice/boolean
  * selections, range selections and the price filter (S-1/S-2/S-6/S-11/S-13) — so total, hits and
  * every count apply them alike. The price filter is no facet's own selection: never omitted.
+ *
+ * **Free text (search-full-text, ADR-0025).** The text predicate is in the one fragment, after
+ * `status`, and is **no facet's own selection** — `$omit` never skips it, so it narrows the total, the
+ * hits and every count (S-17). The match is **decided once per request**, with every selection
+ * applied, and every statement of the request uses it (S-18): a page is all exact or all similar,
+ * never mixed, and its counts agree with its hits. Exact = `document @@ search_tsquery(:q)`; similar
+ * = `title_folded %> search_fold(:q)` (trigram, title only). `:q` is `SearchTerms::toString()`.
+ * - **Only `search_tsquery()` and `search_fold()`** (S-16): never `to_tsquery`, `plainto_tsquery`,
+ *   `websearch_to_tsquery`, `phraseto_tsquery` or `unaccent` here — the fold can turn a letter into
+ *   tsquery syntax (`ʼ` → `'`), so the query is built by the parser inside `search_tsquery()`, in the
+ *   migration that also defines the write side. `SearchIsolationTest` scans for them.
+ * - **No `SET pg_trgm.*`**: a per-request GUC leaks into whatever reuses the connection. The
+ *   similarity threshold is the server default (0.6); tuning is `ALTER DATABASE`, slice 4's call.
+ * - **Newest first, with or without text** (S-8): no `ts_rank`, no ordering change.
  *
  * **S-12: no `NumberRules` clause, on purpose.** A range is matched against the stored value only;
  * bounds narrowed after a value was stored neither clamp nor hide it (never retroactive).
@@ -122,10 +139,17 @@ final readonly class PostgresSearch implements SearchPort
 
     public function search(FacetedQuery $query): SearchResult
     {
-        [$with, $body, $params, $types] = $this->matching($query);
+        $text = $query->text();
+        $match = null === $text ? null : TextMatch::Exact;
+        $total = $this->total($query, $match);
 
-        /** @var int $total */
-        $total = $this->connection->fetchOne($with.'SELECT count(*) '.$body, $params, $types);
+        // S-18: decided once, here, with every selection applied; every statement below uses it.
+        if (null !== $text && $text->fallsBackAt($total)) {
+            $match = TextMatch::Similar;
+            $total = $this->total($query, $match);
+        }
+
+        [$with, $body, $params, $types] = $this->matching($query, $match);
 
         /** @var list<array{id: string, title: string, price_amount: int, price_currency: string, published_at: string}> $rows */
         $rows = $this->connection->fetchAllAssociative(
@@ -147,7 +171,17 @@ final readonly class PostgresSearch implements SearchPort
             );
         }, $rows);
 
-        return new SearchResult($hits, $total, $this->facets($query), $query);
+        return new SearchResult($hits, $total, $this->facets($query, $match), $query, $match);
+    }
+
+    private function total(FacetedQuery $query, ?TextMatch $match): int
+    {
+        [$with, $body, $params, $types] = $this->matching($query, $match);
+
+        /** @var int $total */
+        $total = $this->connection->fetchOne($with.'SELECT count(*) '.$body, $params, $types);
+
+        return $total;
     }
 
     /**
@@ -156,7 +190,7 @@ final readonly class PostgresSearch implements SearchPort
      *
      * @return list<Facet|RangeFacet>
      */
-    private function facets(FacetedQuery $query): array
+    private function facets(FacetedQuery $query, ?TextMatch $match): array
     {
         $schemaFacets = $query->facets()->facets();
         $unselected = [];
@@ -171,11 +205,11 @@ final readonly class PostgresSearch implements SearchPort
         }
 
         if ([] !== $unselected) {
-            $this->count($query, $unselected, null, $counts, $labels, $stats);
+            $this->count($query, $match, $unselected, null, $counts, $labels, $stats);
         }
 
         foreach ($query->selections() as $selection) {
-            $this->count($query, [$selection->attributeId()->toString()], $selection, $counts, $labels, $stats);
+            $this->count($query, $match, [$selection->attributeId()->toString()], $selection, $counts, $labels, $stats);
         }
 
         $facets = [];
@@ -206,9 +240,9 @@ final readonly class PostgresSearch implements SearchPort
      * @param array<string, array<string, string>>                 $labels   attribute id => option id => label
      * @param array<string, array{count: int, lo: ?int, hi: ?int}> $stats    number attribute id => count, observed range
      */
-    private function count(FacetedQuery $query, array $facetIds, ?Selection $omit, array &$counts, array &$labels, array &$stats): void
+    private function count(FacetedQuery $query, ?TextMatch $match, array $facetIds, ?Selection $omit, array &$counts, array &$labels, array &$stats): void
     {
-        [$with, $body, $params, $types] = $this->matching($query, $omit);
+        [$with, $body, $params, $types] = $this->matching($query, $match, $omit);
 
         /** @var list<array{attribute_id: string, option_id: ?string, label: ?string, value_bool: ?bool, listings: int, lo: ?int, hi: ?int}> $rows */
         $rows = $this->connection->fetchAllAssociative(
@@ -237,15 +271,16 @@ final readonly class PostgresSearch implements SearchPort
     }
 
     /**
-     * The matching fragment — S-1, S-2, S-6, S-11 and S-13 have exactly this one definition, used by
-     * every statement. Returns the `WITH` prefix (the depth-bounded subtree, only when a category is
-     * browsed), the `FROM … WHERE …` body, and its parameters. `$omit` leaves one selection out (S-7,
-     * S-11); the price filter is never omitted. Bounds are bound as integers, never cast (AC-18), and
+     * The matching fragment — S-1, S-2, S-6, S-11, S-13 and S-17 have exactly this one definition, used
+     * by every statement. Returns the `WITH` prefix (the depth-bounded subtree, only when a category is
+     * browsed), the `FROM … WHERE …` body, and its parameters. `$match` is the request's text match
+     * (`null` without search terms). `$omit` leaves one selection out (S-7, S-11); the text predicate
+     * and the price filter are never omitted. Bounds are bound as integers, never cast (AC-18), and
      * never compared with `NumberRules` (S-12).
      *
      * @return array{string, string, array<string, mixed>, array<string, ArrayParameterType|ParameterType>}
      */
-    private function matching(FacetedQuery $query, ?Selection $omit = null): array
+    private function matching(FacetedQuery $query, ?TextMatch $match, ?Selection $omit = null): array
     {
         $with = '';
         $join = '';
@@ -265,6 +300,14 @@ final readonly class PostgresSearch implements SearchPort
         }
 
         $where = "l.status = 'published'";
+
+        $text = $query->text();
+
+        if (null !== $text && null !== $match) {
+            $where .= ' AND EXISTS (SELECT 1 FROM search_listing_text t WHERE t.listing_id = l.id AND '
+                .(TextMatch::Exact === $match ? 't.document @@ search_tsquery(:q)' : 't.title_folded %> search_fold(:q)').')';
+            $params['q'] = $text->toString();
+        }
 
         foreach ($query->selections() as $i => $selection) {
             if ($selection === $omit) {

@@ -102,14 +102,19 @@ final class ListingSchemaTest extends KernelTestCase
         self::assertStringEndsWith('(seller_id)', \is_string($indexes[1]['indexdef']) ? $indexes[1]['indexdef'] : '');
     }
 
-    public function testThereIsNoForeignKeyInEitherDirection(): void
+    /**
+     * No FK to or from another aggregate (ADR-0009 d.4). The one exception is not an aggregate:
+     * `search_listing_text` is a derivation of this row, kept by a trigger, and goes with it
+     * (ADR-0025, search-full-text plan D5).
+     */
+    public function testTheOnlyForeignKeyIsTheSearchTextIndexCascadingFromIt(): void
     {
-        $count = $this->db->fetchOne(
-            "SELECT count(*) FROM pg_constraint
+        $keys = $this->db->fetchFirstColumn(
+            "SELECT conrelid::regclass::text || ' ' || pg_get_constraintdef(oid) FROM pg_constraint
              WHERE contype = 'f' AND (conrelid = 'listing_listing'::regclass OR confrelid = 'listing_listing'::regclass)",
         );
 
-        self::assertSame(0, $count);
+        self::assertSame(['search_listing_text FOREIGN KEY (listing_id) REFERENCES listing_listing(id) ON DELETE CASCADE'], $keys);
     }
 
     public function testTheMappingAndTheTableAgreeSoAMigrationDiffWouldBeEmpty(): void

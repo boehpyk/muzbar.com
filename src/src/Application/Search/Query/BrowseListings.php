@@ -16,12 +16,14 @@ final readonly class BrowseListings
      * @param array<string, list<string>>                          $filters  `f[<attribute id>][]=<option id|yes|no>`
      * @param array<string, array{min: ?string, max: ?string}>     $ranges   `r[<attribute id>][min|max]=<whole number>`
      * @param array{currency: ?string, min: ?string, max: ?string} $price    `price[currency|min|max]`, bounds in whole units
+     * @param ?string                                              $text     `q`, the search text as typed, null for none
      */
     public function __construct(
         public ?string $category,
         public array $filters,
         public array $ranges,
         public array $price,
+        public ?string $text,
         public int $page,
     ) {
     }

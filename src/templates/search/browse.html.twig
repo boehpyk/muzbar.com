@@ -15,9 +15,9 @@
 
         {% if breadcrumb is not empty %}
             <nav class="search-breadcrumb" aria-label="Breadcrumb">
-                <a href="{{ path('app_browse', {f: f, r: r, price: price}) }}">All categories</a>
+                <a href="{{ path('app_browse', {f: f, r: r, price: price, q: q}) }}">All categories</a>
                 {% for crumb in breadcrumb %}
-                    › <a href="{{ path('app_browse', {category: crumb.id, f: f, r: r, price: price}) }}">{{ crumb.name }}</a>
+                    › <a href="{{ path('app_browse', {category: crumb.id, f: f, r: r, price: price, q: q}) }}">{{ crumb.name }}</a>
                 {% endfor %}
             </nav>
         {% endif %}
@@ -25,7 +25,7 @@
         {% if children is not empty %}
             <ul class="search-categories">
                 {% for child in children %}
-                    <li><a href="{{ path('app_browse', {category: child.id, f: f, r: r, price: price}) }}">{{ child.name }}</a></li>
+                    <li><a href="{{ path('app_browse', {category: child.id, f: f, r: r, price: price, q: q}) }}">{{ child.name }}</a></li>
                 {% endfor %}
             </ul>
         {% endif %}
@@ -35,6 +35,11 @@
             {% if categoryId %}
                 <input type="hidden" name="category" value="{{ categoryId }}">
             {% endif %}
+            {# Shows the surviving terms, not what was typed. maxlength mirrors the Domain cap; it is not the guard (S-15). #}
+            <label class="search-text">
+                Search
+                <input type="search" name="q" value="{{ q }}" maxlength="{{ constant('App\\Domain\\Search\\ValueObject\\SearchTerms::MAX_LENGTH') }}">
+            </label>
             {% for facet in result.facets %}
                 {% set attributeId = facet.attribute.attributeId.toString %}
                 {% if facet.attribute.kind.value == 'number' %}
@@ -86,6 +91,9 @@
         </form>
 
         <section class="search-results">
+            {% if result.textMatch == constant('App\\Domain\\Search\\ValueObject\\TextMatch::Similar') %}
+                <p class="search-similar">No exact matches for “{{ q }}”. Showing listings with similar titles.</p>
+            {% endif %}
             <p>{{ result.total }} {{ result.total == 1 ? 'listing' : 'listings' }}</p>
 
             {% if result.hits is empty %}
@@ -106,12 +114,12 @@
             {% if query.page > 1 or hasNext %}
                 <nav class="search-pager" aria-label="Pages">
                     {% if query.page > 1 and result.hits is empty %}
-                        <a href="{{ path('app_browse', {category: categoryId, f: f, r: r, price: price}) }}">First page</a>
+                        <a href="{{ path('app_browse', {category: categoryId, f: f, r: r, price: price, q: q}) }}">First page</a>
                     {% elseif query.page > 1 %}
-                        <a href="{{ path('app_browse', {category: categoryId, f: f, r: r, price: price, page: query.page - 1}) }}" rel="prev">Previous</a>
+                        <a href="{{ path('app_browse', {category: categoryId, f: f, r: r, price: price, q: q, page: query.page - 1}) }}" rel="prev">Previous</a>
                     {% endif %}
                     {% if hasNext %}
-                        <a href="{{ path('app_browse', {category: categoryId, f: f, r: r, price: price, page: query.page + 1}) }}" rel="next">Next</a>
+                        <a href="{{ path('app_browse', {category: categoryId, f: f, r: r, price: price, q: q, page: query.page + 1}) }}" rel="next">Next</a>
                     {% endif %}
                 </nav>
             {% endif %}

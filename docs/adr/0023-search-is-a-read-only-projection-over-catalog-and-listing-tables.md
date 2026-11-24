@@ -6,6 +6,7 @@
   [plan](../specs/search-browse/technical-plan.md) D1–D6; owner approved Q1 option A, 2026-11-22) —
   Phase 2 item 1, the `Search` context's first slice.
 - **Implements** [ADR-0002](./0002-search-postgres-behind-port.md) (Postgres behind a `SearchPort`).
+- **Fence point 5 replaced by** [ADR-0025](./0025-full-text-search-trigger-maintained-text-table-parser-built-query.md) (2026-11-23).
 - **Amends** [ADR-0019](./0019-listing-context-cross-context-ports-leaf-only-under-one-lock-in-two-modes.md)
   decision 4 — see its dated 2026-11-22 amendment.
 
@@ -102,3 +103,19 @@ Established by `search-range-facets` ([spec](../specs/search-range-facets/featur
    own selection, so `$omit` never skips it — it applies to the total, the hits and every count.
 5. **Fence point 4 admits enum mirrors as local copies.** Search's `Currency` copies Listing's cases by
    value (like `FacetKind` ↔ `AttributeType`); `CurrencyMirrorTest` pins cases and exponents.
+
+## Amendment, 2026-11-23 — fence point 5 replaced by ADR-0025; free text in the fragment
+
+`search-full-text` ([ADR-0025](./0025-full-text-search-trigger-maintained-text-table-parser-built-query.md)):
+
+1. **Fence point 5 is replaced.** It now reads: *Search may own derived tables written only by the
+   database, in the writer's transaction; Search's PHP still writes nothing.* The first is
+   `search_listing_text`, kept by a trigger on `listing_listing`. Fence point 1 is unchanged.
+2. **The text predicate lives in the one matching fragment** (S-17) as one `EXISTS` on
+   `search_listing_text`. It is no facet's own selection, so `$omit` never skips it — like price.
+3. **New scans:** `Infrastructure/Search` never calls `to_tsquery`, `plainto_tsquery`,
+   `websearch_to_tsquery`, `phraseto_tsquery` or `unaccent` directly — only `search_tsquery()` and
+   `search_fold()`, defined in the migration.
+4. **Watch item:** a rename or type change of `listing_listing.title`/`description` must redefine
+   `search_listing_text_sync()` **in the same migration** — the trigger breaks at the next write, not
+   at the rename.
