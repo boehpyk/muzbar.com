@@ -17,15 +17,15 @@
 - (none — the seeder calls the existing Catalog and Listing commands)
 
 ## Infrastructure
-- [ ] T1: `SeedSearchBenchmarkCommand` skeleton — options, `isDisposable()` guard (AC-1), the
+- [x] T1: `SeedSearchBenchmarkCommand` skeleton — options, `isDisposable()` guard (AC-1), the
       C-3 "not empty" refusal, stderr progress; `SeedSearchBenchmarkCommandTest` unit cases for the
       name rule.
-- [ ] T2: Catalog phase — tree (5 roots, ≥ 40 leaves, one depth-4 branch), attributes incl. the two
+- [x] T2: Catalog phase — tree (5 roots, ≥ 40 leaves, one depth-4 branch), attributes incl. the two
       5 000-option Brands and the 20-attribute B9 lineage, via the handlers (plan D5.2).
-- [ ] T3: Listing phase — draft/publish/withdraw shares, Zipf-like leaves and brands, values for
+- [x] T3: Listing phase — draft/publish/withdraw shares, Zipf-like leaves and brands, values for
       every required attribute, prices as decimal strings, word-bank text, `mt_srand`, EM `clear()`
       every 200 (plan D5.3).
-- [ ] T4: Scenario builder — B1–B9 URLs from the ids in memory, JSON to stdout (plan D5.4).
+- [x] T4: Scenario builder — B1–B9 URLs from the ids in memory, JSON to stdout (plan D5.4).
 - [ ] T5: `docker-compose.bench.yml` — `app-bench` (alias `app` on `bench`), `nginx-bench`, no
       ports, no Traefik, `SENTRY_DSN` empty (plan D3, AC-7). `.gitignore` `/bench/out/`.
 - [ ] T6: `bench/search.js` — three modes, rotation, checks, per-scenario thresholds, summary export
