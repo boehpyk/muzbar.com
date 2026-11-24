@@ -26,18 +26,18 @@
       every required attribute, prices as decimal strings, word-bank text, `mt_srand`, EM `clear()`
       every 200 (plan D5.3).
 - [x] T4: Scenario builder — B1–B9 URLs from the ids in memory, JSON to stdout (plan D5.4).
-- [ ] T5: `docker-compose.bench.yml` — `app-bench` (alias `app` on `bench`), `nginx-bench`, no
+- [x] T5: `docker-compose.bench.yml` — `app-bench` (alias `app` on `bench`), `nginx-bench`, no
       ports, no Traefik, `SENTRY_DSN` empty (plan D3, AC-7). `.gitignore` `/bench/out/`.
-- [ ] T6: `bench/search.js` — three modes, rotation, checks, per-scenario thresholds, summary export
+- [x] T6: `bench/search.js` — three modes, rotation, checks, per-scenario thresholds, summary export
       (plan D4). k6 image pinned to an exact tag ≥ 2 weeks old.
-- [ ] T7: Runbook in docs/infrastructure.md §*Search: latency benchmark* — pre-check (`rolsuper`,
+- [x] T7: Runbook in docs/infrastructure.md §*Search: latency benchmark* — pre-check (`rolsuper`,
       extensions), create + migrate + seed + `ANALYZE`, the three passes, `auto_explain`
       on/`RESET ALL`, plan-extraction `grep`s, drop + cleanup (AC-14), and an empty results-log table
       (date · where · image SHA · cores/RAM · rows · per scenario service p50/p95, load p50/p95/max,
       req/s, failures · slowest statement + top node · verdict · changes).
 
 ## Tests (qa)
-- [ ] T8: Integration + functional — AC-2 source scan, AC-3 scaled counts, AC-4 determinism, second
+- [x] T8: Integration + functional — AC-2 source scan, AC-3 scaled counts, AC-4 determinism, second
       run refused, AC-5 every emitted URL → 200 + results marker (B7 similar, B9 20 selections).
       Bite proof (a)–(e) from the plan's test plan, noted in the commit message.
 
