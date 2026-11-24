@@ -506,6 +506,117 @@ Result log (fill in **before** the deploy, and the after-count right after it):
 |---|---|---|---|
 | | | | |
 
+## Search: latency benchmark (`search-benchmark`)
+
+[ADR-0026](./adr/0026-search-latency-proven-on-a-seeded-benchmark-database-on-the-box.md). The
+verdict runs **on the box**, with the **deployed image**, against a scratch **`muzbar_bench`** on the
+production PostgreSQL server, which is **dropped afterwards**. Local runs (same commands, a locally
+built production image) are iteration only. Never point any of this at `muzbar`.
+
+The pieces: `docker-compose.bench.yml` (`app-bench` + `nginx-bench`, internal network
+`muzbar_bench`, no ports, no Traefik, `SENTRY_DSN` empty), `bench/search.js` (k6, three modes), and
+`muzbar:search:seed-benchmark` (in the image). The box has neither file: copy both next to
+`docker-compose.yml` for the run (`scp docker-compose.bench.yml bench/search.js …`).
+
+```bash
+export MUZBAR_IMAGE=ghcr.io/<owner>/muzbar:<deployed sha>      # locally: docker build --target production -f docker/php/Dockerfile -t muzbar-app:bench . && export MUZBAR_IMAGE=muzbar-app:bench
+B="docker compose -f docker-compose.yml -f docker-compose.bench.yml"   # NEVER `$B down` — it stops production too
+K6="docker run --rm --user $(id -u):$(id -g) --network muzbar_bench -v $PWD/bench:/bench grafana/k6:1.0.0 run --quiet"
+mkdir -p bench/out
+```
+
+**1. Pre-check** (log it): superuser (for `auto_explain`), the extensions, the box, its load.
+
+```bash
+docker compose exec app php bin/console dbal:run-sql "SELECT rolsuper, rolcreatedb FROM pg_roles WHERE rolname = current_user"
+nproc; free -m; uptime
+```
+
+`rolsuper` `f` → `auto_explain` cannot be enabled: the explain pass falls back to `EXPLAIN (ANALYZE,
+BUFFERS)` replays in **local** dev, and the log says so. `rolcreatedb` `f` too → stop.
+
+**2. Create, migrate, seed, `ANALYZE`** (10 000 published ≈ 5–15 min; progress on stderr):
+
+```bash
+$B up -d --no-deps app-bench nginx-bench
+$B exec -T app-bench php bin/console doctrine:database:create
+$B exec -T app-bench php bin/console doctrine:migrations:migrate -n
+$B exec -T app-bench php bin/console muzbar:search:seed-benchmark --listings=10000 --seed=1 > bench/out/scenarios.json
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d muzbar_bench -c ANALYZE'
+```
+
+The seeder refuses any database not named `*_bench`/`*_test<n>` and a non-empty one ("drop and
+re-create it"). **Seed only through `app-bench` (prod, debug off)**: under a debug kernel Doctrine's
+`BacktraceDebugDataHolder` keeps every statement of the seed and runs out of memory. Every `published_at` falls within the seeding minutes — fine for the sort, worth a
+note if a `published_at` index is ever weighed. `ListingPublished` has no listener today; once
+`search-alert-match` (14) adds one, the bench database has no alerts, so it still sends nothing.
+
+**3. Service pass** (1 client, 50 requests per scenario — diagnosis, no gate):
+
+```bash
+$K6 -e BENCH_MODE=service --summary-export /bench/out/service.json /bench/search.js
+```
+
+**4. Explain pass** — `auto_explain` on `muzbar_bench` only, plans into the postgres log:
+
+```bash
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres' <<'SQL'
+ALTER DATABASE muzbar_bench SET session_preload_libraries = 'auto_explain';
+ALTER DATABASE muzbar_bench SET auto_explain.log_min_duration = 0;
+ALTER DATABASE muzbar_bench SET auto_explain.log_analyze = on;
+ALTER DATABASE muzbar_bench SET auto_explain.log_buffers = on;
+ALTER DATABASE muzbar_bench SET auto_explain.log_format = 'json';
+SQL
+SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+$K6 -e BENCH_MODE=explain /bench/search.js
+docker compose logs --no-log-prefix --since "$SINCE" postgres > bench/out/plans.log
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "ALTER DATABASE muzbar_bench RESET ALL"'
+```
+
+Every FPM request opens a fresh connection, so the settings apply at once and only to `app-bench`.
+**Reset before the load pass** — `log_analyze` timing overhead would pollute it. Reading the log:
+
+```bash
+grep -c '"Plan":' bench/out/plans.log                                   # statements planned (≤ 5 + k per request)
+grep -o 'duration: [0-9.]* ms' bench/out/plans.log | sort -k2 -n | tail  # the slowest statements
+grep -A12 '"Node Type": "Seq Scan"' bench/out/plans.log | grep -E '"Relation Name"|"Actual Rows"|"Plan Rows"'
+grep -B2 -A12 'title_folded' bench/out/plans.log | grep -E '"Plan Rows"|"Actual Rows"'  # B7: trigram estimate vs actual
+```
+
+A seq scan on `listing_attribute_value` or `search_listing_text` in a gating scenario is recorded
+**with its row count and the planner's reason**, not "fixed" (ADR-0026 d.3).
+
+**5. Load pass — the verdict** (≈ 7 min; exit code 0 = PASS):
+
+```bash
+uptime
+$K6 -e BENCH_MODE=load --summary-export /bench/out/load.json /bench/search.js; echo "exit=$?"
+uptime
+```
+
+A run whose load average exceeds the core count is repeated, not used. The per-scenario numbers are
+the `http_req_duration{bn:Bn,phase:measure}` lines; service numbers are `http_req_duration{bn:Bn}`
+in `service.json`.
+
+**The checks bite** (AC-8, once): migrate an empty `muzbar_bench` (no seed), run the service pass
+with the same `scenarios.json` → it must **fail** (`checks` and/or `http_req_failed` thresholds).
+
+**6. Clean up** (AC-14):
+
+```bash
+$B rm -sf app-bench nginx-bench
+docker compose exec -T postgres sh -c 'dropdb -U "$POSTGRES_USER" --force muzbar_bench'
+docker volume rm muzbar_bench_public; docker network rm muzbar_bench
+docker compose exec app php bin/console dbal:run-sql "SELECT datname FROM pg_database"   # no muzbar_bench
+rm docker-compose.bench.yml; rm -r bench                                                     # box only
+```
+
+Results log (one row per run; the box decides, local rows are marked as such):
+
+| Date | Where | Image SHA | Cores/RAM | Published | Scenario | Service p50/p95 | Load p50/p95/max | req/s | Failures | Slowest statement · top node | Verdict | Changes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| | | | | | | | | | | | | |
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker

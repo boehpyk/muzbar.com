@@ -44,3 +44,6 @@ docs/explanations
 
 # Playwright MCP scratch output
 .playwright-mcp/
+
+# Search benchmark output (scenario file, k6 summaries) — never committed
+/bench/out/
