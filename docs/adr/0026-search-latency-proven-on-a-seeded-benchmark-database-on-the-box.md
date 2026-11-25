@@ -90,11 +90,31 @@ statement of any gating scenario executes in 57.5 ms. The budget's reading (deci
 latency, and a bigger PHP-FPM pool (12 children vs the image's 5) was 2 % **slower** — the queue
 moved into the run queue (load 12.5 vs 5.8). The pool stays at the image default.
 
-**The owner's choice (decision 5), open:** a bigger box, the Constitution §7 path, or accepting the
-budget under a weaker reading (think time — see Alternatives). Phase 2 search slices are not
-blocked by it; `phase2-gate` re-runs these commands.
+**The owner's choice (decision 5), 2026-11-25: a different reading of the budget** — see the
+amendment below. The 50-client run above stays as the record of what this box can do.
 
 **Rate limit (Q7): yes.** B9 (20 selections, `MAX_ATTRIBUTES`) costs 1.56 s per request, 1.42 s of
 it **planning** (`bind`) and 26 ms executing; under load one takes ~28 s. Any visitor can build that
 URL, so `/browse` gets a per-IP limiter (plan D7, task T11z). Making the statements cheaper to plan
 is a separate, later slice.
+
+## Amendment 2026-11-25 — the load is 10 requests per second, arriving (owner, after the box run)
+
+Decision 1's load changes from *50 clients, closed loop* to **10 requests/s per scenario, open
+model** (k6 `constant-arrival-rate`: arrivals do not wait for answers, as real visitors don't).
+Everything else in decision 1 stands: p95 < 200 ms per gating scenario, 10 s warm-up + 30 s
+measured, ≥ 10 000 listings, 0 failures, 100 % checks — plus **0 dropped arrivals** per gating
+scenario (k6 caps in-flight requests at 50; an open model shows overload as skipped arrivals, not
+slow answers, so a skip fails the run).
+
+*Why:* the owner does not expect 50 visitors searching at once, every one clicking again the instant
+a page loads; that reading needs ~250 req/s, three times what 4 cores serve (decision 5's
+CPU-bound outcome, measured above). 10 req/s is ~860 000 searches a day and uses ~15 % of the box at
+the measured service times, so the budget again measures a page's cost, not the CPU's queue.
+
+*What it gives up:* the PRD's literal "50 concurrent" (Context). The PRD's wording is not changed;
+Constitution §7's budget row points here. Revisit when traffic approaches 10 req/s — the 50-client
+numbers above say where the box tips over (~40–90 req/s by scenario). B9 and the rate limit are
+unaffected: one B9 is ~1.5 s of CPU at any load.
+
+*Results:* the re-run on the box at 10 req/s is recorded in docs/infrastructure.md's results log.

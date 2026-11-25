@@ -7,8 +7,9 @@
 //
 // service: 1 client, 50 sequential requests per scenario — what one request costs, nothing queued.
 // explain: 1 client, every URL once — run with auto_explain on, so the plans land in postgres' log.
-// load:    50 clients, closed loop, no think time; per scenario 10 s warm-up + 30 s measured, one
-//          scenario after another. The exit code is the verdict (AC-10): p95 < 200 ms for B1–B8.
+// load:    10 requests/s arriving regardless of answers (open model, ADR-0026 d.1 as amended
+//          2026-11-25); per scenario 10 s warm-up + 30 s measured, one scenario after another.
+//          The exit code is the verdict (AC-10): p95 < 200 ms for B1–B8, nothing dropped.
 //
 // Every request checks the status AND the results marker; without that an empty database "passes".
 
@@ -21,13 +22,21 @@ const SCENARIOS = JSON.parse(open(__ENV.BENCH_SCENARIOS || '/bench/out/scenarios
 const NAMES = Object.keys(SCENARIOS).sort();
 const GATING = NAMES.filter((n) => n !== 'B9');
 
-const CLIENTS = 50;
+const RATE = 10;        // requests per second
+const MAX_CLIENTS = 50;  // in flight at most; past this k6 drops arrivals, which fails the run
 const WARMUP_S = 10;
 const MEASURE_S = 30;
 const SERVICE_REQUESTS = 50;
 
 function thresholds() {
     const t = { http_req_failed: ['rate==0'], checks: ['rate==1'] };
+    if (MODE === 'load') {
+        // An open model hides overload as skipped arrivals instead of slow answers. B9 (last,
+        // ungated) overloads 4 cores at this rate by design, so only gating scenarios count.
+        for (const name of GATING) {
+            t[`dropped_iterations{scenario:${name}}`] = ['count==0'];
+        }
+    }
     for (const name of NAMES) {
         // A threshold also creates the per-scenario sub-metric the summary reports.
         const key = MODE === 'load' ? `http_req_duration{bn:${name},phase:measure}` : `http_req_duration{bn:${name}}`;
@@ -43,7 +52,10 @@ function scenarios() {
     const s = {};
     let offset = 0;
     for (const name of NAMES) {
-        const common = { executor: 'constant-vus', vus: CLIENTS, exec: 'hammer', gracefulStop: '5s', env: { BN: name } };
+        const common = {
+            executor: 'constant-arrival-rate', rate: RATE, timeUnit: '1s', preAllocatedVUs: RATE, maxVUs: MAX_CLIENTS,
+            exec: 'hammer', gracefulStop: '5s', env: { BN: name },
+        };
         s[`${name}_warmup`] = { ...common, duration: `${WARMUP_S}s`, startTime: `${offset}s`, tags: { bn: name, phase: 'warmup' } };
         s[name] = { ...common, duration: `${MEASURE_S}s`, startTime: `${offset + WARMUP_S}s`, tags: { bn: name, phase: 'measure' } };
         offset += WARMUP_S + MEASURE_S + 5;
@@ -80,6 +92,6 @@ export function sequence() {
 
 export function hammer() {
     const urls = SCENARIOS[__ENV.BN];
-    // Spread 50 clients over the scenario's URLs, and move each client along on every iteration.
+    // Spread the clients over the scenario's URLs, and move each client along on every iteration.
     get(__ENV.BN, urls[(__VU + __ITER) % urls.length]);
 }

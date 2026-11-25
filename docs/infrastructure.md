@@ -592,7 +592,8 @@ durations (pdo_pgsql plans unnamed statements at **bind**), and `RESET ALL`. Tha
 A seq scan on `listing_attribute_value` or `search_listing_text` in a gating scenario is recorded
 **with its row count and the planner's reason**, not "fixed" (ADR-0026 d.3).
 
-**5. Load pass — the verdict** (≈ 7 min; exit code 0 = PASS):
+**5. Load pass — the verdict** (≈ 7 min; exit code 0 = PASS). 10 requests/s arriving per scenario
+(ADR-0026 amendment 2026-11-25); a dropped arrival in B1–B8 fails it like a slow answer:
 
 ```bash
 uptime
@@ -637,7 +638,7 @@ Results log (one row per run; the box decides, local rows are marked as such):
 | | | | | | B8 | 50 / 60 | 977 / 1 213 / 2 038 | | 0 | | FAIL | |
 | | | | | | B9 | 1 737 / 1 954 | 30 593 / 33 664 / 34 149 (n = 14) | | 0 | execution 18 ms total; **bind (planning) 1 511 ms** over 24 statements | reported | |
 
-| 2026-11-25 | **box** (verdict) | `5ec2bb6` (branch build; also deployed to production by mistake — no code difference from `main` but the seeder) | 4 shared vCPU / 7.7 GB, no swap; load 0.22 before | 10 000 (+1 000 draft, 500 withdrawn) | B1 | 33 / 40 ms | 546 / 618 / 1 210 ms | 91 | 0 | 6.4 ms · Seq Scan `listing_listing` (11 500 rows, the whole table: B1 is everything) | **FAIL** (CPU-bound) | none |
+| 2026-11-25 | **box** (verdict) | `5ec2bb6` (branch build; also deployed to production by mistake — no code difference from `main` but the seeder — and rolled back to `0083f89` the same day) | 4 shared vCPU / 7.7 GB, no swap; load 0.22 before | 10 000 (+1 000 draft, 500 withdrawn) | B1 | 33 / 40 ms | 546 / 618 / 1 210 ms | 91 | 0 | 6.4 ms · Seq Scan `listing_listing` (11 500 rows, the whole table: B1 is everything) | **FAIL** (CPU-bound) | none |
 | | | | | | B2 | 54 / 67 | 856 / 994 / 1 610 | 58 | 0 | 18.3 ms · Hash Join (count, subtree) | FAIL | |
 | | | | | | B3 | 52 / 65 | 811 / 887 / 1 580 | 62 | 0 | 18.9 ms · Hash Join | FAIL | |
 | | | | | | B4 | 68 / 81 | 985 / 1 078 / 1 840 | 51 | 0 | 9.3 ms · Nested Loop over `idx_listing_attribute_value_option` | FAIL | |
@@ -669,6 +670,8 @@ Box findings (2026-11-25) — the verdict:
   `idx_listing_attribute_value_option` (141×) and the pkey (559×). The other seq scans are on
   `catalog_category` (≤ 198 rows), `catalog_attribute` (148) and `catalog_attribute_option` (11 469;
   ≤ 1.5 ms — the facet label join).
+- **Cleaned up (AC-14)**: `pg_database` lists `postgres`, `muzbar`, `template1`, `template0` only;
+  bench containers, volume, network and files removed.
 - The 50 000 run (Q8) was skipped: the verdict is CPU, which more rows only restate.
 
 Local findings (2026-11-24), confirmed on the box except where noted:

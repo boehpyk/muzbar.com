@@ -131,7 +131,7 @@ A change is **done** only when all of these are green:
 
 | Budget | Target | Source |
 |---|---|---|
-| Faceted search latency | < 200 ms @ 50 concurrent, 10k+ items | PRD §8 |
+| Faceted search latency | p95 < 200 ms per scenario @ 10 req/s arriving, 10k+ items (PRD's "50 concurrent", re-read by the owner 2026-11-25) | PRD §8, [ADR-0026](./adr/0026-search-latency-proven-on-a-seeded-benchmark-database-on-the-box.md) |
 | Time-to-publish (returning user) | < 3 min average | PRD §8 |
 | Infra cost coverage | 100% + 20% buffer from MRR within 6 months | PRD §8 |
 | Uptime signal | health check probes Postgres + Redis, separates liveness/readiness | wiki: useful-php-health-check |

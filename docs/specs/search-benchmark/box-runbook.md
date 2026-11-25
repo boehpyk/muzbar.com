@@ -244,3 +244,22 @@ re-create `muzbar_bench`, steps 4–5 with `--listings=50000` (~30–45 min), th
 likely stay above 200 ms p95 — 4 shared cores cap near ~80 req/s against the ~250 req/s the budget's
 reading needs (Little's law). That is ADR-0026 d.5's CPU-bound outcome: the owner's call (box, §7,
 or accept), not a Postgres verdict.
+
+---
+
+## Re-run at 10 requests/s (after the 2026-11-25 run — ADR-0026 amendment)
+
+The first run measured 50 clients (FAIL, CPU-bound) and dropped `muzbar_bench`. The new reading
+needs **only the load pass**, but on a fresh seed — the service and explain numbers don't change
+with the load, so they are not repeated. Pool step 8b is gone (pool not shipped).
+
+1. Branch head has a new `bench/search.js`: **step 1, `search.js` only** (`scp bench/search.js …`).
+   No new image — the seeder is unchanged, so `5ec2bb6` is still right.
+2. Steps **2–5** (export `MUZBAR_IMAGE=…:5ec2bb64f17c421eb72f1b95cd55ce90b6176bbc`; pre-check
+   `uptime` only; create; seed; `ANALYZE`).
+3. **Step 8** — the load pass, as written. Expect ~7 min; at 10 req/s the load average should stay
+   near 1 until B9 (last, ungated), which overloads the box for ~40 s by design.
+   `exit=0` = PASS. In the summary, each `dropped_iterations{scenario:Bn}` must be `count==0`.
+4. **Step 9** — clean up, and confirm `muzbar_bench` is gone.
+
+Bring back: the load summary (or `bench/out/load.json`) and the `uptime` lines.

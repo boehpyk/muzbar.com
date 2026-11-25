@@ -167,6 +167,9 @@ not, whether the fix is an index, a promoted column, a GUC, the PHP-FPM pool, or
       `ANALYZE`, for **each gating scenario B1–B8** under the load run (50 clients, closed loop, no
       think time, 30 s measured after 10 s warm-up): **p95 < 200 ms**, **0 failed requests**,
       **100 % checks**. k6 exits `0`. (Interpretation of "50 concurrent": Q1 — recorded in ADR-0026.)
+      **Amended 2026-11-25 (owner, after the box run):** the load is **10 requests/s per scenario,
+      open model**, with 0 dropped arrivals — ADR-0026 amendment. The AC changed on purpose, not
+      to fit a result: the 50-client reading is CPU-bound on the box (logged), the owner's d.5 call.
 - [ ] **AC-11: Evidence recorded.** For every scenario the log records: service-time p50/p95,
       load p50/p95/max, requests/s, and from the explain pass the slowest statement's execution time
       and its top plan node. Every `Seq Scan` on `listing_attribute_value` or `search_listing_text`
