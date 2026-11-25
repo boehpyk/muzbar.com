@@ -21,9 +21,19 @@ handler directly.
 
 ## Index & performance
 - Faceted filtering and counts run over indexed columns; geo uses PostGIS / `earthdistance`.
-- **Always `EXPLAIN (ANALYZE, BUFFERS)`** the facet query. Every filter must hit an index — a Seq Scan
-  on `listing_attribute_value` is the failure signal.
-- Budget: **< 200 ms @ 50 concurrent over 10k+ rows** (Constitution §7). This is the Phase 2 gate.
+- **Always `EXPLAIN (ANALYZE, BUFFERS)`** the facet query, on real volume and without planner
+  switches. A Seq Scan is **evidence, not a failure** (ADR-0026 d.3): record its row count and why the
+  planner chose it. Investigate one on a *selective* leg (a selected facet's `EXISTS`, a rare text
+  term) — on `search_listing_text` a common word matching ~10 % of rows is a correct seq scan.
+- Budget: **p95 < 200 ms per scenario at 10 req/s arriving over 10k+ listings** (Constitution §7,
+  ADR-0026 as amended). To be proven by the box benchmark's 10 req/s re-run, still pending (docs/infrastructure.md §*Search: latency
+  benchmark*), never by CI or a laptop. **Latency is the verdict; plans explain it.**
+- **Measure service time before tuning.** A load p95 far above the 1-client time is queueing (CPU or
+  PHP-FPM), which no index fixes. On the 4-core box the CPU is the queue: more FPM children made it
+  worse.
+- **`auto_explain`'s duration is execution only.** Many `EXISTS` legs cost *planning* — 20 selections
+  spend 1.4 s in `bind` (pdo_pgsql plans at bind) for 26 ms of work. Measure with
+  `log_min_duration_statement = 0` and sum `parse`/`bind`/`execute`.
 
 ## Free-text fields (title/description only)
 - Postgres **FTS** primary; **pg_trgm** (`word_similarity` / `<%`) as a typo-tolerant fallback that

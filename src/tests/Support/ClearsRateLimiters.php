@@ -35,6 +35,10 @@ use Psr\Cache\CacheItemPoolInterface;
  *
  * Any Functional test that drives `/login`, `/verify-email/resend`, `/forgot-password` or the
  * `/reset-password*` routes uses this in `setUp()`.
+ *
+ * `search-benchmark` added `browse` (`/browse`, per IP per minute). The test env raises its limit
+ * (`.env.test`) so ordinary search tests never meet it; only `BrowseRateLimitTest`, which exhausts
+ * the bucket on purpose, needs this trait for it.
  */
 trait ClearsRateLimiters
 {

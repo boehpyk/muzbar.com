@@ -1,0 +1,55 @@
+# Search latency benchmark (ADR-0026) — a bench PHP-FPM + nginx pair beside production, on an
+# internal network only. Runbook: docs/infrastructure.md §Search: latency benchmark.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.bench.yml up -d --no-deps app-bench nginx-bench
+#   docker compose -f docker-compose.yml -f docker-compose.bench.yml rm -sf app-bench nginx-bench
+#
+# NEVER `down` with this file: that stops the whole production stack too.
+#
+# - The production image, APP_ENV=prod, debug off — the dev stack's Xdebug and debug kernel are
+#   never measured. `environment:` outranks `env_file:`, so the box .env cannot override these.
+# - DATABASE_URL names `muzbar_bench` and nothing else; the seeder also refuses any other name.
+# - SENTRY_DSN empty: bench 500s must not bury real events in the production project.
+# - No `ports:`, no Traefik network, no labels. k6 reaches nginx-bench by joining `bench`:
+#     docker run --rm --network muzbar_bench ... grafana/k6
+services:
+  app-bench:
+    image: ${MUZBAR_IMAGE:-muzbar-app:local}
+    env_file: .env
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      DATABASE_URL: postgresql://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/muzbar_bench?serverVersion=16&charset=utf8
+      SENTRY_DSN: ""
+      # k6 is one client IP at 10 req/s; the production cap (30/min) would 429 the run.
+      BROWSE_RATE_LIMIT: "1000000"
+    volumes:
+      # Its own copy of public/ (the entrypoint publishes it), so the bench never depends on —
+      # or writes into — the volume production nginx serves.
+      - bench_public:/mnt/public
+    networks:
+      default: {}       # postgres, redis
+      bench:
+        aliases: [app]  # the unchanged default.conf does `fastcgi_pass app:9000`
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  nginx-bench:
+    image: nginx:1.27-alpine
+    volumes:
+      - bench_public:/var/www/html/public:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - bench           # only here can `app` resolve to app-bench rather than production
+    depends_on:
+      - app-bench
+
+networks:
+  bench:
+    name: muzbar_bench
+
+volumes:
+  bench_public:

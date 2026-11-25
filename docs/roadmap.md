@@ -422,7 +422,7 @@ launch is not a Phase 2 item.
         trigram on the title only when the exact match finds nothing, newest first, no RRF. All 21
         AC-21 mutations bit (three after strengthening — (j)'s union form at `/verify`); 2323 tests. ADR-0025 + ADR-0002/0009/0023
         amendments.
-  - [ ] 4. `search-benchmark` — **taken early on purpose**, before any UI is built on the query: a
+  - [x] 4. `search-benchmark` — **taken early on purpose**, before any UI is built on the query: a
         seeding command (10k+ listings over a realistic tree and Brand-sized option lists), `ANALYZE`,
         `EXPLAIN` without planner switches (carry-over 3), and a 50-concurrent load run. **Index tuning
         and hot-column promotion (ADR-0004) happen here or not at all.** The phase gate re-runs it on
@@ -432,6 +432,13 @@ launch is not a Phase 2 item.
         category is up to 25 statements, each count joining every published listing with up to 19
         `EXISTS`. Measure that worst case under the load run; if it hurts, add a per-IP limiter on
         the `cache.rate_limiter` pool (and to `ClearsRateLimiters`' list), or decide it is fine.
+        **Done 2026-11-25** ([ADR-0026](./adr/0026-search-latency-proven-on-a-seeded-benchmark-database-on-the-box.md)). Box, 10 000 published: service p95 40–102 ms
+        (B1–B8); 50 closed-loop clients **FAIL, CPU-bound** (p95 0.6–1.4 s at ~85 % of what 4 cores
+        serve; slowest statement 57.5 ms; a 12-child FPM pool was 2 % slower). Owner re-read the
+        budget as **10 req/s arriving** (ADR-0026 amendment). **AC-10 deferred:** the 10 req/s box
+        re-run has not been made — due before `search-ui` (7), at the latest `phase2-gate` (15). No index, no
+        promoted column. B9 (20 selections) is planner-bound — 1.4 s in `bind` — so **`/browse` is
+        rate-limited, 30/min per IP**.
 - [ ] 5. `public-styles` *(before the public search UI — `listing-publish` plan Q7)* — the public SCSS
       pipeline (ADR-0006): `sass-bundle`, `public.css`, tokens, and the **first public layout** — which
       is also where the **Umami snippet** finally lands (Phase 0 left it with nowhere to live). The sell
@@ -494,7 +501,9 @@ launch is not a Phase 2 item.
       benchmark on the final query; send renewal and alert mail through the production relay to
       Gmail/Outlook/Yahoo test inboxes with SPF/DKIM/DMARC aligned, logged in docs/infrastructure.md.
 - **Gate — Search Latency Benchmark** (PRD metric + validation #1): seed 10k+ mock listings; prove
-      **< 200 ms @ 50 concurrent** with `EXPLAIN` confirming every facet hits an index. **Gate —
+      **p95 < 200 ms per scenario at 10 req/s arriving** (ADR-0026 as amended 2026-11-25), with the
+      plans PostgreSQL *chooses* recorded as evidence — a seq scan is recorded with its reason, not
+      "fixed" (ADR-0026 d.3; this replaces "every facet hits an index"). **Gate —
       Spam-Filter Clearance** (validation #3): renewal/alert emails clear major inbox filters via the
       external SMTP relay.
 

@@ -204,7 +204,17 @@ Docker Compose · Traefik · Nginx.
 > extension/role check** (docs/infrastructure.md §*Search: full-text*).
 > [ADR-0025](./docs/adr/0025-full-text-search-trigger-maintained-text-table-parser-built-query.md)
 > + ADR-0002/0009/0023 amendments.
-> Next: `search-benchmark` (4).
+> `search-benchmark` (2026-11-25) — Search 4 of 15, a **measurement slice**: one production command
+> (`muzbar:search:seed-benchmark`, which writes only through the real handlers and refuses any
+> database not named `*_bench`), a k6 script and a bench Compose override. **Latency is the verdict,
+> plans are the evidence** ([ADR-0026](./docs/adr/0026-search-latency-proven-on-a-seeded-benchmark-database-on-the-box.md)):
+> on the box, 10 000 listings, the slowest statement runs in 57.5 ms, yet 50 closed-loop clients
+> **failed — CPU-bound** (p95 0.6–1.4 s, ~85 % of what 4 cores serve); a bigger FPM pool was slower.
+> **No index, no promoted column.** The owner re-read the budget as **10 req/s arriving** (Constitution
+> §7 now points at the ADR amendment; the box re-run is pending). The 20-selection page is
+> **planner-bound** (1.4 s in `bind`, 26 ms executing), so `/browse` is **rate-limited, 30/min per IP**.
+> ADR-0002/0004 amendments.
+> Next: `public-styles` (5).
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -461,6 +471,29 @@ established by `search-browse`:
 - **The text EXPLAINs need `enable_indexscan = off`** on top of seq scans off: on a fresh
   `muzbar_test` the planner picks a full `search_listing_text_pkey` scan for both legs. That proves
   usability only; choice on real volume is `search-benchmark`'s.
+
+**The benchmark** ([ADR-0026](./docs/adr/0026-search-latency-proven-on-a-seeded-benchmark-database-on-the-box.md);
+runbook docs/infrastructure.md §*Search: latency benchmark*):
+
+- **Never seed or bench `muzbar`.** The seeder refuses any database not named `*_bench`/`*_test<n>`
+  and a non-empty one; `app-bench`'s `DATABASE_URL` is hard-wired to `muzbar_bench`. **Never
+  `$B down`** with the bench override (it stops production) and never a bare `docker compose up`
+  while `MUZBAR_IMAGE` is exported (it moves production to that image). Drop `muzbar_bench` after.
+- **Seed only through `app-bench` (prod, debug off)** — under a debug kernel Doctrine's
+  `BacktraceDebugDataHolder` keeps every statement and runs out of memory.
+- **`auto_explain` is set per database and its duration is execution only.** Planning is invisible
+  to it, and pdo_pgsql plans unnamed statements at **bind** — so a page with many `EXISTS` legs can
+  look fast in every plan and still take 1.5 s. Measure with `log_min_duration_statement = 0`.
+  `auto_explain` needs a superuser; `ALTER DATABASE muzbar_bench … RESET ALL` before the load pass.
+- **Service time first.** Load p95 ≫ 1-client p95 is a queue, not a query. On the 4-core box the
+  queue is the CPU: the stock `pm.max_children = 5` already saturates it, and 12 children were
+  slower. Don't "fix" the pool without re-measuring on more cores.
+- **`/browse` is rate-limited** (`browse`, 30/min per IP, `BROWSE_RATE_LIMIT`). The test env and
+  `app-bench` raise it to 1 000 000 — the suite and k6 are each one IP. A test that wants the 429
+  exhausts the bucket through `limiter.browse` (`BrowseRateLimitTest`), with `ClearsRateLimiters`.
+- **A `createClient(['debug' => false])` test keeps a stale container.** Without debug the kernel
+  never checks freshness, so after a constructor change it reuses `var/cache/test` and every request
+  is a 500 (`ArgumentCountError`). `cache:clear --env=test`. CI builds fresh, so only a dev box sees it.
 
 **Structurally identical aggregates still do not share a base class.** `PasswordResetRequest` is ~80%
 the same file as `EmailVerificationRequest` and shares no supertype with it. They share a *shape*,

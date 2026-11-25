@@ -81,3 +81,13 @@ settles the free-text bullets:
    `plainto_tsquery` parse the folded text and appends `:*` to PostgreSQL's own output. A single PHP
    sanitizer followed by `to_tsquery(unaccent(…))` was measured injectable: `unaccent` turns some
    letters (`ʼ`, `ː`) into tsquery syntax.
+
+## Amendment, 2026-11-25 — the benchmark ran; PostgreSQL stays
+
+`search-benchmark` ([ADR-0026](./0026-search-latency-proven-on-a-seeded-benchmark-database-on-the-box.md)) measured the query on the box with 10 000 published listings. The
+slowest statement of any gating scenario **executes in 57.5 ms**; the 50-client load failed because
+4 cores ran out of CPU, not because PostgreSQL did (ADR-0026 d.5). Constitution §5's condition for
+Meilisearch — PostgreSQL *demonstrably* cannot meet the budget on real data — is therefore **not
+met**: a second engine would add CPU to the same box, not remove it. The budget's reading was
+amended to 10 req/s arriving (ADR-0026 amendment). Revisit only if a run at that reading fails with
+SQL, not CPU, as the cause.

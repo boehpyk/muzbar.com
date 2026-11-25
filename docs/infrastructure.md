@@ -506,6 +506,193 @@ Result log (fill in **before** the deploy, and the after-count right after it):
 |---|---|---|---|
 | | | | |
 
+## Search: latency benchmark (`search-benchmark`)
+
+[ADR-0026](./adr/0026-search-latency-proven-on-a-seeded-benchmark-database-on-the-box.md). The
+verdict runs **on the box**, with the **deployed image**, against a scratch **`muzbar_bench`** on the
+production PostgreSQL server, which is **dropped afterwards**. Local runs (same commands, a locally
+built production image) are iteration only. Never point any of this at `muzbar`.
+
+The pieces: `docker-compose.bench.yml` (`app-bench` + `nginx-bench`, internal network
+`muzbar_bench`, no ports, no Traefik, `SENTRY_DSN` empty), `bench/search.js` (k6, three modes), and
+`muzbar:search:seed-benchmark` (in the image). The box has none of these files: copy them next to
+`docker-compose.yml` for the run (`scp docker-compose.bench.yml bench/search.js …`, keeping the paths).
+
+```bash
+export MUZBAR_IMAGE=ghcr.io/<owner>/muzbar:<deployed sha>      # locally: docker build --target production -f docker/php/Dockerfile -t muzbar-app:bench . && export MUZBAR_IMAGE=muzbar-app:bench
+B="docker compose -f docker-compose.yml -f docker-compose.bench.yml"   # NEVER `$B down` — it stops production too
+K6="docker run --rm --user $(id -u):$(id -g) --network muzbar_bench -v $PWD/bench:/bench grafana/k6:1.0.0 run --quiet"
+mkdir -p bench/out
+```
+
+**1. Pre-check** (log it): superuser (for `auto_explain`), the extensions, the box, its load.
+
+```bash
+docker compose exec app php bin/console dbal:run-sql "SELECT rolsuper, rolcreatedb FROM pg_roles WHERE rolname = current_user"
+nproc; free -m; uptime
+```
+
+`rolsuper` `f` → `auto_explain` cannot be enabled: the explain pass falls back to `EXPLAIN (ANALYZE,
+BUFFERS)` replays in **local** dev, and the log says so. `rolcreatedb` `f` too → stop.
+
+**2. Create, migrate, seed, `ANALYZE`** (10 000 published ≈ 5–15 min; progress on stderr):
+
+```bash
+$B up -d --no-deps app-bench nginx-bench
+$B exec -T app-bench php bin/console doctrine:database:create
+$B exec -T app-bench php bin/console doctrine:migrations:migrate -n
+$B exec -T app-bench php bin/console muzbar:search:seed-benchmark --listings=10000 --seed=1 > bench/out/scenarios.json
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d muzbar_bench -c ANALYZE'
+```
+
+The seeder refuses any database not named `*_bench`/`*_test<n>` and a non-empty one ("drop and
+re-create it"). **Seed only through `app-bench` (prod, debug off)**: under a debug kernel Doctrine's
+`BacktraceDebugDataHolder` keeps every statement of the seed and runs out of memory. Every `published_at` falls within the seeding minutes — fine for the sort, worth a
+note if a `published_at` index is ever weighed. `ListingPublished` has no listener today; once
+`search-alert-match` (14) adds one, the bench database has no alerts, so it still sends nothing.
+
+**3. Service pass** (1 client, 50 requests per scenario — diagnosis, no gate):
+
+```bash
+$K6 -e BENCH_MODE=service --summary-export /bench/out/service.json /bench/search.js
+```
+
+**4. Explain pass** — `auto_explain` on `muzbar_bench` only, plans into the postgres log:
+
+```bash
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres' <<'SQL'
+ALTER DATABASE muzbar_bench SET session_preload_libraries = 'auto_explain';
+ALTER DATABASE muzbar_bench SET auto_explain.log_min_duration = 0;
+ALTER DATABASE muzbar_bench SET auto_explain.log_analyze = on;
+ALTER DATABASE muzbar_bench SET auto_explain.log_buffers = on;
+ALTER DATABASE muzbar_bench SET auto_explain.log_format = 'json';
+SQL
+SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+$K6 -e BENCH_MODE=explain /bench/search.js
+docker compose logs --no-log-prefix --since "$SINCE" postgres > bench/out/plans.log
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "ALTER DATABASE muzbar_bench RESET ALL"'
+```
+
+Every FPM request opens a fresh connection, so the settings apply at once and only to `app-bench`.
+**Reset before the load pass** — `log_analyze` timing overhead would pollute it. Reading the log:
+
+```bash
+grep -c '"Plan":' bench/out/plans.log                                   # statements planned (≤ 5 + k per request)
+grep -o 'duration: [0-9.]* ms' bench/out/plans.log | sort -k2 -n | tail  # the slowest statements
+grep -A12 '"Node Type": "Seq Scan"' bench/out/plans.log | grep -E '"Relation Name"|"Actual Rows"|"Plan Rows"'
+grep -B2 -A12 'title_folded' bench/out/plans.log | grep -E '"Plan Rows"|"Actual Rows"'  # B7: trigram estimate vs actual
+```
+
+**`auto_explain`'s `duration` is execution only — planning is invisible to it.** If a scenario's
+service time is far above its statements' sum, measure planning: `ALTER DATABASE muzbar_bench SET
+log_min_duration_statement = 0`, one request, then sum the log's `parse` / `bind` / `execute`
+durations (pdo_pgsql plans unnamed statements at **bind**), and `RESET ALL`. That is how B9's
+1.5 s was found.
+
+A seq scan on `listing_attribute_value` or `search_listing_text` in a gating scenario is recorded
+**with its row count and the planner's reason**, not "fixed" (ADR-0026 d.3).
+
+**5. Load pass — the verdict** (≈ 7 min; exit code 0 = PASS). 10 requests/s arriving per scenario
+(ADR-0026 amendment 2026-11-25); a dropped arrival in B1–B8 fails it like a slow answer:
+
+```bash
+uptime
+$K6 -e BENCH_MODE=load --summary-export /bench/out/load.json /bench/search.js; echo "exit=$?"
+uptime
+```
+
+**The PHP-FPM pool stays the image's default (`pm.max_children = 5`).** On 2026-11-25 a 12-child
+pool (copied into `app-bench` only, then `$B restart app-bench`) was 2 % *slower* with load average
+12.5 against 5.8: five children already keep 4 cores busy, so more only moves the queue into the
+CPU's run queue. Re-measure this way before ever sizing a pool, and only on a box with more cores.
+
+A run whose load average **before it starts** exceeds the core count is repeated, not used (the run
+itself drives the load above the core count — that is the measurement, not noise). The per-scenario numbers are
+the `http_req_duration{bn:Bn,phase:measure}` lines; service numbers are `http_req_duration{bn:Bn}`
+in `service.json`.
+
+**The checks bite** (AC-8, once): migrate an empty `muzbar_bench` (no seed), run the service pass
+with the same `scenarios.json` → it must **fail** (`checks` and/or `http_req_failed` thresholds).
+
+**6. Clean up** (AC-14):
+
+```bash
+$B rm -sf app-bench nginx-bench
+docker compose exec -T postgres sh -c 'dropdb -U "$POSTGRES_USER" --force muzbar_bench'
+docker volume rm muzbar_bench_public; docker network rm muzbar_bench
+docker compose exec app php bin/console dbal:run-sql "SELECT datname FROM pg_database"   # no muzbar_bench
+rm docker-compose.bench.yml; rm -r bench                                                     # box only
+unset MUZBAR_IMAGE   # left exported, a bare `docker compose up` moves production to the bench image
+```
+
+Results log (one row per run; the box decides, local rows are marked as such):
+
+| Date | Where | Image SHA | Cores/RAM | Published | Scenario | Service p50/p95 | Load p50/p95/max | req/s | Failures | Slowest statement · top node | Verdict | Changes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-24 | **local** (iteration) | `b124c97`+, local prod build | 12 / dev box | 10 000 (+1 000 draft, 500 withdrawn; seed 168 s, 46 MB flat) | B1 | 31 / 37 ms | 504 / 606 / 1 029 ms | 74 total | 0 | ≤ 56 ms any statement (explain pass, 414 statements) | **FAIL** (queueing) | none |
+| | | | | | B2 | 51 / 59 | 977 / 1 185 / 1 730 | | 0 | | FAIL | |
+| | | | | | B3 | 46 / 58 | 888 / 1 058 / 1 837 | | 0 | | FAIL | |
+| | | | | | B4 | 57 / 69 | 1 024 / 1 115 / 2 120 | | 0 | | FAIL | |
+| | | | | | B5 | 41 / 46 | 755 / 895 / 1 579 | | 0 | | FAIL | |
+| | | | | | B6 | 40 / 43 | 757 / 852 / 1 340 | | 0 | | FAIL | |
+| | | | | | B7 | 47 / 89 | 975 / 1 175 / 2 003 | | 0 | | FAIL | |
+| | | | | | B8 | 50 / 60 | 977 / 1 213 / 2 038 | | 0 | | FAIL | |
+| | | | | | B9 | 1 737 / 1 954 | 30 593 / 33 664 / 34 149 (n = 14) | | 0 | execution 18 ms total; **bind (planning) 1 511 ms** over 24 statements | reported | |
+
+| 2026-11-25 | **box** (verdict) | `5ec2bb6` (branch build; also deployed to production by mistake — no code difference from `main` but the seeder — and rolled back to `0083f89` the same day) | 4 shared vCPU / 7.7 GB, no swap; load 0.22 before | 10 000 (+1 000 draft, 500 withdrawn) | B1 | 33 / 40 ms | 546 / 618 / 1 210 ms | 91 | 0 | 6.4 ms · Seq Scan `listing_listing` (11 500 rows, the whole table: B1 is everything) | **FAIL** (CPU-bound) | none |
+| | | | | | B2 | 54 / 67 | 856 / 994 / 1 610 | 58 | 0 | 18.3 ms · Hash Join (count, subtree) | FAIL | |
+| | | | | | B3 | 52 / 65 | 811 / 887 / 1 580 | 62 | 0 | 18.9 ms · Hash Join | FAIL | |
+| | | | | | B4 | 68 / 81 | 985 / 1 078 / 1 840 | 51 | 0 | 9.3 ms · Nested Loop over `idx_listing_attribute_value_option` | FAIL | |
+| | | | | | B5 | 51 / 57 | 732 / 864 / 1 520 | 68 | 0 | 10.5 ms · Hash Join | FAIL | |
+| | | | | | B6 | 51 / 57 | 804 / 871 / 1 620 | 62 | 0 | 18.1 ms · Hash Join over Seq Scan `search_listing_text` | FAIL | |
+| | | | | | B7 | 91 / 102 | 1 307 / 1 413 / 2 540 | 38 | 0 | 57.5 ms · Hash Join over Seq Scan `search_listing_text` (trigram, 52 ms) | FAIL | |
+| | | | | | B8 | 58 / 67 | 854 / 1 021 / 1 700 | 58 | 0 | 17.6 ms · Hash Join | FAIL | |
+| | | | | | B9 | 1 588 / 1 728 | 28 312 / 34 248 / 34 920 (n = 31) | | 0 | execution 26 ms; **bind (planning) 1 423 ms** of a 1.56 s request | reported | |
+| 2026-11-25 | box, pool 12 | same | same; load 12.5 after (5.8 with 5 children) | same | B1–B8 | — | p95 645 / 1 030 / 1 023 / 1 103 / 844 / 1 006 / 1 551 / 1 003 ms | −2 % total | 0 | — | FAIL, **worse** | `pm.max_children = 12` in `app-bench` only; not shipped |
+
+Box findings (2026-11-25) — the verdict:
+
+- **B1–B8 are CPU-bound (ADR-0026 d.5), not SQL-bound.** Each scenario reached ~85 % of what 4
+  cores can serve at its service cost (B1: 91 req/s against 4 ÷ 38 ms ≈ 105; B7: 38 against 44);
+  PostgreSQL and nginx share the cores. Little's law closes it: 50 ÷ 91 req/s ≈ 550 ms, B1's p50 was
+  546 ms. Load average 0.22 before, 5.8 after. Meeting p95 < 200 ms with 50 closed-loop clients needs
+  ~250 req/s — about 3× this box. No index can buy that: the slowest statement of any gating
+  scenario executes in 57.5 ms, most in under 20.
+- **The pool is not the lever here** (T11a): 12 children were 2 % slower than 5 (table above).
+- **B9 is planner-bound, confirmed**: 91 % of a request is `bind`. Under load one B9 takes ~28 s.
+  Plan D7 → a per-IP limiter on `/browse` (T11z).
+- **Seq scans on `search_listing_text` (AC-11)** — B6 (exact text, 10×) and B7 (trigram, 10×), each
+  reading all 11 500 rows and keeping ~1 100–1 200 (~10 %): every seeded model word is in about a
+  tenth of the titles, so a bitmap over `idx_search_listing_text_document`/`_title` would visit most
+  pages anyway. Chosen, not missing — the GIN indexes are used where a term is rare (12 scans of
+  `_document`). **B7's trigram estimate vs actual**: 748–1 466 estimated against 1 091–1 233 actual
+  (0.6–1.5×). Watch item: the trigram scan is 52 ms at 10 000 and grows with the table.
+- No Seq Scan on `listing_attribute_value` anywhere: facet filters go through
+  `idx_listing_attribute_value_option` (141×) and the pkey (559×). The other seq scans are on
+  `catalog_category` (≤ 198 rows), `catalog_attribute` (148) and `catalog_attribute_option` (11 469;
+  ≤ 1.5 ms — the facet label join).
+- **Cleaned up (AC-14)**: `pg_database` lists `postgres`, `muzbar`, `template1`, `template0` only;
+  bench containers, volume, network and files removed.
+- The 50 000 run (Q8) was skipped: the verdict is CPU, which more rows only restate.
+
+Local findings (2026-11-24), confirmed on the box except where noted:
+
+- **B1–B8 are queueing-bound, not SQL-bound.** Load p95 ≈ 10–20 × service time with load average
+  5.6 on 12 cores: 50 in flight against the stock `pm.max_children = 5` (measured: 5 children,
+  ~40 MB RSS each). Little's law: 5 workers ÷ ~50 ms ≈ 100 req/s, so 50 clients wait ~500 ms.
+  Plan D6 step 5 — the pool (T11a, Q6), never an index. **Box: not so** — on 4 cores the queue is the CPU's,
+  and a bigger pool made it worse.
+- **B9 is planner-bound.** `log_min_duration_statement` shows 1 511 ms in `bind` (pdo_pgsql's
+  unnamed statements are planned at bind) against 18 ms of execution; latency grows superlinearly
+  with selections (5 → 150 ms, 10 → 300 ms, 15 → 870 ms, 20 → 1.6 s). **`auto_explain` cannot see
+  this** — its `duration` is execution only. Each of the 20 count statements carries up to 19
+  `EXISTS` legs (`geqo_threshold` 12, collapse limits 8). One B9 request ≈ 1.5 s of PostgreSQL CPU:
+  the input to the `/browse` rate-limit decision (Q7).
+- **AC-8 bites:** against a migrated, unseeded `muzbar_bench` the service pass exits 99 (0 % "has
+  results", category URLs 404).
+- Seq scans in the plans are on `catalog_category` (the subtree recursion, a few dozen rows) and on
+  `listing_listing` legs; one on `search_listing_text`. Per-scenario attribution is the box run's job.
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker

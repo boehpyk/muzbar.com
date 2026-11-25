@@ -12,6 +12,8 @@ use App\Infrastructure\Catalog\Persistence\Doctrine\DbalCategoryOutline;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
+use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -31,19 +33,30 @@ use Symfony\Component\Routing\Attribute\Route;
  *   bodies cannot drift (AC-21). The route has **no `requirements`**: a route-level 404 would differ.
  * - **Bounded statements** (AC-23): the handler's, plus one outline read — read **after** the
  *   handler, so a malformed category issues no statement at all.
- * - **No GET writes** (ADR-0015); nothing here writes anything.
+ * - **No GET writes** (ADR-0015); nothing here writes anything — the limiter's Redis counter is
+ *   throttling state, not the visitor's data.
+ * - **Rate-limited per client IP, before any statement** (ADR-0026 Q7): one 20-selection URL costs
+ *   ~1.5 s of PostgreSQL planning, so a refused request reaches neither the handler nor the outline.
  */
 final class BrowseController extends AbstractController
 {
     public function __construct(
         private readonly BrowseListingsHandler $browse,
         private readonly DbalCategoryOutline $outline,
+        private readonly RateLimiterFactoryInterface $browseLimiter,
     ) {
     }
 
     #[Route('/browse', name: 'app_browse', methods: ['GET'])]
     public function browse(Request $request): Response
     {
+        $limit = $this->browseLimiter->create($request->getClientIp() ?? 'unknown-client')->consume();
+        if (!$limit->isAccepted()) {
+            // Thrown, not `new Response(…, 429)`: the framework then sets `Retry-After` from the
+            // limiter's own reset instant (the EmailVerificationController pattern).
+            throw new TooManyRequestsHttpException($limit->getRetryAfter()->getTimestamp() - time(), 'Too many searches from this address. Please try again in a minute.');
+        }
+
         $raw = $request->query->all();
 
         try {

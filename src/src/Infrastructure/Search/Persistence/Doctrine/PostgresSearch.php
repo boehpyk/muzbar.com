@@ -68,7 +68,8 @@ use Doctrine\DBAL\ParameterType;
  *   tsquery syntax (`ʼ` → `'`), so the query is built by the parser inside `search_tsquery()`, in the
  *   migration that also defines the write side. `SearchIsolationTest` scans for them.
  * - **No `SET pg_trgm.*`**: a per-request GUC leaks into whatever reuses the connection. The
- *   similarity threshold is the server default (0.6); tuning is `ALTER DATABASE`, slice 4's call.
+ *   threshold is `pg_trgm.word_similarity_threshold` (`%>` is `<%`'s commutator; server default
+ *   0.6) — not `similarity_threshold` (0.3). Tuning is `ALTER DATABASE`, never per request (ADR-0026).
  * - **Newest first, with or without text** (S-8): no `ts_rank`, no ordering change.
  *
  * **S-12: no `NumberRules` clause, on purpose.** A range is matched against the stored value only;
