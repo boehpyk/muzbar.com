@@ -516,7 +516,7 @@ built production image) are iteration only. Never point any of this at `muzbar`.
 The pieces: `docker-compose.bench.yml` (`app-bench` + `nginx-bench`, internal network
 `muzbar_bench`, no ports, no Traefik, `SENTRY_DSN` empty), `bench/search.js` (k6, three modes), and
 `muzbar:search:seed-benchmark` (in the image). The box has none of these files: copy them next to
-`docker-compose.yml` for the run (`scp docker-compose.bench.yml bench/search.js docker/php/zz-pool.conf …`, keeping the paths).
+`docker-compose.yml` for the run (`scp docker-compose.bench.yml bench/search.js …`, keeping the paths).
 
 ```bash
 export MUZBAR_IMAGE=ghcr.io/<owner>/muzbar:<deployed sha>      # locally: docker build --target production -f docker/php/Dockerfile -t muzbar-app:bench . && export MUZBAR_IMAGE=muzbar-app:bench
@@ -600,19 +600,13 @@ $K6 -e BENCH_MODE=load --summary-export /bench/out/load.json /bench/search.js; e
 uptime
 ```
 
-**5b. Load pass with the chosen pool** (T11a — only while `docker/php/zz-pool.conf` is not yet in
-the image; production is untouched, the file lands in `app-bench` alone):
+**The PHP-FPM pool stays the image's default (`pm.max_children = 5`).** On 2026-11-25 a 12-child
+pool (copied into `app-bench` only, then `$B restart app-bench`) was 2 % *slower* with load average
+12.5 against 5.8: five children already keep 4 cores busy, so more only moves the queue into the
+CPU's run queue. Re-measure this way before ever sizing a pool, and only on a box with more cores.
 
-```bash
-docker cp docker/php/zz-pool.conf muzbar-app-bench-1:/usr/local/etc/php-fpm.d/zz-pool.conf
-$B restart app-bench
-docker top muzbar-app-bench-1 | grep -c 'pool www'                     # ≥ 4 children now
-$K6 -e BENCH_MODE=load --summary-export /bench/out/load-pool.json /bench/search.js; echo "exit=$?"
-```
-
-Copy `docker/php/zz-pool.conf` to the box with the other two files.
-
-A run whose load average exceeds the core count is repeated, not used. The per-scenario numbers are
+A run whose load average **before it starts** exceeds the core count is repeated, not used (the run
+itself drives the load above the core count — that is the measurement, not noise). The per-scenario numbers are
 the `http_req_duration{bn:Bn,phase:measure}` lines; service numbers are `http_req_duration{bn:Bn}`
 in `service.json`.
 
@@ -643,12 +637,47 @@ Results log (one row per run; the box decides, local rows are marked as such):
 | | | | | | B8 | 50 / 60 | 977 / 1 213 / 2 038 | | 0 | | FAIL | |
 | | | | | | B9 | 1 737 / 1 954 | 30 593 / 33 664 / 34 149 (n = 14) | | 0 | execution 18 ms total; **bind (planning) 1 511 ms** over 24 statements | reported | |
 
-Local findings (2026-11-24), to be confirmed on the box:
+| 2026-11-25 | **box** (verdict) | `5ec2bb6` (branch build; also deployed to production by mistake — no code difference from `main` but the seeder) | 4 shared vCPU / 7.7 GB, no swap; load 0.22 before | 10 000 (+1 000 draft, 500 withdrawn) | B1 | 33 / 40 ms | 546 / 618 / 1 210 ms | 91 | 0 | 6.4 ms · Seq Scan `listing_listing` (11 500 rows, the whole table: B1 is everything) | **FAIL** (CPU-bound) | none |
+| | | | | | B2 | 54 / 67 | 856 / 994 / 1 610 | 58 | 0 | 18.3 ms · Hash Join (count, subtree) | FAIL | |
+| | | | | | B3 | 52 / 65 | 811 / 887 / 1 580 | 62 | 0 | 18.9 ms · Hash Join | FAIL | |
+| | | | | | B4 | 68 / 81 | 985 / 1 078 / 1 840 | 51 | 0 | 9.3 ms · Nested Loop over `idx_listing_attribute_value_option` | FAIL | |
+| | | | | | B5 | 51 / 57 | 732 / 864 / 1 520 | 68 | 0 | 10.5 ms · Hash Join | FAIL | |
+| | | | | | B6 | 51 / 57 | 804 / 871 / 1 620 | 62 | 0 | 18.1 ms · Hash Join over Seq Scan `search_listing_text` | FAIL | |
+| | | | | | B7 | 91 / 102 | 1 307 / 1 413 / 2 540 | 38 | 0 | 57.5 ms · Hash Join over Seq Scan `search_listing_text` (trigram, 52 ms) | FAIL | |
+| | | | | | B8 | 58 / 67 | 854 / 1 021 / 1 700 | 58 | 0 | 17.6 ms · Hash Join | FAIL | |
+| | | | | | B9 | 1 588 / 1 728 | 28 312 / 34 248 / 34 920 (n = 31) | | 0 | execution 26 ms; **bind (planning) 1 423 ms** of a 1.56 s request | reported | |
+| 2026-11-25 | box, pool 12 | same | same; load 12.5 after (5.8 with 5 children) | same | B1–B8 | — | p95 645 / 1 030 / 1 023 / 1 103 / 844 / 1 006 / 1 551 / 1 003 ms | −2 % total | 0 | — | FAIL, **worse** | `pm.max_children = 12` in `app-bench` only; not shipped |
+
+Box findings (2026-11-25) — the verdict:
+
+- **B1–B8 are CPU-bound (ADR-0026 d.5), not SQL-bound.** Each scenario reached ~85 % of what 4
+  cores can serve at its service cost (B1: 91 req/s against 4 ÷ 38 ms ≈ 105; B7: 38 against 44);
+  PostgreSQL and nginx share the cores. Little's law closes it: 50 ÷ 91 req/s ≈ 550 ms, B1's p50 was
+  546 ms. Load average 0.22 before, 5.8 after. Meeting p95 < 200 ms with 50 closed-loop clients needs
+  ~250 req/s — about 3× this box. No index can buy that: the slowest statement of any gating
+  scenario executes in 57.5 ms, most in under 20.
+- **The pool is not the lever here** (T11a): 12 children were 2 % slower than 5 (table above).
+- **B9 is planner-bound, confirmed**: 91 % of a request is `bind`. Under load one B9 takes ~28 s.
+  Plan D7 → a per-IP limiter on `/browse` (T11z).
+- **Seq scans on `search_listing_text` (AC-11)** — B6 (exact text, 10×) and B7 (trigram, 10×), each
+  reading all 11 500 rows and keeping ~1 100–1 200 (~10 %): every seeded model word is in about a
+  tenth of the titles, so a bitmap over `idx_search_listing_text_document`/`_title` would visit most
+  pages anyway. Chosen, not missing — the GIN indexes are used where a term is rare (12 scans of
+  `_document`). **B7's trigram estimate vs actual**: 748–1 466 estimated against 1 091–1 233 actual
+  (0.6–1.5×). Watch item: the trigram scan is 52 ms at 10 000 and grows with the table.
+- No Seq Scan on `listing_attribute_value` anywhere: facet filters go through
+  `idx_listing_attribute_value_option` (141×) and the pkey (559×). The other seq scans are on
+  `catalog_category` (≤ 198 rows), `catalog_attribute` (148) and `catalog_attribute_option` (11 469;
+  ≤ 1.5 ms — the facet label join).
+- The 50 000 run (Q8) was skipped: the verdict is CPU, which more rows only restate.
+
+Local findings (2026-11-24), confirmed on the box except where noted:
 
 - **B1–B8 are queueing-bound, not SQL-bound.** Load p95 ≈ 10–20 × service time with load average
   5.6 on 12 cores: 50 in flight against the stock `pm.max_children = 5` (measured: 5 children,
   ~40 MB RSS each). Little's law: 5 workers ÷ ~50 ms ≈ 100 req/s, so 50 clients wait ~500 ms.
-  Plan D6 step 5 — the pool (T11a, Q6), never an index.
+  Plan D6 step 5 — the pool (T11a, Q6), never an index. **Box: not so** — on 4 cores the queue is the CPU's,
+  and a bigger pool made it worse.
 - **B9 is planner-bound.** `log_min_duration_statement` shows 1 511 ms in `bind` (pdo_pgsql's
   unnamed statements are planned at bind) against 18 ms of execution; latency grows superlinearly
   with selections (5 → 150 ms, 10 → 300 ms, 15 → 870 ms, 20 → 1.6 s). **`auto_explain` cannot see

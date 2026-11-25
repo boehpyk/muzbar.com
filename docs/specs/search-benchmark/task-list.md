@@ -44,13 +44,16 @@
 ## Measure (by hand, recorded)
 - [x] T9: Local run — AC-8 (empty database fails the run), AC-6 (memory), all three passes; fix the
       `PostgresSearch` docblock's trigram GUC wording (`word_similarity_threshold`).
-- [ ] T10: Box run — AC-9, AC-10, AC-11, AC-13 at 10 000; one ungated 50 000 run (Q8); B9 and the
+- [x] T10: Box run — AC-9, AC-10, AC-11, AC-13 at 10 000; one ungated 50 000 run (Q8); B9 and the
       rate-limit decision (AC-12, plan D7); cleanup (AC-14). Everything logged.
+      *Done 2026-11-25: FAIL, CPU-bound (d.5); 50 000 run skipped — CPU is the verdict, more rows
+      only restate it.*
 
 ## Tuning (only if T10 fails — plan D6; one task per change, each re-measured)
-- [ ] T11a: PHP-FPM pool made explicit (`docker/php/zz-pool.conf`, Q6) — sized from measured child
+- [x] T11a: PHP-FPM pool made explicit (`docker/php/zz-pool.conf`, Q6) — sized from measured child
       RSS and the owner's RAM budget; re-run T10.
-- [ ] T11b…: one candidate from plan D6's table per task (mapping XML or hand migration + shape-test
+      *Measured on the box (12 children): 2 % slower. Not shipped; `zz-pool.conf` deleted.*
+- [x] T11b…: (none — not SQL-bound) one candidate from plan D6's table per task (mapping XML or hand migration + shape-test
       update), before/after numbers in the commit message (AC-15, AC-16). Reverted if it does not
       move its scenario.
 - [ ] T11z: (only if D7 says so) `/browse` per-IP limiter + `ClearsRateLimiters` + 429 test + bench

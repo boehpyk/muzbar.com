@@ -63,12 +63,38 @@ chosen by anyone, so a load failure may be a queueing failure that no index can 
 ## Consequences
 
 - `phase2-gate` re-runs the same commands on the final query; it is a confirmation, not a discovery.
-- The verdict needs a quiet box: a run with load average above the core count is repeated, not used.
+- The verdict needs a quiet box: a run whose load average *before it starts* is above the core count
+  is repeated, not used (the run itself drives it above — that is the measurement).
 - The production PostgreSQL server carries the bench load; after launch, pick a quiet hour.
 - The seeder is a production command that writes: its name guard and the non-empty refusal are the
   safety, and the runbook never points it at `muzbar`.
 
 ## Results
 
-*Filled in after the box run (task T12): date, image SHA, box cores/RAM, per-scenario numbers,
-verdict, and the `/browse` rate-limit decision (Q7).*
+**2026-11-25, box, image `5ec2bb6`** (the branch build; identical to `main` `0083f89` but for the
+seeder), Hetzner 4 shared vCPU / 7.7 GB, no swap, load 0.22 before the run. 10 000 published
+listings (+1 000 drafts, 500 withdrawn). Full table: docs/infrastructure.md §*Search: latency
+benchmark*, results log.
+
+| | B1 | B2 | B3 | B4 | B5 | B6 | B7 | B8 | B9 (reported) |
+|---|---|---|---|---|---|---|---|---|---|
+| Service p95, 1 client | 40 | 67 | 65 | 81 | 57 | 57 | 102 | 67 | 1 728 ms |
+| Load p95, 50 clients | 618 | 994 | 887 | 1 078 | 864 | 871 | 1 413 | 1 021 | 34 248 ms |
+| Requests/s under load | 91 | 58 | 62 | 51 | 68 | 62 | 38 | 58 | ~1 |
+
+**Verdict: FAIL — CPU-bound (decision 5), not a PostgreSQL verdict.** 0 failed requests, 100 %
+checks. Every gating scenario reached ~85 % of what 4 cores serve at its service cost; 50 clients
+÷ that rate is the latency (Little's law: B1 50 ÷ 91 ≈ 550 ms, measured p50 546 ms). The slowest
+statement of any gating scenario executes in 57.5 ms. The budget's reading (decision 1) needs
+~250 req/s, about 3× this box. Tuning order (decision 4) stops at step 1: no index moves CPU-bound
+latency, and a bigger PHP-FPM pool (12 children vs the image's 5) was 2 % **slower** — the queue
+moved into the run queue (load 12.5 vs 5.8). The pool stays at the image default.
+
+**The owner's choice (decision 5), open:** a bigger box, the Constitution §7 path, or accepting the
+budget under a weaker reading (think time — see Alternatives). Phase 2 search slices are not
+blocked by it; `phase2-gate` re-runs these commands.
+
+**Rate limit (Q7): yes.** B9 (20 selections, `MAX_ATTRIBUTES`) costs 1.56 s per request, 1.42 s of
+it **planning** (`bind`) and 26 ms executing; under load one takes ~28 s. Any visitor can build that
+URL, so `/browse` gets a per-IP limiter (plan D7, task T11z). Making the statements cheaper to plan
+is a separate, later slice.
