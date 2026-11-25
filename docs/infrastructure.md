@@ -622,6 +622,7 @@ docker compose exec -T postgres sh -c 'dropdb -U "$POSTGRES_USER" --force muzbar
 docker volume rm muzbar_bench_public; docker network rm muzbar_bench
 docker compose exec app php bin/console dbal:run-sql "SELECT datname FROM pg_database"   # no muzbar_bench
 rm docker-compose.bench.yml; rm -r bench                                                     # box only
+unset MUZBAR_IMAGE   # left exported, a bare `docker compose up` moves production to the bench image
 ```
 
 Results log (one row per run; the box decides, local rows are marked as such):

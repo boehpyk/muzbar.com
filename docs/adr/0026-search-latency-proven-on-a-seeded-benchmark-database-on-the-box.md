@@ -117,4 +117,9 @@ Constitution §7's budget row points here. Revisit when traffic approaches 10 re
 numbers above say where the box tips over (~40–90 req/s by scenario). B9 and the rate limit are
 unaffected: one B9 is ~1.5 s of CPU at any load.
 
-*Results:* the re-run on the box at 10 req/s is recorded in docs/infrastructure.md's results log.
+*Results:* **pending — not yet run.** The 10 req/s box re-run (feature-spec AC-10 as amended) is
+deferred by the owner; it is due **before `search-ui` (7)** and at the latest at `phase2-gate`
+(15), and goes into docs/infrastructure.md's results log. Until then the amended budget is an
+estimate from the measured service times, not a measurement. The re-run must also confirm k6's
+summary shows every `{bn:Bn,phase:measure}` threshold with a non-zero count — a threshold with no
+samples passes vacuously (the load mode's per-scenario gating has never run).

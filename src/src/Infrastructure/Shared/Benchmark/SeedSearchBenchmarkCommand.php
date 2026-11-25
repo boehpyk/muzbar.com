@@ -159,9 +159,8 @@ final class SeedSearchBenchmarkCommand extends Command
         mt_srand($seed);
         $started = hrtime(true);
 
-        try {
-            $tree = $this->seedCatalog();
-        } catch (CategorySlugAlreadyTaken) {
+        $tree = $this->seedCatalog();
+        if (null === $tree) {
             $log->writeln(\sprintf('<error>"%s" is not empty — drop and re-create it, then migrate.</error>', $database));
 
             return Command::FAILURE;
@@ -180,16 +179,27 @@ final class SeedSearchBenchmarkCommand extends Command
     // ---------------------------------------------------------------- catalog (plan D5.2)
 
     /**
-     * @return Tree
+     * Null when the **first** root is refused by C-3: the database is not empty. Any later
+     * refusal is a seeder bug and propagates — after partial writes it must not read "not empty".
+     *
+     * @return Tree|null
      */
-    private function seedCatalog(): array
+    private function seedCatalog(): ?array
     {
         $roots = [];
         $leaves = [];
         $rootIndex = 0;
 
         foreach (self::TREE as $rootName => $mids) {
-            $rootId = $this->category($rootName, null);
+            try {
+                $rootId = $this->category($rootName, null);
+            } catch (CategorySlugAlreadyTaken $refused) {
+                if (0 === $rootIndex) {
+                    return null;
+                }
+
+                throw $refused;
+            }
             $roots[] = $rootId;
             $brandOptions = $rootIndex < 2 ? self::BIG_BRAND_OPTIONS : self::SMALL_BRAND_OPTIONS;
             $rootAttributes = [

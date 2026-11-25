@@ -1,7 +1,7 @@
 # Search latency benchmark (ADR-0026) — a bench PHP-FPM + nginx pair beside production, on an
 # internal network only. Runbook: docs/infrastructure.md §Search: latency benchmark.
 #
-#   docker compose -f docker-compose.yml -f docker-compose.bench.yml up -d app-bench nginx-bench
+#   docker compose -f docker-compose.yml -f docker-compose.bench.yml up -d --no-deps app-bench nginx-bench
 #   docker compose -f docker-compose.yml -f docker-compose.bench.yml rm -sf app-bench nginx-bench
 #
 # NEVER `down` with this file: that stops the whole production stack too.

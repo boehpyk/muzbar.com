@@ -2,6 +2,8 @@
 
 > The explained, one-off walkthrough of docs/infrastructure.md §*Search: latency benchmark* for the
 > first box run (2026-11-25). The canonical runbook stays there; this dies with the spec.
+> **Historical — do not follow for a re-run.** It copies `docker/php/zz-pool.conf`, which was
+> deleted after this run (T11a). Use docs/infrastructure.md's runbook.
 > Box: Hetzner, 4 shared vCPU, 7.7 GB RAM, ~5.3 GB available, **no swap**, four tenants.
 >
 > About 40–60 minutes, mostly waiting. Nothing touches production's data or containers **as long as

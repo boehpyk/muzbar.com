@@ -435,7 +435,8 @@ launch is not a Phase 2 item.
         **Done 2026-11-25** ([ADR-0026](./adr/0026-search-latency-proven-on-a-seeded-benchmark-database-on-the-box.md)). Box, 10 000 published: service p95 40–102 ms
         (B1–B8); 50 closed-loop clients **FAIL, CPU-bound** (p95 0.6–1.4 s at ~85 % of what 4 cores
         serve; slowest statement 57.5 ms; a 12-child FPM pool was 2 % slower). Owner re-read the
-        budget as **10 req/s arriving** (ADR-0026 amendment; box re-run pending). No index, no
+        budget as **10 req/s arriving** (ADR-0026 amendment). **AC-10 deferred:** the 10 req/s box
+        re-run has not been made — due before `search-ui` (7), at the latest `phase2-gate` (15). No index, no
         promoted column. B9 (20 selections) is planner-bound — 1.4 s in `bind` — so **`/browse` is
         rate-limited, 30/min per IP**.
 - [ ] 5. `public-styles` *(before the public search UI — `listing-publish` plan Q7)* — the public SCSS

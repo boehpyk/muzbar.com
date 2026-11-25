@@ -47,7 +47,7 @@
 - [x] T10: Box run — AC-9, AC-10, AC-11, AC-13 at 10 000; one ungated 50 000 run (Q8); B9 and the
       rate-limit decision (AC-12, plan D7); cleanup (AC-14). Everything logged.
       *Done 2026-11-25: FAIL, CPU-bound (d.5); 50 000 run skipped — CPU is the verdict, more rows
-      only restate it.*
+      only restate it. AC-10 as amended (10 req/s) **deferred** — re-run due before search-ui (7).*
 
 ## Tuning (only if T10 fails — plan D6; one task per change, each re-measured)
 - [x] T11a: PHP-FPM pool made explicit (`docker/php/zz-pool.conf`, Q6) — sized from measured child
@@ -67,4 +67,6 @@
       gate wording pointed at ADR-0026; `postgres-facet-search` skill's seq-scan line; CLAUDE.md
       status + footguns (FPM default pool, auto_explain per database, the bench never on `muzbar`);
       FORboehpyk.md chapter (Little's law, usability vs choice, a benchmark of empty pages passes).
-- [ ] T13: `/verify` → reviewer PASS, all acceptance criteria checked, docs updated.
+- [x] T13: `/verify` → reviewer PASS, all acceptance criteria checked, docs updated.
+      *2026-11-25: PASS in two iterations (MAJOR: ADR-0026 claimed a 10 req/s result that did not
+      exist). AC-10 (amended) **deferred**, not met — box re-run before search-ui (7).*

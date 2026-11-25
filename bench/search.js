@@ -29,12 +29,16 @@ const MEASURE_S = 30;
 const SERVICE_REQUESTS = 50;
 
 function thresholds() {
-    const t = { http_req_failed: ['rate==0'], checks: ['rate==1'] };
+    // Load mode: the verdict counts only measured, gating requests — a warm-up or B9 error is
+    // reported, not gated. The other modes gate everything (AC-8's empty-database run relies on it).
+    const t = MODE === 'load' ? {} : { http_req_failed: ['rate==0'], checks: ['rate==1'] };
     if (MODE === 'load') {
         // An open model hides overload as skipped arrivals instead of slow answers. B9 (last,
         // ungated) overloads 4 cores at this rate by design, so only gating scenarios count.
         for (const name of GATING) {
             t[`dropped_iterations{scenario:${name}}`] = ['count==0'];
+            t[`http_req_failed{bn:${name},phase:measure}`] = ['rate==0'];
+            t[`checks{bn:${name},phase:measure}`] = ['rate==1'];
         }
     }
     for (const name of NAMES) {
