@@ -156,3 +156,13 @@ this ADR named as the Phase 1 gate was run, and what it does and does not show.
    `boolean` attribute in the browsed category's lineage is a facet. Add the flag when an admin first
    needs to hide one.
 3. **Still zero promoted columns.** Nothing measured asks for one; `search-benchmark` decides.
+
+## Amendment, 2026-11-25 — the benchmark asked for no index and no promoted column
+
+`search-benchmark` ([ADR-0026](./0026-search-latency-proven-on-a-seeded-benchmark-database-on-the-box.md)) is where hot-column promotion was to be decided "here or not at all".
+On 10 000 published listings, no full-table scan on `listing_attribute_value` in any scenario —
+facet filters use `idx_listing_attribute_value_option` and the pkey — and no statement slower than
+57.5 ms. The failure was CPU (ADR-0026 d.5), which no column or index buys back. **Still zero
+promoted columns, and no new index.** The open cost is planning, not execution: 20 selections spend
+1.4 s in `bind` for 26 ms of work — a query-shape question for a later slice, now guarded by a
+`/browse` rate limit.

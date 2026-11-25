@@ -62,7 +62,7 @@
       check disabled, the 429 and before-the-search tests fail.*
 
 ## Verify
-- [ ] T12: Docs — ADR-0026 results; ADR-0002 + ADR-0004 amendments (ADR-0023 if a Listing-mapped
+- [x] T12: Docs — ADR-0026 results; ADR-0002 + ADR-0004 amendments (ADR-0023 if a Listing-mapped
       index landed); docs/cicd.md benchmark paragraph; roadmap item 4 ticked with numbers and the
       gate wording pointed at ADR-0026; `postgres-facet-search` skill's seq-scan line; CLAUDE.md
       status + footguns (FPM default pool, auto_explain per database, the bench never on `muzbar`);

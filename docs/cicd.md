@@ -53,9 +53,11 @@ enforced `/verify`.)
 
 ### Phase-gate jobs (added as phases land)
 
-- **Search latency benchmark** (Phase 2 gate): a job that seeds 10k+ listings and asserts p95 < 200 ms
-  @ 50 concurrent, with an `EXPLAIN`-based check that facets hit indexes. Runs on demand / nightly, not
-  every PR (it's slow).
+- **Search latency benchmark — not a CI job** (ADR-0026 d.2): a shared runner measures the runner, so
+  its numbers could never be compared. It runs **by hand on the box**, against a scratch
+  `muzbar_bench` database, with `docker-compose.bench.yml` + `bench/search.js` (k6); the k6 exit code
+  is the verdict. Runbook and results log: docs/infrastructure.md §*Search: latency benchmark*.
+  `phase2-gate` re-runs it.
 
 ### CD — build on merge, deploy behind a manual gate (`.github/workflows/deploy.yml`)
 
@@ -127,4 +129,4 @@ A red `main` is the top priority — `main` is always releasable.
 `ci.yml` first (it gates everything), then `deploy.yml` once a first image builds and the VDS deploy
 user + GHCR access exist. When wiring `deploy.yml`, create the GitHub **`production` Environment** and
 add yourself as a **required reviewer** — that rule *is* the manual gate. Also set branch protection on
-`main` (require CI green, squash-merge only). The benchmark job arrives with Phase 2.
+`main` (require CI green, squash-merge only). The search benchmark is not a job (see above).
