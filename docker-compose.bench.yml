@@ -21,6 +21,8 @@ services:
       APP_DEBUG: "0"
       DATABASE_URL: postgresql://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/muzbar_bench?serverVersion=16&charset=utf8
       SENTRY_DSN: ""
+      # k6 is one client IP at 10 req/s; the production cap (30/min) would 429 the run.
+      BROWSE_RATE_LIMIT: "1000000"
     volumes:
       # Its own copy of public/ (the entrypoint publishes it), so the bench never depends on —
       # or writes into — the volume production nginx serves.

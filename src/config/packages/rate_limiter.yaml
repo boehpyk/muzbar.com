@@ -159,3 +159,15 @@ framework:
             policy: 'sliding_window'
             limit: 5
             interval: '1 hour'
+
+        # `/browse` (search-benchmark T11z, ADR-0026 Q7). Anyone can build a URL with 20 facet
+        # selections, and on the box that one request costs ~1.5 s of CPU — almost all of it
+        # PostgreSQL *planning* (bind 1 423 ms, execute 26 ms). Twenty such requests in parallel stall
+        # every page on 4 cores, so the cap is per client IP and on every request, not only expensive
+        # ones: one rule, nothing to tune per URL. 30 a minute is far above a person clicking facets.
+        # The limit is an env var only so the test env (one shared IP, hundreds of /browse requests)
+        # and the bench (k6 is one IP at 10 req/s) can raise it; production uses `.env`'s 30.
+        browse:
+            policy: 'sliding_window'
+            limit: '%env(int:BROWSE_RATE_LIMIT)%'
+            interval: '1 minute'

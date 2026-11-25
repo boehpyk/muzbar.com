@@ -56,8 +56,10 @@
 - [x] T11b…: (none — not SQL-bound) one candidate from plan D6's table per task (mapping XML or hand migration + shape-test
       update), before/after numbers in the commit message (AC-15, AC-16). Reverted if it does not
       move its scenario.
-- [ ] T11z: (only if D7 says so) `/browse` per-IP limiter + `ClearsRateLimiters` + 429 test + bench
+- [x] T11z: (only if D7 says so) `/browse` per-IP limiter + `ClearsRateLimiters` + 429 test + bench
       exclusion.
+      *30/min per IP (sliding), `BROWSE_RATE_LIMIT`; test env 1 000 000, bench 1 000 000. Bite: with the
+      check disabled, the 429 and before-the-search tests fail.*
 
 ## Verify
 - [ ] T12: Docs — ADR-0026 results; ADR-0002 + ADR-0004 amendments (ADR-0023 if a Listing-mapped
