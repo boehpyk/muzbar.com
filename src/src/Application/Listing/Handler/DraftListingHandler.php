@@ -10,6 +10,8 @@ use App\Domain\Listing\Exception\InvalidCategoryId;
 use App\Domain\Listing\Exception\UnknownCategory;
 use App\Domain\Listing\Port\Categories;
 use App\Domain\Listing\Port\ListingRepository;
+use App\Domain\Listing\ValueObject\AttributeInput;
+use App\Domain\Listing\ValueObject\AttributeSchema;
 use App\Domain\Listing\ValueObject\CategoryId;
 use App\Domain\Listing\ValueObject\Currency;
 use App\Domain\Listing\ValueObject\ListingDescription;
@@ -55,6 +57,8 @@ final readonly class DraftListingHandler
                 ListingTitle::fromString($command->title),
                 ListingDescription::fromString($command->description),
                 Price::fromDecimal($command->price, Currency::fromCode($command->currency)),
+                AttributeSchema::none(),
+                AttributeInput::fromArray([]),
             );
 
             $this->listings->save($listing);

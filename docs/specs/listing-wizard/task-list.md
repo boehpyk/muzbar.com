@@ -10,7 +10,7 @@
       POST builds for `details_for`), ADR-0020 (L-7 amended), ADR-0021 (re-file + publish, D5).
 
 ## Domain
-- [ ] T1: `Listing::draft()` takes `AttributeSchema $schema, AttributeInput $input`; reads
+- [x] T1: `Listing::draft()` takes `AttributeSchema $schema, AttributeInput $input`; reads
       `$schema->read($input)` after L-2; docblock L-7 amended (D3). Update `ListingFactory` and
       existing `ListingTest` call sites (`none()` / `fromArray([])`). New unit cases for AC-25.
 
