@@ -45,7 +45,7 @@
       importmap. Build the image locally once; prove mutation (r) by removing the `ls` target.
 
 ## Infrastructure — the component
-- [ ] T8: `ListingForm` Live Component (`method: 'post'`, `ComponentWithFormTrait`, non-writable
+- [x] T8: `ListingForm` Live Component (`method: 'post'`, `ComponentWithFormTrait`, non-writable
       `listingId`, `published`, `buttons`) + `listing/components/ListingForm.html.twig` replacing
       `_form.html.twig`; per-render ownership `find()` → 404; anonymous → 404 (D7). Decide the trait
       vs. plain-props question here (plan Risk 1).
