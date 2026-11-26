@@ -25,7 +25,7 @@
       in it too.
 
 ## Infrastructure — layouts
-- [ ] T3: `templates/admin/layout.html.twig` (empties `stylesheets` and `analytics`); six
+- [x] T3: `templates/admin/layout.html.twig` (empties `stylesheets` and `analytics`); six
       `catalog/admin/*` templates switch `extends`. No visible change yet.
 - [ ] T4: `base.html.twig` (plan D2): viewport meta, brand favicon, font preload + `public.scss` link
       in `stylesheets`, `analytics` block with `_analytics.html.twig` (empty partial for now), skip
