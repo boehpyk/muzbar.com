@@ -51,7 +51,7 @@
       Q2: include the partial in `coming_soon.html.twig`'s `<head>`.
 
 ## Infrastructure — deploy
-- [ ] T9: `deploy.yml` smoke check: `/login`'s `public-*.css` href → 200 `text/css` (plan,
+- [x] T9: `deploy.yml` smoke check: `/login`'s `public-*.css` href → 200 `text/css` (plan,
       Infrastructure section; capture into variables, no `curl | grep -q`).
 
 ## Tests (qa)

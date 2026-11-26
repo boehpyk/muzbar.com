@@ -130,3 +130,18 @@ jobs:
             echo "::error::/connect/google does not redirect to Google with the https redirect_uri. Check GOOGLE_CLIENT_ID in the box .env and trusted_proxies."
             exit 1
           fi
+          # The public stylesheet must be served (public-styles AC-10). Until public-styles the image
+          # never ran asset-map:compile, so every /assets/ URL was a 404 in prod and no test could
+          # see it. Captured into variables, no `| head`/`grep -q` pipes (SIGPIPE under pipefail);
+          # `|| true` so "no match" reaches the error below instead of a bare set -e exit.
+          page="$(curl -fsS https://muzbar.com/login)"
+          css="$(printf '%s' "$page" | grep -o -m1 '/assets/styles/public-[A-Za-z0-9_-]*\.css' || true)"
+          if [ -z "$css" ]; then
+            echo "::error::/login links no public-*.css stylesheet."
+            exit 1
+          fi
+          type="$(curl -fsS -o /dev/null -w '%{content_type}' "https://muzbar.com$css")"
+          case "$type" in
+            text/css*) ;;
+            *) echo "::error::$css is served as '$type', expected text/css. Check asset-map:compile in the image and the nginx public volume."; exit 1 ;;
+          esac
