@@ -63,7 +63,7 @@
       commit message. (f) is a local `docker build`.
 
 ## Docs
-- [ ] T13: ADR-0006 amendment and ADR-0003 amendment (plan D7, D6); roadmap: tick item 5, add the
+- [x] T13: ADR-0006 amendment and ADR-0003 amendment (plan D7, D6); roadmap: tick item 5, add the
       "admin-styles (Tailwind)" line and "privacy-policy page before launch" note;
       docs/infrastructure.md §Analytics runbook (set the two vars on the box, restart `app`, check
       Umami's real-time view; post-deploy: open the overlay on prod — Q5); CLAUDE.md (status line,

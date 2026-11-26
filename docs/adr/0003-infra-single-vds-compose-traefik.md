@@ -52,3 +52,27 @@ Two Compose files, following samolit's proven split:
   - Redis gets a password and a network alias (a bare `redis` hostname can resolve to redis.com).
 - Shared box means noisy-neighbour risk with samolit; watch memory (PHP-FPM `max_children`, Doctrine
   hydration) — the owner's wiki documents both.
+
+## Amendment, 2026-11-26 — the Umami snippet lands, and where it never renders
+
+Recorded by the `public-styles` slice, on the owner's answers Q2–Q4 (2026-11-26). The decision above
+— reuse the shared Umami on the box, no analytics container — stands.
+
+1. **Config shape: two optional env vars, empty = off.** `UMAMI_SCRIPT_URL` (the shared instance's
+   `script.js`) and `UMAMI_WEBSITE_ID` (muzbar's site UUID), read as Twig globals through
+   `%env(default::…)%` so neither is a boot-time dependency. The snippet renders only when **both** are
+   set: `<script defer src="…" data-website-id="…" data-exclude-search="true">`. Runbook:
+   docs/infrastructure.md §*Analytics (Umami)*.
+2. **Where it renders:** every page on the public layout (`base.html.twig`'s `analytics` block) and the
+   coming-soon page `/` (Q2 — the only page with real traffic today).
+   **Where it never renders:** admin (the admin layout empties the block), mail templates, and the
+   token URLs `/verify-email/{token}` and `/reset-password/{token}` — both only redirect, and
+   `AnalyticsSnippetTest` pins that. A future page under `base` that shows a token or secret in its
+   URL (or a custom error page) must empty the `analytics` block.
+3. **Query strings are excluded** (`data-exclude-search`, Q3): `/browse`'s `q` is free text a visitor
+   typed. Facet analytics wait for `search-ui`, and need this re-opened on purpose.
+4. **No consent banner** (Q4). Umami is self-hosted (no third party receives data), sets no cookies and
+   no local storage, and stores no IP address. muzbar adds no custom events with user data. **Any of
+   these re-opens the question:** custom events carrying user data, a second tracker, cookies, or
+   moving Umami off the box. A privacy-policy page mentioning Umami is owed before public launch
+   (roadmap, cross-cutting).

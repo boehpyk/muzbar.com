@@ -439,11 +439,16 @@ launch is not a Phase 2 item.
         re-run has not been made — due before `search-ui` (7), at the latest `phase2-gate` (15). No index, no
         promoted column. B9 (20 selections) is planner-bound — 1.4 s in `bind` — so **`/browse` is
         rate-limited, 30/min per IP**.
-- [ ] 5. `public-styles` *(before the public search UI — `listing-publish` plan Q7)* — the public SCSS
+- [x] 5. `public-styles` *(before the public search UI — `listing-publish` plan Q7)* — the public SCSS
       pipeline (ADR-0006): `sass-bundle`, `public.css`, tokens, and the **first public layout** — which
       is also where the **Umami snippet** finally lands (Phase 0 left it with nowhere to live). The sell
       pages, the listing page and the browse page ship as unstyled semantic markup with stable class
       names until then, so styling is purely additive.
+      **Done 2026-11-26.** sass-bundle (Dart Sass 1.69.7), `public.scss` + plain-CSS `tokens.css`,
+      `base.html.twig` as the public layout, `admin/layout.html.twig` opting admin out, Umami behind
+      two optional env vars (ADR-0003/0006 amendments). Found on the way: **prod had never served an
+      asset** (the image never ran `asset-map:compile`) — the image now compiles and asserts, and
+      the deploy smoke check fetches the stylesheet. Not done here: admin styling (below).
 - [ ] 6. `listing-wizard` — morphing single-page listing form as a **Symfony UX Live Component**:
       selecting a category reshapes the lower form (parametric dropdowns) without a reload or data loss
       (US-1, UX §). Replaces the server-rendered Details section; the POST still re-reads
@@ -500,6 +505,9 @@ launch is not a Phase 2 item.
 - [ ] 15. `phase2-gate` — both gates below, as one proof slice like `phase1-gate`: re-run slice 4's
       benchmark on the final query; send renewal and alert mail through the production relay to
       Gmail/Outlook/Yahoo test inboxes with SPF/DKIM/DMARC aligned, logged in docs/infrastructure.md.
+- [ ] `admin-styles` *(unnumbered; whenever admin's unstyled pages start to hurt)* — Tailwind via
+      `symfonycasts/tailwind-bundle`, `admin.css` on `admin/layout.html.twig`, theme read from
+      `tokens.css` (ADR-0006 and its 2026-11-26 amendment). Not a gate item.
 - **Gate — Search Latency Benchmark** (PRD metric + validation #1): seed 10k+ mock listings; prove
       **p95 < 200 ms per scenario at 10 req/s arriving** (ADR-0026 as amended 2026-11-25), with the
       plans PostgreSQL *chooses* recorded as evidence — a seq scan is recorded with its reason, not
@@ -550,4 +558,4 @@ yet keeping, which is the reason they get their own section instead of a line in
 
 Security (email isolation, input validation, authz on mutations), accessibility/responsive UI, and
 **FORboehpyk.md** kept current with the bugs hit and lessons learned. GDPR review before public
-launch. Revisit Meilisearch **only** if the Phase 2 benchmark fails on real data.
+launch, including a **privacy-policy page that names Umami** (ADR-0003 amendment 2026-11-26). Revisit Meilisearch **only** if the Phase 2 benchmark fails on real data.

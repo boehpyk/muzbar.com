@@ -693,6 +693,51 @@ Local findings (2026-11-24), confirmed on the box except where noted:
 - Seq scans in the plans are on `catalog_category` (the subtree recursion, a few dozen rows) and on
   `listing_listing` legs; one on `search_listing_text`. Per-scenario attribution is the box run's job.
 
+## Public assets & analytics (`public-styles`)
+
+### The first deploy of `public-styles` (owner, once)
+
+Until this slice **production served no asset at all**: the image never ran `asset-map:compile`, so
+`/assets/styles/coming-soon-*.css` and `app.js` were 404s since launch (ADR-0006 amendment 2026-11-26).
+After the deploy:
+
+1. The deploy smoke check already proved `/login`'s `public-*.css` is `200 text/css`. Open `/` and
+   `/browse` and look: both should be styled.
+2. **Q5 — the login overlay runs in prod for the first time.** Signed out, click **Sell Gear**: a
+   dialog should open over the page (not a navigation to `/login`). Sign in through it and land on
+   `/sell`. Press Esc on a fresh one: it closes.
+
+### Analytics (Umami)
+
+muzbar uses the **shared** Umami already on the box (ADR-0003). The snippet renders only when both
+vars are set; either empty = off, and nothing fails.
+
+1. In the Umami UI, add a website `muzbar.com`; copy its **website ID** (a UUID) and the instance's
+   script URL (`https://<umami host>/script.js`).
+2. In the box `.env`:
+   ```
+   UMAMI_SCRIPT_URL=https://<umami host>/script.js
+   UMAMI_WEBSITE_ID=<uuid>
+   ```
+3. Recreate `app` (`env_file:` is read at container start; mind `MUZBAR_IMAGE`, see *Deploy*).
+4. Check: `curl -s https://muzbar.com/login | grep -c data-website-id` → `1`. Then open the site in a
+   browser and watch Umami's **Realtime** view count you. (Admin pages never carry the snippet —
+   `AnalyticsSnippetTest` pins that; no need to check by hand.)
+
+**It never renders on** admin pages, mail, or the token URLs (`/verify-email/…`, `/reset-password/…`,
+which only redirect). Query strings are excluded (`data-exclude-search`). Adding custom events, a
+second tracker or cookies re-opens the no-consent-banner reasoning in ADR-0003's amendment.
+
+### Footguns
+
+- **Never `asset-map:compile` in a dev checkout.** It writes `public/assets/`, which nginx then serves
+  in preference to the dev asset server — dev shows yesterday's CSS until you delete the directory.
+  The image build is the only place it runs.
+- **The nginx asset volume keeps old hashed files** across deploys and grows slowly. Harmless; prune
+  by recreating the volume if it ever matters.
+- **A new page under `base.html.twig` that puts a token in its URL**, or a custom error page, starts
+  being tracked. Empty its `analytics` block.
+
 ## Secrets & configuration
 
 - `.env` is **not** committed; `.env.example` is. Prod secrets live in `.env` on the box (or Docker
