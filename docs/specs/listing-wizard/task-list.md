@@ -49,7 +49,7 @@
       `listingId`, `published`, `buttons`) + `listing/components/ListingForm.html.twig` replacing
       `_form.html.twig`; per-render ownership `find()` → 404; anonymous → 404 (D7). Decide the trait
       vs. plain-props question here (plan Risk 1).
-- [ ] T9: Morph rules (D6): rebuild for the selected category, attributes merge (submitted-if-present
+- [x] T9: Morph rules (D6): rebuild for the selected category, attributes merge (submitted-if-present
       → stored → absent), strip non-schema keys, `details_for`. Template bindings: form
       `norender|*`, category `change->live#$render` (D7).
 - [ ] T10: `sell.html.twig` / `edit.html.twig` mount `<twig:ListingForm>`; `/sell` "Save and publish"

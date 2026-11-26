@@ -10,7 +10,8 @@
         {{ form_row(form.description) }}
         {{ form_row(form.price) }}
         {{ form_row(form.currency) }}
-        {{ form_row(form.category) }}
+        {# The one element that asks for a morph (AC-9); every other field only syncs (norender|*). #}
+        {{ form_row(form.category, {attr: {'data-action': 'change->live#$render'}}) }}
         {{ form_widget(form.details_for) }}
         {% if form.attributes is defined %}
             <fieldset>

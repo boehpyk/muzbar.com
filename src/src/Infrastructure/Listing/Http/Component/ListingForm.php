@@ -87,15 +87,49 @@ final class ListingForm
         }
 
         $storedCategory = $listing['categoryId'] ?? null;
+        $published = 'published' === ($listing['status'] ?? null);
         $choices = $this->forms->choices($this->outline->rows(), $storedCategory);
-        // Plan T9 adds the morph rules; until then the Details are the stored category's.
-        [$schema] = $this->forms->details($choices, $storedCategory, $stored);
+
+        // D6.1: the selected category. A published listing keeps its own (L-15), whatever is
+        // forced into the state (AC-7). `details()` reads nothing for a value it does not offer (AC-6).
+        $selected = $this->formValues['category'] ?? null;
+        $category = $published ? $storedCategory : (\is_string($selected) ? $selected : null);
+        [$schema] = $this->forms->details($choices, $category, $stored);
+
+        // D6.3: one value per field of the new schema — the submitted one when the field was on the
+        // page (even `''`: a deliberate clear is not undone, AC-4), else the stored one, else none.
+        // Nothing outside the schema survives (AC-3), or the form would refuse it as an extra field.
+        $submitted = \is_array($this->formValues['attributes'] ?? null) ? $this->formValues['attributes'] : [];
+        $attributes = [];
+
+        foreach ($schema as $field) {
+            if (\array_key_exists($field['id'], $submitted)) {
+                $attributes[$field['id']] = $submitted[$field['id']];
+            } elseif (isset($stored[$field['id']])) {
+                $attributes[$field['id']] = $stored[$field['id']];
+            }
+        }
+
+        if ([] === $schema) {
+            unset($this->formValues['attributes']);
+        } else {
+            $this->formValues['attributes'] = $attributes;
+        }
+
+        // D6.4: what the Details on this render are for — the POST builds its form for it (D4).
+        $detailsFor = null !== $category && isset($choices[$category]) ? $category : '';
+        $this->formValues['details_for'] = $detailsFor;
+
+        // A morph shows no validation errors: a half-typed price must not turn red while the
+        // seller is choosing a category (D6). Not even after a 422 page, whose errors it replaces.
+        $this->isValidated = false;
+        $this->validatedFields = [];
 
         $this->spec = [
             'choices' => $choices,
             'schema' => $schema,
-            'detailsFor' => null !== $storedCategory && isset($choices[$storedCategory]) ? $storedCategory : '',
-            'published' => 'published' === ($listing['status'] ?? null),
+            'detailsFor' => $detailsFor,
+            'published' => $published,
             'storedCategory' => $storedCategory,
         ];
     }
