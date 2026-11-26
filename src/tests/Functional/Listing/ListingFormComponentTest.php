@@ -9,8 +9,10 @@ use App\Application\Catalog\Handler\ArchiveAttributeOptionHandler;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Identity\Entity\User;
 use App\Domain\Listing\Entity\Listing;
+use App\Infrastructure\Identity\Security\SecurityUser;
 use App\Infrastructure\Listing\Form\ListingFormData;
 use App\Infrastructure\Listing\Form\ListingFormType;
+use App\Infrastructure\Listing\Http\Component\ListingForm;
 use App\Tests\Factory\AttributeFactory;
 use App\Tests\Factory\ListingFactory;
 use App\Tests\Fixture\QueryRecordingStatement;
@@ -26,6 +28,8 @@ use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\Form\FormFactoryInterface;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\UX\LiveComponent\Test\InteractsWithLiveComponents;
 use Symfony\UX\LiveComponent\Test\TestLiveComponent;
 
@@ -342,6 +346,35 @@ final class ListingFormComponentTest extends WebTestCase
             'No attributes[...] key outside the new schema.',
         );
         self::assertSame('', $this->valueOf($page, $this->detailField($this->bassStrings)), 'A field never filled stays empty.');
+    }
+
+    /**
+     * Mutation (f). Through the Live round trip this is invisible: `ComponentWithFormTrait` re-extracts
+     * `formValues` from the form view after it submits, and clears the extra-fields error of a field
+     * nobody asked to validate. So `morph()` is called directly and its own state is read.
+     */
+    public function testMorphLeavesNoAttributeKeyOutsideTheNewSchemaInTheStateItHandsOn(): void
+    {
+        $user = $this->signIn();
+        $securityUser = SecurityUser::fromDomainUser($user);
+        $tokens = self::getContainer()->get('security.token_storage');
+        self::assertInstanceOf(TokenStorageInterface::class, $tokens);
+        $tokens->setToken(new UsernamePasswordToken($securityUser, 'main', $securityUser->getRoles()));
+        $form = $this->component()->component();
+        self::assertInstanceOf(ListingForm::class, $form);
+        $form->formValues = [
+            'category' => $this->bass->id()->toString(),
+            'attributes' => [
+                $this->condition->id()->toString() => $this->optionIdOf($this->condition, 'Used'),
+                $this->strings->id()->toString() => '6',
+                $this->serial->id()->toString() => 'SN-1',
+            ],
+        ];
+
+        $form->morph();
+
+        self::assertIsArray($form->formValues['attributes'] ?? null);
+        self::assertSame([$this->condition->id()->toString()], array_keys($form->formValues['attributes']), 'Only the new schema\'s keys survive.');
     }
 
     // ---------------------------------------------------------------- AC-4

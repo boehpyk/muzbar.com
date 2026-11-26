@@ -61,7 +61,7 @@
 - [x] T12: `SellWizardTest` — AC-11…AC-18, AC-21; run `make test` twice (rate limiters, Redis).
 - [x] T13: Scans — AC-22 (component dir: no `LiveAction`, no handler/repository/`Categories`;
       ≥ 1 file scanned) and AC-9 (template bindings).
-- [ ] T14: Mutation sweep (a)–(r), each applied alone, each bites; record results in the PR.
+- [x] T14: Mutation sweep (a)–(r), each applied alone, each bites; record results in the PR.
 - [ ] T15: Hand-check in Chromium (AC-27), including JS disabled.
 
 ## Docs
