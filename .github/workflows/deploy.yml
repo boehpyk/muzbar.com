@@ -145,3 +145,15 @@ jobs:
             text/css*) ;;
             *) echo "::error::$css is served as '$type', expected text/css. Check asset-map:compile in the image and the nginx public volume."; exit 1 ;;
           esac
+          # The live controller is lazy (never modulepreloaded), so only its importmap entry names it;
+          # a 404 there breaks every Live Component silently (listing-wizard AC-26).
+          live="$(printf '%s' "$page" | grep -o -m1 '/assets/@symfony/ux-live-component/live_controller-[A-Za-z0-9_-]*\.js' || true)"
+          if [ -z "$live" ]; then
+            echo "::error::/login's importmap names no live_controller-*.js."
+            exit 1
+          fi
+          type="$(curl -fsS -o /dev/null -w '%{content_type}' "https://muzbar.com$live")"
+          case "$type" in
+            *javascript*) ;;
+            *) echo "::error::$live is served as '$type', expected javascript. Check asset-map:compile in the image and the nginx public volume."; exit 1 ;;
+          esac

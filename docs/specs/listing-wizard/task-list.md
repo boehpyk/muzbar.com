@@ -40,7 +40,7 @@
       files; `controllers.json` live controller `fetch: lazy`; `app.js` imports the Stimulus
       bootstrap (overlay untouched); `twig_component.yaml` namespace → `listing/components/`. Check
       `importmap.php` against the package's `package.json` (idiomorph?).
-- [ ] T7: Dockerfile `ls` for the compiled Stimulus + live controller (paths from
+- [x] T7: Dockerfile `ls` for the compiled Stimulus + live controller (paths from
       `debug:asset-map`); `deploy.yml` smoke fetch of the live controller URL from `/login`'s
       importmap. Build the image locally once; prove mutation (r) by removing the `ls` target.
 
