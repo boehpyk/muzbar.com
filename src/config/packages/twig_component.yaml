@@ -1,0 +1,5 @@
+twig_component:
+    anonymous_template_directory: 'components/'
+    defaults:
+        # ADR-0027: Live Components live with their context's HTTP adapters.
+        App\Infrastructure\Listing\Http\Component\: 'listing/components/'

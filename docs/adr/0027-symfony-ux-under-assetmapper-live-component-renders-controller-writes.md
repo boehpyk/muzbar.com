@@ -105,7 +105,8 @@ them a decision rather than an install:
 
 7. **The package set and how it is built.**
    - **Packages:** `symfony/ux-live-component`, which pulls `symfony/ux-twig-component` and
-     `symfony/stimulus-bundle`. Version: recorded at install (see `composer.lock`). No Turbo.
+     `symfony/stimulus-bundle`. Version: `symfony/ux-live-component` **v3.8.1** (constraint `^3.8`), with
+     `ux-twig-component` v3.8.0 and `stimulus-bundle` v3.8.0; `@hotwired/stimulus` 3.2.2. No Turbo.
    - **Under AssetMapper, Node-free** (ADR-0006): `@hotwired/stimulus` and
      `@symfony/ux-live-component` (and any JS dependency its `package.json` names) are importmap
      entries; `assets/app.js` imports the Stimulus bootstrap and leaves the plain-JS login overlay

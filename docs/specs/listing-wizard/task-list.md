@@ -36,7 +36,7 @@
       Edit the two intentionally changed assertions and list them (AC-24).
 
 ## Infrastructure — packages and assets
-- [ ] T6: `composer require symfony/ux-live-component` (pin, record version for ADR-0027); recipe
+- [x] T6: `composer require symfony/ux-live-component` (pin, record version for ADR-0027); recipe
       files; `controllers.json` live controller `fetch: lazy`; `app.js` imports the Stimulus
       bootstrap (overlay untouched); `twig_component.yaml` namespace → `listing/components/`. Check
       `importmap.php` against the package's `package.json` (idiomorph?).
