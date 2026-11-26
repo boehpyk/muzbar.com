@@ -8,8 +8,10 @@ use App\Application\Catalog\Command\DefineAttribute;
 use App\Application\Catalog\Command\EditAttribute;
 use App\Application\Catalog\Handler\DefineAttributeHandler;
 use App\Application\Catalog\Handler\EditAttributeHandler;
+use App\Application\Listing\Command\DraftListing;
 use App\Application\Listing\Command\ReviseListing;
 use App\Application\Listing\Command\WithdrawListing;
+use App\Application\Listing\Handler\DraftListingHandler;
 use App\Application\Listing\Handler\ReviseListingHandler;
 use App\Application\Listing\Handler\WithdrawListingHandler;
 use App\Domain\Listing\Entity\Listing;
@@ -230,6 +232,71 @@ final class ListingPublishHandlersTest extends KernelTestCase
 
         self::assertSame($before, $this->snapshot());
         self::assertSame([], $this->events->dispatched());
+    }
+
+    // ------------------------------------------------------- listing-wizard AC-12, AC-13
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function drafting(array $attributes, bool $publish): DraftListing
+    {
+        return new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision V', 'Desc', '1234.50', 'EUR', $attributes, $publish);
+    }
+
+    private function drafter(): DraftListingHandler
+    {
+        return new DraftListingHandler($this->service(ListingRepository::class), $this->service(Categories::class), new FrozenClock(self::t()), $this->events);
+    }
+
+    public function testDraftingWithValidDetailsPersistsThemAndStaysADraft(): void
+    {
+        $id = ($this->drafter())($this->drafting($this->completeInputs(), false));
+
+        self::assertSame(ListingStatus::Draft, $this->fresh($id)->status());
+        self::assertSame(2, $this->db->fetchOne('SELECT count(*) FROM listing_attribute_value WHERE listing_id = ?', [$id->toString()]));
+        self::assertSame([], $this->events->dispatched());
+    }
+
+    public function testDraftingWithPublishPublishesStampsTheClockAndDispatchesExactlyOneEvent(): void
+    {
+        $id = ($this->drafter())($this->drafting($this->completeInputs(), true));
+
+        $listing = $this->fresh($id);
+        self::assertSame(ListingStatus::Published, $listing->status());
+        self::assertEquals(self::t(), $listing->publishedAt());
+        self::assertSame(2, $this->db->fetchOne('SELECT count(*) FROM listing_attribute_value WHERE listing_id = ?', [$id->toString()]));
+        $dispatched = $this->events->dispatched();
+        self::assertCount(1, $dispatched);
+        self::assertInstanceOf(ListingPublished::class, $dispatched[0]);
+        self::assertSame($id->toString(), $dispatched[0]->listingId()->toString());
+    }
+
+    public function testDraftingWithPublishAndARequiredDetailEmptyLeavesNoRowAndDispatchesNothing(): void
+    {
+        $before = $this->snapshot();
+
+        try {
+            ($this->drafter())($this->drafting([$this->condition->id()->toString() => $this->optionIdOf($this->condition, 'Used')], true));
+            self::fail('An incomplete listing was published.');
+        } catch (ListingIncomplete $e) {
+            self::assertSame([$this->brand->id()->toString()], array_map(static fn (AttributeId $a): string => $a->toString(), $e->attributeIds()));
+        }
+
+        self::assertSame($before, $this->snapshot(), 'The refused publish must roll the draft and its values back with it.');
+        self::assertSame([], $this->events->dispatched());
+    }
+
+    public function testDraftingWithAnInvalidValueIsRefusedAndLeavesNoRow(): void
+    {
+        $before = $this->snapshot();
+
+        try {
+            ($this->drafter())($this->drafting([...$this->completeInputs(), $this->strings->id()->toString() => 'many'], false));
+            self::fail('An invalid value was accepted.');
+        } catch (InvalidAttributeValue) {
+            self::assertSame($before, $this->snapshot());
+        }
     }
 
     // ---------------------------------------------------------------- AC-12

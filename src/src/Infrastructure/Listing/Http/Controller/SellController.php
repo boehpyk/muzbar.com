@@ -112,6 +112,8 @@ final class SellController extends AbstractController
                     (string) $data->description,
                     (string) $data->price,
                     (string) $data->currency,
+                    attributes: [],
+                    publish: false,
                 ));
 
                 // The details depend on the category, unknown until now (Q4): the edit page asks.

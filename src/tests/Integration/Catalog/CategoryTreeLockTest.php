@@ -538,7 +538,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         self::assertInstanceOf(Clock::class, $clock);
         $events = new LockObservingDispatcher($categories);
 
-        return [$categories, new DraftListingHandler($listings, $categories), new ReviseListingHandler($listings, $categories, $clock, $events), $events, new WithdrawListingHandler($listings, $categories)];
+        return [$categories, new DraftListingHandler($listings, $categories, $clock, $events), new ReviseListingHandler($listings, $categories, $clock, $events), $events, new WithdrawListingHandler($listings, $categories)];
     }
 
     public function testDraftListingHandlerReadsTheStatusAndSavesInsideHoldSteady(): void
@@ -546,7 +546,7 @@ final class CategoryTreeLockTest extends KernelTestCase
         $leaf = CategoryFactory::createOne();
         [$categories, $draft] = $this->observeListingHandlers();
 
-        $draft(new DraftListing(Uuid::v7()->toRfc4122(), $leaf->id()->toString(), 'Fender Precision V', '', '10', 'EUR'));
+        $draft(new DraftListing(Uuid::v7()->toRfc4122(), $leaf->id()->toString(), 'Fender Precision V', '', '10', 'EUR', [], false));
 
         self::assertSame(1, $categories->entries());
         $methods = array_column($categories->calls(), 0);
@@ -604,6 +604,24 @@ final class CategoryTreeLockTest extends KernelTestCase
 
         $dispatched = $events->dispatched();
         self::assertCount(1, $dispatched, 'Exactly one ListingPublished must be dispatched (zero would pass the next assertion vacuously).');
+        self::assertInstanceOf(ListingPublished::class, $dispatched[0][0]);
+        self::assertFalse($dispatched[0][1], 'ListingPublished was dispatched inside holdSteady(): a rollback would have un-published it after a listener saw it.');
+    }
+
+    public function testDraftAndPublishSavesInsideHoldSteadyAndDispatchesOutsideIt(): void
+    {
+        $category = CategoryFactory::createOne();
+        [$categories, $draft, , $events] = $this->observeListingHandlers();
+
+        $draft(new DraftListing(Uuid::v7()->toRfc4122(), $category->id()->toString(), 'Fender Precision V', '', '10', 'EUR', [], true));
+
+        self::assertSame(1, $categories->entries());
+        foreach ($categories->calls() as [$method, $held]) {
+            self::assertTrue($held, \sprintf('%s() ran outside Categories::holdSteady().', $method));
+        }
+        self::assertSame(1, $this->db->fetchOne("SELECT count(*) FROM listing_listing WHERE status = 'published'"), 'The publish did not happen (a vacuous pass otherwise).');
+        $dispatched = $events->dispatched();
+        self::assertCount(1, $dispatched, 'Exactly one ListingPublished must be dispatched.');
         self::assertInstanceOf(ListingPublished::class, $dispatched[0][0]);
         self::assertFalse($dispatched[0][1], 'ListingPublished was dispatched inside holdSteady(): a rollback would have un-published it after a listener saw it.');
     }

@@ -15,7 +15,7 @@
       existing `ListingTest` call sites (`none()` / `fromArray([])`). New unit cases for AC-25.
 
 ## Application
-- [ ] T2: `DraftListing` + `array $attributes`, `bool $publish` (no defaults).
+- [x] T2: `DraftListing` + `array $attributes`, `bool $publish` (no defaults).
       `DraftListingHandler`: `schemaOf()` → `draft()` → optional `publish()` → save → release inside,
       dispatch after `holdSteady()` (inject `Clock`, `DomainEventDispatcher`). Controller passes
       `[]`/`false` for now, so behaviour is unchanged at this commit. Handler tests: values, publish,
