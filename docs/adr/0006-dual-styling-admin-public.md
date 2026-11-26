@@ -50,3 +50,34 @@ Two UIs with opposite priorities:
 - **Hard / watched:** two styling systems = two mental models and a risk of **design-token drift** —
   mitigated by the shared custom-properties tokens file. Keep each build's output scoped to its layout
   so styles don't bleed. If the public UI ever needs a rich JS build, revisit AssetMapper vs Vite.
+
+## Amendment, 2026-11-26 — the public half built; the admin half deferred
+
+Recorded by the `public-styles` slice (Phase 2, Search 5 of 15). The decision stands; this records how
+it was carried out.
+
+1. **Tokens are a plain-CSS file**, `assets/styles/tokens.css` (`:root` custom properties, lifted from
+   the coming-soon palette plus spacing, type scale and the focus ring), `@use`d by `public.scss`.
+   Plain CSS on purpose: the later Tailwind theme config can read the same file, which is what keeps
+   "one source of truth for the palette" true when the second consumer arrives.
+2. **The admin layout exists; admin styling does not.** `templates/admin/layout.html.twig` extends
+   `base.html.twig` and **empties** its `stylesheets` and `analytics` blocks, and every
+   `catalog/admin/*` template extends it (a scan test, `AdminLayoutTest`, fails on a template that
+   doesn't). `base.html.twig` is the public layout, so public pages needed no edits. Tailwind and
+   `admin.css` are deferred to the first slice that styles admin (roadmap: `admin-styles`).
+3. **The production image compiles assets and proves it did.** Until this slice the Dockerfile's
+   `production` stage never ran `asset-map:compile`, and with debug off the dev asset server is off
+   too — so **every `/assets/` URL in prod was a 404** (the coming-soon stylesheet since #16, and
+   `app.js`, so the ADR-0015 overlay had never run in prod; visitors got its no-JS fallback). No
+   in-process test can see it: `KernelBrowser` renders `<link>` tags that nothing fetches. The stage
+   now runs `sass:build && asset-map:compile && ls public/assets/styles/public-*.css`, so a missing
+   stylesheet fails the build, and `deploy.yml`'s smoke check fetches `/login`'s `public-*.css` and
+   requires `200 text/css`.
+4. **Dart Sass is 1.69.7, pinned by `composer.lock`.** sass-bundle 0.10.0 has no version option; the
+   version is the bundle's `SassBinary::VERSION`. `search_for_binary: false` stops a `sass` on `PATH`
+   from substituting. Upgrading Dart Sass is a bundle upgrade. The binary is downloaded from GitHub
+   at CI and image build — a GitHub outage blocks builds (accepted).
+5. **sass-bundle 0.10.0 names its output after a cwd-relative `realpath()`**, so the CLI (cwd = project
+   root) and FPM (cwd = `public/`) disagreed on the file name and every dev page was a 500.
+   `public/index.php` now `chdir()`s to the project root first, as `bin/console` effectively runs.
+   Remove it when the bundle fixes the hash.

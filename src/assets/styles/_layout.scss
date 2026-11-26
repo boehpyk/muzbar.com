@@ -1,0 +1,72 @@
+// The public layout's frame: header/nav, the content column, flashes and the generic `.error`.
+
+.site-header {
+    border-bottom: 1px solid var(--rule);
+}
+
+.site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
+    max-width: var(--content-width);
+    margin: 0 auto;
+    padding: var(--space-3);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.site-nav a {
+    color: var(--paper);
+    text-decoration: none;
+}
+
+.site-nav a:hover {
+    color: var(--accent);
+}
+
+// The first nav link doubles as the wordmark slot until a logo exists.
+.site-nav > a:first-child {
+    margin-right: auto;
+    font-family: var(--font-display);
+    font-weight: 900;
+    letter-spacing: -0.01em;
+}
+
+.site-content {
+    max-width: var(--content-width);
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-3) var(--space-6);
+}
+
+// Flashes render between the header and the content, so they get the content column too.
+.flash,
+.error {
+    max-width: var(--content-width);
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid;
+}
+
+.flash {
+    margin: var(--space-3) auto 0;
+}
+
+.flash-success {
+    border-color: var(--paper);
+    background: var(--surface);
+}
+
+.flash-error,
+.error {
+    border-color: var(--accent);
+    background: var(--surface);
+}
+
+@media (min-width: 48rem) {
+    .site-nav,
+    .site-content {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+    }
+}

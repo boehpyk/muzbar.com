@@ -1,0 +1,8 @@
+{% extends 'base.html.twig' %}
+
+{# The admin layout (ADR-0006): the public layout minus what is public about it. The public
+   stylesheet and the analytics snippet stay off admin pages; nav, flashes, the skip link and
+   importmap('app') stay on. When admin gets its own Tailwind `admin.css`, it goes in here.
+   Every template under catalog/admin/ extends this file — a scan test enforces it. #}
+{% block stylesheets %}{% endblock %}
+{% block analytics %}{% endblock %}

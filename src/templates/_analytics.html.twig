@@ -1,0 +1,8 @@
+{# Umami page-view snippet (ADR-0003). Both vars or nothing: `and`, not `or` — a half-configured
+   snippet would be a script pointing nowhere. `data-exclude-search` records the path only, so free
+   text typed into /browse?q= and the login `_target_path` never reach analytics. No inline JS, so a
+   future CSP needs only script-src + connect-src for the Umami origin.
+   Never render this on a page whose URL carries a secret (token URLs only redirect today). #}
+{% if umami_script_url and umami_website_id %}
+    <script defer src="{{ umami_script_url }}" data-website-id="{{ umami_website_id }}" data-exclude-search="true"></script>
+{% endif %}

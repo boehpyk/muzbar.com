@@ -1,5 +1,3 @@
-import './styles/app.css';
-
 /*
  * The login overlay (ADR-0015): `/login`'s auth panel shown in a native modal <dialog>.
  *

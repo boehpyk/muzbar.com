@@ -1,0 +1,13 @@
+# ADR-0006: hand-authored SCSS for the public UI, compiled by Dart Sass.
+#
+# The Dart Sass version is pinned by the bundle itself, not here: sass-bundle 0.10.0 has no
+# `binary_version` option and downloads the release named in `SassBinary::VERSION` (1.69.7) into
+# `var/dart-sass/`. composer.lock pins the bundle, so the lock file pins Dart Sass. A bundle upgrade
+# can therefore change the compiler — read its changelog.
+#
+# `search_for_binary: false` makes that pin hold: with the default (true) a `sass` found on PATH
+# would be used instead, so the compiler would depend on whatever the machine happens to have.
+symfonycasts_sass:
+    root_sass:
+        - '%kernel.project_dir%/assets/styles/public.scss'
+    search_for_binary: false

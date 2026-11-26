@@ -7,42 +7,51 @@
 <html lang="{{ app.request.locale }}">
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{% block title %}Welcome!{% endblock %}</title>
         {% block head %}{% endblock %}
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>⚫️</text><text y=%221.3em%22 x=%220.2em%22 font-size=%2276%22 fill=%22%23fff%22>sf</text></svg>">
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%230f0e0c%22/><text x=%2250%22 y=%2274%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-weight=%22900%22 font-size=%2270%22 fill=%22%23f2ede4%22>M<tspan fill=%22%23ff4a1c%22>.</tspan></text></svg>">
+        {# The public stylesheet (ADR-0006): sass-bundle maps the .scss logical path to the compiled
+           CSS, which AssetMapper serves as /assets/styles/public-<digest>.css. The admin layout
+           empties this block. #}
         {% block stylesheets %}
+            <link rel="preload" href="{{ asset('fonts/unbounded-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
+            <link rel="stylesheet" href="{{ asset('styles/public.scss') }}">
         {% endblock %}
+
+        {# Page-view analytics (ADR-0003): renders nothing unless both Umami vars are set. The admin
+           layout empties this block. #}
+        {% block analytics %}{{ include('_analytics.html.twig') }}{% endblock %}
 
         {% block javascripts %}
             {% block importmap %}{{ importmap('app') }}{% endblock %}
         {% endblock %}
-
-        {% set frankenphp_hot_reload = app.request.server.get('FRANKENPHP_HOT_RELOAD') %}
-        {% if frankenphp_hot_reload %}
-        <meta name="frankenphp-hot-reload:url" content="{{ frankenphp_hot_reload }}">
-        <script src="https://cdn.jsdelivr.net/npm/idiomorph"></script>
-        <script src="https://cdn.jsdelivr.net/npm/frankenphp-hot-reload/+esm" type="module"></script>
-        {% endif %}
     </head>
     <body>
-        {# Public: guests browse without signing up (PRD §6), so this is a plain link, never an overlay trigger. #}
-        <a href="{{ path('app_browse') }}">Browse</a>
+        <a class="skip-link" href="#content">Skip to content</a>
 
-        {# Overlay triggers (ADR-0015): an ordinary link to `/login?_target_path=<intended action>` that
-           works without JS, which assets/app.js upgrades to a dialog when it can. The target comes
-           from `path()`, so it cannot drift from the route. A signed-in visitor has nothing to sign
-           in for, so they get a plain link. Pages that are themselves the sign-in flow override this
-           block to empty. "Sell Gear" (ADR-0019) is the first copy of the "Profile" shape; the next
-           action link copies either. #}
-        {% block auth_nav %}
-            {% if is_granted('IS_AUTHENTICATED') %}
-                <a href="{{ path('app_sell') }}">Sell Gear</a>
-                <a href="{{ path('app_profile') }}">Profile</a>
-            {% else %}
-                <a href="{{ path('app_login', {_target_path: path('app_sell')}) }}" data-auth-overlay>Sell Gear</a>
-                <a href="{{ path('app_login', {_target_path: path('app_profile')}) }}" data-auth-overlay>Profile</a>
-            {% endif %}
-        {% endblock %}
+        <header class="site-header">
+            <nav class="site-nav" aria-label="Main">
+                {# Public: guests browse without signing up (PRD §6), so this is a plain link, never an overlay trigger. #}
+                <a href="{{ path('app_browse') }}">Browse</a>
+
+                {# Overlay triggers (ADR-0015): an ordinary link to `/login?_target_path=<intended action>` that
+                   works without JS, which assets/app.js upgrades to a dialog when it can. The target comes
+                   from `path()`, so it cannot drift from the route. A signed-in visitor has nothing to sign
+                   in for, so they get a plain link. Pages that are themselves the sign-in flow override this
+                   block to empty. "Sell Gear" (ADR-0019) is the first copy of the "Profile" shape; the next
+                   action link copies either. #}
+                {% block auth_nav %}
+                    {% if is_granted('IS_AUTHENTICATED') %}
+                        <a href="{{ path('app_sell') }}">Sell Gear</a>
+                        <a href="{{ path('app_profile') }}">Profile</a>
+                    {% else %}
+                        <a href="{{ path('app_login', {_target_path: path('app_sell')}) }}" data-auth-overlay>Sell Gear</a>
+                        <a href="{{ path('app_login', {_target_path: path('app_profile')}) }}" data-auth-overlay>Profile</a>
+                    {% endif %}
+                {% endblock %}
+            </nav>
+        </header>
 
         {# Flashes live in the layout, not in each page: a flash is set by the request that
            redirects away, so the page that displays it is never the page that produced it. #}
@@ -54,6 +63,9 @@
             {% endfor %}
         {% endblock %}
 
-        {% block body %}{% endblock %}
+        {# A <div>, not <main>: /browse already has its own <main>, and a nested one is invalid. #}
+        <div id="content" class="site-content">
+            {% block body %}{% endblock %}
+        </div>
     </body>
 </html>

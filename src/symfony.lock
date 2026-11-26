@@ -324,6 +324,19 @@
             "config/packages/validator.yaml"
         ]
     },
+    "symfonycasts/sass-bundle": {
+        "version": "0.10",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.6",
+            "ref": "89c0e817b8256281c0a3623781525aec583ca3f4"
+        },
+        "files": [
+            "config/packages/symfonycasts_sass.yaml",
+            "assets/styles/app.scss"
+        ]
+    },
     "twig/extra-bundle": {
         "version": "v3.24.0"
     },

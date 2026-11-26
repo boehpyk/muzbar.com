@@ -214,7 +214,17 @@ Docker Compose · Traefik · Nginx.
 > §7 now points at the ADR amendment; the box re-run is pending). The 20-selection page is
 > **planner-bound** (1.4 s in `bind`, 26 ms executing), so `/browse` is **rate-limited, 30/min per IP**.
 > ADR-0002/0004 amendments.
-> Next: `public-styles` (5).
+> `public-styles` (2026-11-26) — Search 5 of 15, **zero Domain/Application code** (presentation only).
+> sass-bundle (Dart Sass **1.69.7**, pinned by `composer.lock` — the bundle has no version option),
+> `public.scss` + a **plain-CSS** `tokens.css` (so Tailwind can read it later), `base.html.twig` **is
+> the public layout**; `admin/layout.html.twig` empties `stylesheets` and `analytics`, and every
+> `catalog/admin/*` extends it (`AdminLayoutTest` scans). **Found on the way: prod had never served
+> an asset** — the image never ran `asset-map:compile`, so the coming-soon CSS and `app.js` (the
+> login overlay) were 404s since launch; the image now compiles and `ls`-asserts, and `deploy.yml`
+> fetches `/login`'s stylesheet. Umami behind `UMAMI_SCRIPT_URL` + `UMAMI_WEBSITE_ID` (both or off),
+> never on admin or token URLs, query strings excluded, no consent banner (ADR-0003 amendment).
+> All ten (a)–(j) mutations bit; 2357 tests. ADR-0003/0006 amendments.
+> Next: `listing-wizard` (6).
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -541,6 +551,8 @@ make stan                      # phpstan max
 make deptrac                   # layer boundary check (--fail-on-uncovered: an unclassified
                                #   dependency fails the build instead of being silently allowed)
 make test.db                   # create + migrate muzbar_test (run automatically by `make test`)
+make sass                      # compile public.scss into var/sass/ (run automatically by `make test`)
+make sass.watch                # recompile on save while styling (foreground)
 make test                      # phpunit  (opts: filter=, file=)
 make check                     # cs + stan + deptrac + test — run before every commit
 
@@ -943,6 +955,19 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   over `listing_attribute_value` counts dormant and stale values and archived attributes. Scope to the
   subtree + `status = 'published'`, active-schema attributes only, join options
   `AND archived_at IS NULL` — and take the `EXPLAIN` on **that** query.
+
+- **Every public page renders through sass-bundle, so no `var/sass/` = a 500 on every page** (dev and
+  test: "run sass:build"). `make test` and CI build it first; a fresh dev checkout needs `make sass`.
+- **`public/index.php` `chdir()`s to the project root** — sass-bundle 0.10.0 names its output after a
+  cwd-relative `realpath()`, so FPM (cwd `public/`) and the CLI disagreed and dev 500'd. Run
+  `sass:build` from the project root too. Remove the `chdir` when the bundle fixes it.
+- **Never `asset-map:compile` in the dev checkout** — `public/assets/` then shadows the dev asset
+  server and dev serves stale CSS. Only the image build compiles. **An in-process test cannot see a
+  missing asset** (it renders the `<link>`, nobody fetches it): prod 404'd every asset for months
+  while green. The Dockerfile `ls` and `deploy.yml`'s stylesheet fetch are the guards.
+- **`url()` in a Sass partial resolves relative to the entry file** (`public.scss`), not the partial.
+- **A page under `base.html.twig` gets Umami.** A page with a token in its URL, or a custom error page,
+  must empty `{% block analytics %}`. A new admin template must extend `admin/layout.html.twig`.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):

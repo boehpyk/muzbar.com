@@ -1,0 +1,11 @@
+// The public UI's stylesheet (ADR-0006): every page on base.html.twig links its compiled output;
+// the admin layout empties that block. No Sass `@import` — only `@use`.
+//
+// `url()` in any partial resolves relative to THIS file (Sass does not rewrite URLs), and
+// AssetMapper digests it from here.
+@use 'tokens';
+@use 'fonts';
+@use 'base';
+@use 'layout';
+@use 'forms';
+@use 'components';

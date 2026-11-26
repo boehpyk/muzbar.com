@@ -34,7 +34,15 @@ COPY src/ /var/www/html/
 # Pre-own the shared-volume mount point so a fresh named volume is seeded www-data-writable
 # (Docker copies this dir's ownership onto an empty volume on first mount); the entrypoint
 # then publishes public/ into it on every start so nginx serves assets matching this image.
+#
+# `sass:build` + `asset-map:compile` (ADR-0006 amendment): until public-styles the image never
+# compiled assets, and with debug off AssetMapper's dev server is off too — so every /assets/ URL
+# fell through to index.php and 404'd in prod while every test stayed green. The `ls` makes a
+# build that produced no public stylesheet fail here instead of on the box.
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress \
+    && php bin/console sass:build \
+    && php bin/console asset-map:compile \
+    && ls public/assets/styles/public-*.css >/dev/null \
     && mkdir -p var && chown -R www-data:www-data var \
     && mkdir -p /mnt/public && chown www-data:www-data /mnt/public
 COPY docker/php/docker-entrypoint.prod.sh /usr/local/bin/docker-entrypoint
