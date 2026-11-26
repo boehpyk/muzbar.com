@@ -34,7 +34,7 @@
       Delete `assets/styles/app.css` and its import in `app.js`. Existing suite still green, unmodified.
 
 ## Infrastructure — styles (each partial one commit; hand-check in Chromium as you go)
-- [ ] T5: `_fonts.scss` (existing subsets; `url()` relative to the entry file) + `_base.scss`
+- [x] T5: `_fonts.scss` (existing subsets; `url()` relative to the entry file) + `_base.scss`
       (box-sizing, typography, links, `:focus-visible`, skip link, reduced-motion rule, `dialog` +
       `::backdrop`).
 - [ ] T6: `_layout.scss` (header/nav, content width, flashes `flash-success`/`flash-error`, `.error`)
