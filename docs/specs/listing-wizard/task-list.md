@@ -65,7 +65,7 @@
 - [ ] T15: Hand-check in Chromium (AC-27), including JS disabled.
 
 ## Docs
-- [ ] T16: CLAUDE.md status + footguns (live endpoint writes nothing; `details_for`; Stimulus
+- [x] T16: CLAUDE.md status + footguns (live endpoint writes nothing; `details_for`; Stimulus
       assets need the image `ls`; `ListingPublished` now also from create), roadmap item 6 ticked,
       FORboehpyk.md chapter.
 

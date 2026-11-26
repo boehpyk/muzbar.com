@@ -449,11 +449,20 @@ launch is not a Phase 2 item.
       two optional env vars (ADR-0003/0006 amendments). Found on the way: **prod had never served an
       asset** (the image never ran `asset-map:compile`) — the image now compiles and asserts, and
       the deploy smoke check fetches the stylesheet. Not done here: admin styling (below).
-- [ ] 6. `listing-wizard` — morphing single-page listing form as a **Symfony UX Live Component**:
+- [x] 6. `listing-wizard` — morphing single-page listing form as a **Symfony UX Live Component**:
       selecting a category reshapes the lower form (parametric dropdowns) without a reload or data loss
       (US-1, UX §). Replaces the server-rendered Details section; the POST still re-reads
       `schemaOf()` under `holdSteady()` and a drift only refuses (ADR-0019). Dependent options (D14,
       `parent_option_id`) are **not** in scope unless the owner pulls them in.
+      **Done 2026-11-27** ([ADR-0027](./adr/0027-symfony-ux-under-assetmapper-live-component-renders-controller-writes.md)
+      + ADR-0019/0020/0021 amendments). `ListingForm` (symfony/ux-live-component 3.8.1, Stimulus
+      3.2.2, live controller `fetch: lazy`) **renders and never writes** — no `#[LiveAction]`, a scan
+      proves it; every save is still the page's JS-free POST. **L-7 amended:** `draft()` reads details
+      at birth by L-9, so `/sell` can draft, fill and publish in one transaction. A hidden
+      `details_for` tells the POST which category the Details on the page were rendered for; it
+      publishes only when that equals the submitted category. The image `ls`-asserts the Stimulus and
+      live-controller files and `deploy.yml` fetches the live controller. Dependent options (D14)
+      still not in scope.
 - [ ] 7. `search-ui` — the public faceted search UI over slices 1–3 (US-2, FR-3): category-driven
       facets that update with the selection, counts, ranges, text box, 0-result state. Progressive
       enhancement of slice 1's `GET` form (Live Component or Turbo Frame — the plan decides); the URL
