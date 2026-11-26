@@ -90,6 +90,11 @@ jobs:
       - name: Migrations sanity (test DB)
         run: php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration --env=test
 
+      # Every page on the public layout links the compiled public.scss; without var/sass/ each
+      # render throws sass-bundle's "run sass:build" error. Downloads Dart Sass into var/dart-sass/.
+      - name: Build Sass
+        run: php bin/console sass:build
+
       - name: Tests (PHPUnit)
         env:
           APP_ENV: test

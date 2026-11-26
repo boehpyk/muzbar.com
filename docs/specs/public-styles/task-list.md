@@ -19,7 +19,7 @@
       `public.scss` that `@use`s a new `tokens.css` (lifted from `coming-soon.css` `:root` + spacing,
       type scale, focus ring — plan D4). `make sass` / `make sass.watch`; `make test` depends on
       `sass`. Verify `make sass` writes `var/sass/public.output.css`.
-- [ ] T2: CI "Build Sass" step before "Tests" (`ci.yml`). Dockerfile `production` stage:
+- [x] T2: CI "Build Sass" step before "Tests" (`ci.yml`). Dockerfile `production` stage:
       `sass:build && asset-map:compile && ls public/assets/styles/public-*.css` (plan D3). Build the
       image locally once and confirm `public/assets/styles/coming-soon-*.css` and `app-*.js` are now
       in it too.
