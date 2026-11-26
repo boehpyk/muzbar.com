@@ -27,7 +27,7 @@
 ## Infrastructure — layouts
 - [x] T3: `templates/admin/layout.html.twig` (empties `stylesheets` and `analytics`); six
       `catalog/admin/*` templates switch `extends`. No visible change yet.
-- [ ] T4: `base.html.twig` (plan D2): viewport meta, brand favicon, font preload + `public.scss` link
+- [x] T4: `base.html.twig` (plan D2): viewport meta, brand favicon, font preload + `public.scss` link
       in `stylesheets`, `analytics` block with `_analytics.html.twig` (empty partial for now), skip
       link, `<header class="site-header"><nav class="site-nav" aria-label="Main">` around the existing
       links, `<div id="content" class="site-content">` around `body`; delete the FrankenPHP block.
