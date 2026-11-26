@@ -270,3 +270,19 @@ Recorded by the `listing-schema-drift` slice
    that keeps the category (`AttributeValues::onlyFor()` / `::notIn()`), dropped by a re-file (L-10
    unchanged), never read by L-9, L-13 or L-14, and never stored as a state. An input naming a dormant
    attribute is still refused as not in force.
+
+## Amendment, 2026-11-26 — L-7 amended: a new listing reads its details at birth
+
+Recorded by the `listing-wizard` slice ([ADR-0027](./0027-symfony-ux-under-assetmapper-live-component-renders-controller-writes.md), plan D3, Q5).
+
+1. **L-7 is amended.** *Was:* "a new listing is a draft, with no details yet — the create form has
+   none, because the category is not known until it is submitted". That reason was about a form, not
+   about gear, and the morphing form removes it. *Now:* `Listing::draft(…, AttributeSchema $schema,
+   AttributeInput $input)` reads the seller's details by **L-9** right after L-2, exactly as every
+   later `revise()` does. No L-10 (nothing to re-file from), no L-17 (nothing stored), no L-13 (a
+   draft is not public, L-11). An empty input is still a draft with no details
+   (`AttributeValues::none()`).
+2. **`DraftListing` carries `attributes` and `publish`, with no defaults** — the `ReviseListing`
+   precedent: an omission must not silently mean "no details" or "don't publish".
+3. *Rejected:* `draft()` then `revise()` in the handler — zero Domain lines, but it models "create" as
+   "create empty, then edit" and keeps a docblock whose reason is false.

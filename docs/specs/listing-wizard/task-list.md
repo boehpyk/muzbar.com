@@ -5,7 +5,7 @@
 > **Owner answers:** pending (Q1–Q6 in the technical plan; written to the recommendation).
 
 ## Decision record
-- [ ] T0: `/adr` → **ADR-0027** (Symfony UX under AssetMapper; the listing form's Live Component
+- [x] T0: `/adr` → **ADR-0027** (Symfony UX under AssetMapper; the listing form's Live Component
       renders, the controller writes — plan D1, D4, D7, D9). Amendments: ADR-0019 (one form builder;
       POST builds for `details_for`), ADR-0020 (L-7 amended), ADR-0021 (re-file + publish, D5).
 
