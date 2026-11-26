@@ -40,7 +40,7 @@
 - [x] T6: `_layout.scss` (header/nav, content width, flashes `flash-success`/`flash-error`, `.error`)
       + `_forms.scss` (labels, inputs, selects, textareas, buttons, fieldsets/legends, error text;
       inputs bordered with `--faint`, never `--rule`).
-- [ ] T7: `_components.scss` — `search-*` (one breakpoint, facets beside results ≥ 48rem), `listing-*`,
+- [x] T7: `_components.scss` — `search-*` (one breakpoint, facets beside results ≥ 48rem), `listing-*`,
       `draft-*`, `archived-*`, `account-email`, `[data-auth-panel]` (same look in dialog and on `/login`).
       Check compiled size ≤ 30 KB.
 

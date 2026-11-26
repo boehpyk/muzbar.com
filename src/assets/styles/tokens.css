@@ -26,7 +26,7 @@
     --step-0: 1rem;
     --step-1: 1.25rem;
     --step-2: 1.6rem;
-    --step-3: 2.2rem;
+    --step-3: clamp(1.6rem, 1rem + 3vw, 2.2rem);
 
     --space-1: 0.25rem;
     --space-2: 0.5rem;

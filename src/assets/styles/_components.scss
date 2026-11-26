@@ -1,0 +1,229 @@
+// Styles for the class names the existing pages already carry (no template changes).
+// Mobile-first; one breakpoint (48rem) for the browse page's facets-beside-results layout.
+// `archived-*` / `active-options` are admin-only classes: admin pages never link this file, so
+// they are deliberately not styled here (ADR-0006 — admin gets Tailwind later).
+
+// ---------- browse (/browse) ----------
+.search-breadcrumb {
+    margin-bottom: var(--space-3);
+    color: var(--faint);
+    font-size: var(--step--1);
+}
+
+.search-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: 0;
+    list-style: none;
+}
+
+.search-categories a {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--faint);
+    border-radius: 999px;
+    color: var(--paper);
+    text-decoration: none;
+}
+
+.search-categories a:hover {
+    border-color: var(--accent);
+}
+
+.search-facets {
+    margin-bottom: var(--space-5);
+}
+
+.search-facet,
+.search-price {
+    font-size: var(--step--1);
+}
+
+.search-facet p,
+.search-price p {
+    margin: 0;
+    color: var(--faint);
+}
+
+.search-facet--range label {
+    display: inline-block;
+    width: calc(50% - var(--space-1));
+}
+
+.search-results > p:first-child,
+.search-similar {
+    color: var(--muted);
+}
+
+.search-results ol {
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--rule);
+}
+
+.search-hit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+}
+
+.search-hit a {
+    flex: 1 1 100%;
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.search-hit span {
+    font-weight: 700;
+}
+
+.search-hit time {
+    font-size: var(--step--1);
+}
+
+.search-pager {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+@media (min-width: 48rem) {
+    .search-browse {
+        display: grid;
+        grid-template-columns: 18rem minmax(0, 1fr);
+        column-gap: var(--space-5);
+        align-items: start;
+    }
+
+    .search-browse > :not(.search-facets, .search-results) {
+        grid-column: 1 / -1;
+    }
+
+    .search-facets {
+        grid-column: 1;
+    }
+
+    .search-results {
+        grid-column: 2;
+    }
+
+    .search-hit a {
+        flex: 1 1 auto;
+    }
+}
+
+// ---------- the public listing page (/listings/{id}) ----------
+.listing {
+    max-width: 48rem;
+}
+
+.listing-price {
+    font-family: var(--font-display);
+    font-size: var(--step-2);
+    font-weight: 800;
+    color: var(--accent);
+}
+
+.listing-category,
+.listing-published {
+    color: var(--faint);
+    font-size: var(--step--1);
+}
+
+.listing-description {
+    margin: var(--space-4) 0;
+    color: var(--muted);
+}
+
+.listing-details-section {
+    margin-top: var(--space-5);
+}
+
+.listing-details {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    border-top: 1px solid var(--rule);
+}
+
+.listing-details dt,
+.listing-details dd {
+    margin: 0;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule);
+}
+
+.listing-details dt {
+    padding-right: var(--space-3);
+    color: var(--faint);
+}
+
+// ---------- the seller's pages (/sell, edit, your listings) ----------
+.listing-status {
+    color: var(--muted);
+}
+
+.listing-public-link {
+    margin-left: var(--space-3);
+}
+
+.listing-withdraw {
+    margin-top: var(--space-4);
+}
+
+.drafts {
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--rule);
+}
+
+.draft {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--rule);
+}
+
+.draft-title {
+    flex: 1 1 100%;
+    font-family: var(--font-display);
+    font-weight: 700;
+}
+
+.draft-status {
+    padding: 0 var(--space-2);
+    border: 1px solid var(--faint);
+    font-size: var(--step--1);
+    text-transform: uppercase;
+}
+
+.draft-published .draft-status {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.draft-category {
+    color: var(--faint);
+    font-size: var(--step--1);
+}
+
+// ---------- account ----------
+.account-email {
+    color: var(--paper);
+    font-weight: 700;
+}
+
+// ---------- the auth panel: /login's section and the overlay's copy look the same ----------
+[data-auth-panel] {
+    max-width: 28rem;
+}
+
+dialog [data-auth-panel] {
+    max-width: none;
+}
