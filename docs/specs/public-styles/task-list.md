@@ -37,7 +37,7 @@
 - [x] T5: `_fonts.scss` (existing subsets; `url()` relative to the entry file) + `_base.scss`
       (box-sizing, typography, links, `:focus-visible`, skip link, reduced-motion rule, `dialog` +
       `::backdrop`).
-- [ ] T6: `_layout.scss` (header/nav, content width, flashes `flash-success`/`flash-error`, `.error`)
+- [x] T6: `_layout.scss` (header/nav, content width, flashes `flash-success`/`flash-error`, `.error`)
       + `_forms.scss` (labels, inputs, selects, textareas, buttons, fieldsets/legends, error text;
       inputs bordered with `--faint`, never `--rule`).
 - [ ] T7: `_components.scss` — `search-*` (one breakpoint, facets beside results ≥ 48rem), `listing-*`,
