@@ -8,6 +8,7 @@ use App\Domain\Listing\ValueObject\Currency;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\FormType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -31,6 +32,10 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * number and text are `TextType` — an `IntegerType` would parse through the locale and answer in
  * its own words — and no field carries a constraint. The two `ChoiceType`s' `invalid_message` is the
  * failure contract's text, so a vanished option reads the same as a tampered one.
+ *
+ * `details_for` (unmapped, hidden) carries the category the rendered Details were built for, `''`
+ * when none were (listing-wizard D4): the POST must build the form the page showed. It is
+ * untrusted on the way back — the controller validates it against the offered choices.
  *
  * @phpstan-type SchemaField array{id: string, label: string, type: string, required: bool, unit: ?string, options: list<array{id: string, label: string}>}
  *
@@ -82,6 +87,10 @@ final class ListingFormType extends AbstractType
                 // value and keeps the model's; the Domain's refusal is the backstop.
                 'disabled' => $options['published'],
                 'help' => $options['published'] ? self::PUBLISHED_CATEGORY : null,
+            ])
+            ->add('details_for', HiddenType::class, [
+                'mapped' => false,
+                'data' => $options['details_for'],
             ])
         ;
 
@@ -147,5 +156,7 @@ final class ListingFormType extends AbstractType
         $resolver->setAllowedTypes('published', 'bool');
         $resolver->setDefault('schema', null);
         $resolver->setAllowedTypes('schema', ['null', 'array']);
+        $resolver->setDefault('details_for', '');
+        $resolver->setAllowedTypes('details_for', 'string');
     }
 }

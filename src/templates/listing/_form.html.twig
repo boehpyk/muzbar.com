@@ -9,6 +9,7 @@
     {{ form_row(form.price) }}
     {{ form_row(form.currency) }}
     {{ form_row(form.category) }}
+    {{ form_widget(form.details_for) }}
     {% if form.attributes is defined %}
         <fieldset>
             <legend>Details</legend>

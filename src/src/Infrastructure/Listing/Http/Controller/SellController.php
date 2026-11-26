@@ -94,6 +94,7 @@ final class SellController extends AbstractController
         }
 
         $data = new ListingFormData();
+        // No Details on `/sell` yet, so `details_for` stays `''` (the type's default).
         $form = $this->createForm(ListingFormType::class, $data, ['category_choices' => $leaves]);
         $form->handleRequest($request);
 
@@ -169,6 +170,8 @@ final class SellController extends AbstractController
             'category_choices' => $choices,
             'schema' => $schema,
             'published' => 'published' === $draft['status'],
+            // The category `details()` built for; `''` when it was not offered (nothing built).
+            'details_for' => isset($choices[$draft['categoryId']]) ? $draft['categoryId'] : '',
         ]);
         $form->handleRequest($request);
 
