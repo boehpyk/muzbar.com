@@ -147,11 +147,8 @@ final class SellController extends AbstractController
             }
         }
 
-        return $this->render('listing/sell.html.twig', [
-            'form' => $form,
-            // "Save and publish" only beside Details the seller can see (an empty schema counts).
-            'with_details' => null !== $detailsFor,
-        ], $this->statusFor($form));
+        // `ListingForm` shows "Save and publish" only beside Details (its `details_for` is set).
+        return $this->render('listing/sell.html.twig', ['form' => $form], $this->statusFor($form));
     }
 
     #[Route('/drafts', name: 'app_sell_drafts', methods: ['GET'])]

@@ -19,6 +19,7 @@ use Symfony\UX\LiveComponent\Attribute\LiveProp;
 use Symfony\UX\LiveComponent\Attribute\PreReRender;
 use Symfony\UX\LiveComponent\ComponentWithFormTrait;
 use Symfony\UX\LiveComponent\DefaultActionTrait;
+use Symfony\UX\TwigComponent\Attribute\PostMount;
 
 /**
  * The listing form on `/sell` and the edit page (listing-wizard, ADR-0027). **It renders; it never
@@ -66,6 +67,22 @@ final class ListingForm
         private readonly FormFactoryInterface $formFactory,
         private readonly Security $security,
     ) {
+    }
+
+    /**
+     * A refused POST can carry bytes that are not UTF-8 (the description `"ab\xC3"` is a 422 on its
+     * field, not a 500). The page renders them (Twig substitutes); the component's state is JSON in
+     * `data-live-props-value`, and `json_encode` fails on them — a 500. So the state gets the valid
+     * part only. After the trait's `initializeForm()` (priority 0), which extracts `formValues`.
+     */
+    #[PostMount(priority: -10)]
+    public function scrubFormValues(): void
+    {
+        array_walk_recursive($this->formValues, static function (mixed &$value): void {
+            if (\is_string($value)) {
+                $value = mb_scrub($value, 'UTF-8');
+            }
+        });
     }
 
     #[PreReRender(priority: 10)]

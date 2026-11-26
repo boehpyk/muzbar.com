@@ -21,7 +21,7 @@
         {% set buttons = [{label: 'Save draft', action: 'save'}, {label: 'Save and publish', action: 'publish'}] %}
     {% endif %}
 
-    {{ include('listing/_form.html.twig', {buttons: buttons}) }}
+    <twig:ListingForm :form="form" :buttons="buttons" :listingId="draft.id" />
 
     {% if draft.status == 'published' %}
         {# A separate POST form with its own token, outside the listing form (D12). #}

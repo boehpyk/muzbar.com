@@ -110,3 +110,9 @@ fieldset ul:has(> li) {
     color: var(--accent);
     font-size: var(--step--1);
 }
+
+// The listing form's Details while a morph is in flight (listing-wizard D8). Live's
+// `addAttribute(aria-busy)` sets the attribute empty, so the selector matches presence, not "true".
+[aria-busy] {
+    opacity: 0.5;
+}
