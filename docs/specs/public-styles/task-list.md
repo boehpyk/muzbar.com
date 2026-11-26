@@ -72,5 +72,5 @@
       layout); FORboehpyk.md chapter (the 404 nobody saw).
 
 ## Verify
-- [ ] T14: `/verify` → hand-checks AC-7b–f in Chromium (Lighthouse a11y on four pages, JS off, 320 px,
+- [x] T14: `/verify` → hand-checks AC-7b–f in Chromium (Lighthouse a11y on four pages, JS off, 320 px,
       overlay), reviewer PASS, all ACs checked, docs updated.

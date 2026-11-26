@@ -45,7 +45,7 @@ final class PublicLayoutTest extends WebTestCase
             self::assertResponseStatusCodeSame(200, $path.': '.$public[0]);
             self::assertStringContainsString('text/css', $this->client->getResponse()->headers->get('Content-Type') ?? '');
             $css = $this->client->getInternalResponse()->getContent();
-            self::assertStringContainsString('--ink', $css, $path.': tokens.css is compiled in');
+            self::assertStringContainsString('--ink:', $css, $path.': tokens.css is compiled in');
             self::assertLessThanOrEqual(30 * 1024, \strlen($css), $path.': AC-6 budget, measured on the served body');
             ++$seen;
         }
