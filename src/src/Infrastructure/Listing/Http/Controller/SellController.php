@@ -94,8 +94,16 @@ final class SellController extends AbstractController
         }
 
         $data = new ListingFormData();
-        // No Details on `/sell` yet, so `details_for` stays `''` (the type's default).
-        $form = $this->createForm(ListingFormType::class, $data, ['category_choices' => $leaves]);
+        // The category the page's Details were built for (D4): none on a GET or a JS-free first
+        // submit, so the form binds no `attributes` and an `attributes` posted then is an extra field.
+        $body = $request->request->all();
+        $detailsFor = self::detailsFor($body, $leaves);
+        [$schema, $noLongerOffered] = $this->forms->details($leaves, $detailsFor);
+        $form = $this->createForm(ListingFormType::class, $data, [
+            'category_choices' => $leaves,
+            'schema' => $schema,
+            'details_for' => $detailsFor ?? '',
+        ]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted()) {
@@ -103,6 +111,11 @@ final class SellController extends AbstractController
         }
 
         if ($form->isSubmitted() && $form->isValid()) {
+            // The seller saw the Details of the category they are filing under: forward them and
+            // honour "Save and publish". Otherwise (JS-free, a race, a tamper) a plain draft (D4).
+            $withDetails = null !== $detailsFor && $detailsFor === $data->category;
+            $publish = $withDetails && self::publishClicked($body);
+
             try {
                 $listingId = $draftListing(new DraftListing(
                     $user->id(),
@@ -111,20 +124,34 @@ final class SellController extends AbstractController
                     (string) $data->description,
                     (string) $data->price,
                     (string) $data->currency,
-                    attributes: [],
-                    publish: false,
+                    attributes: $withDetails ? self::filled($data->attributes) : [],
+                    publish: $publish,
                 ));
 
-                // The details depend on the category, unknown until now (Q4): the edit page asks.
-                $this->addFlash('success', self::ADD_DETAILS);
+                if ($publish) {
+                    $this->addFlash('success', self::PUBLISHED);
+
+                    return $this->redirectToRoute('app_listing_show', ['id' => $listingId->toString()], Response::HTTP_SEE_OTHER);
+                }
+
+                // Without the Details the category's fields were never on the page (Q4): the edit page asks.
+                $this->addFlash('success', $withDetails ? self::SAVED : self::ADD_DETAILS);
 
                 return $this->redirectToRoute('app_sell_draft_edit', ['id' => $listingId->toString()], Response::HTTP_SEE_OTHER);
             } catch (InvalidListingTitle|InvalidListingDescription|InvalidPrice|UnknownCategory|CategoryIsNotALeaf $e) {
                 $this->addRefusal($form, $e, $data);
+            } catch (InvalidAttributeValue $e) {
+                $this->addDetailRefusal($form, $e, $data->attributes, $noLongerOffered);
+            } catch (ListingIncomplete $e) {
+                $this->addIncompleteRefusal($form, $e);
             }
         }
 
-        return $this->render('listing/sell.html.twig', ['form' => $form], $this->statusFor($form));
+        return $this->render('listing/sell.html.twig', [
+            'form' => $form,
+            // "Save and publish" only beside Details the seller can see (an empty schema counts).
+            'with_details' => null !== $detailsFor,
+        ], $this->statusFor($form));
     }
 
     #[Route('/drafts', name: 'app_sell_drafts', methods: ['GET'])]
@@ -160,7 +187,11 @@ final class SellController extends AbstractController
         // options (`keep`, ADR-0022 D10): it renders selected as "… (no longer offered)" instead of
         // an empty select that "blank = clear" would silently drop on save.
         $stored = $this->drafts->valuesOf($draft['id']);
-        [$schema, $noLongerOffered] = $this->forms->details($choices, $draft['categoryId'], $stored);
+        // The POST binds the Details the page showed (D4): a page morphed to category B posts B's
+        // fields. A missing or tampered `details_for` means the stored category's, as on the GET.
+        $body = $request->request->all();
+        $detailsFor = self::detailsFor($body, $choices) ?? (isset($choices[$draft['categoryId']]) ? $draft['categoryId'] : null);
+        [$schema, $noLongerOffered] = $this->forms->details($choices, $detailsFor, $stored);
         // Only values for fields on the form: a dormant value (its attribute archived, or moved out
         // of the lineage) would be submitted back and refused as "no longer applies". It is not lost:
         // revise carries it over while the category is unchanged (L-17).
@@ -171,7 +202,7 @@ final class SellController extends AbstractController
             'schema' => $schema,
             'published' => 'published' === $draft['status'],
             // The category `details()` built for; `''` when it was not offered (nothing built).
-            'details_for' => isset($choices[$draft['categoryId']]) ? $draft['categoryId'] : '',
+            'details_for' => $detailsFor ?? '',
         ]);
         $form->handleRequest($request);
 
@@ -182,11 +213,11 @@ final class SellController extends AbstractController
         if ($form->isSubmitted() && $form->isValid()) {
             $wasPublished = 'published' === $draft['status'];
             $refiled = $data->category !== $draft['categoryId'];
-            // "Save and publish" (D12). Ignored on a published listing (already public) and on a
-            // re-file: the new category's details were never on the form (plan Q2, AC-18). Any other
-            // `action` value is a plain save.
-            $publishClicked = 'publish' === $request->request->getString('action') && !$wasPublished;
-            $publish = $publishClicked && !$refiled;
+            // "Save and publish" (D12). Ignored on a published listing (already public) and when the
+            // page did not show the Details of the category being filed under — a JS-free re-file
+            // (listing-wizard D5, amending listing-publish Q2). Any other `action` value is a plain save.
+            $publishClicked = self::publishClicked($body) && !$wasPublished;
+            $publish = $publishClicked && $detailsFor === $data->category;
 
             try {
                 $reviseListing(new ReviseListing(
@@ -197,9 +228,7 @@ final class SellController extends AbstractController
                     (string) $data->description,
                     (string) $data->price,
                     (string) $data->currency,
-                    // An empty field is no value (L-11); omitting it also keeps an empty field whose
-                    // attribute left the schema from being refused for nothing.
-                    array_filter($data->attributes, static fn (?string $value): bool => null !== $value && '' !== $value),
+                    self::filled($data->attributes),
                     $publish,
                 ));
 
@@ -365,6 +394,42 @@ final class SellController extends AbstractController
         };
 
         $form->get($field)->addError(new FormError($message));
+    }
+
+    /**
+     * `details_for` from the raw body, kept only when it is an offered category (D4, AC-17). The
+     * body's shape is the browser's: `listing_form` may be a string and `details_for` an array, so
+     * nothing here goes through `InputBag`'s typed getters (which would 400). The raw value is
+     * compared against the offered ids and never reaches a statement.
+     *
+     * @param array<mixed>          $body    `$request->request->all()`
+     * @param array<string, string> $offered id => path label
+     */
+    private static function detailsFor(array $body, array $offered): ?string
+    {
+        $form = $body['listing_form'] ?? null;
+        $value = \is_array($form) ? ($form['details_for'] ?? null) : null;
+
+        return \is_string($value) && isset($offered[$value]) ? $value : null;
+    }
+
+    /** @param array<mixed> $body `$request->request->all()` */
+    private static function publishClicked(array $body): bool
+    {
+        return 'publish' === ($body['action'] ?? null);
+    }
+
+    /**
+     * An empty field is no value (L-11); omitting it also keeps an empty field whose attribute left
+     * the schema from being refused for nothing.
+     *
+     * @param array<string, ?string> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function filled(array $attributes): array
+    {
+        return array_filter($attributes, static fn (?string $value): bool => null !== $value && '' !== $value);
     }
 
     /** @param FormInterface<ListingFormData> $form */

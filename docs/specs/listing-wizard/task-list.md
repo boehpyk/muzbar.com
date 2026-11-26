@@ -29,7 +29,7 @@
       Details are built for. Suite still green unmodified.
 
 ## Infrastructure — POST side
-- [ ] T5: Controller reads + validates `details_for` from the raw body before building the form
+- [x] T5: Controller reads + validates `details_for` from the raw body before building the form
       (D4, `InputBag` footgun), builds for it; edit: publish rule D5; `/sell`: forward `attributes`
       / `publish` per D4's table, map `InvalidAttributeValue` / `ListingIncomplete` as `edit()` does,
       new success flashes. `/sell` renders Details on a 422 when a category is chosen.
