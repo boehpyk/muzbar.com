@@ -62,7 +62,7 @@
 - [x] T13: Scans — AC-22 (component dir: no `LiveAction`, no handler/repository/`Categories`;
       ≥ 1 file scanned) and AC-9 (template bindings).
 - [x] T14: Mutation sweep (a)–(r), each applied alone, each bites; record results in the PR.
-- [ ] T15: Hand-check in Chromium (AC-27), including JS disabled.
+- [x] T15: Hand-check in Chromium (AC-27), including JS disabled.
 
 ## Docs
 - [x] T16: CLAUDE.md status + footguns (live endpoint writes nothing; `details_for`; Stimulus
