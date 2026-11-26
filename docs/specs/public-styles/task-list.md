@@ -55,7 +55,7 @@
       Infrastructure section; capture into variables, no `curl | grep -q`).
 
 ## Tests (qa)
-- [ ] T10: `tests/Functional/PublicStyles/PublicLayoutTest` (AC-1, AC-2, AC-6, AC-7a) and
+- [x] T10: `tests/Functional/PublicStyles/PublicLayoutTest` (AC-1, AC-2, AC-6, AC-7a) and
       `AdminLayoutTest` (AC-3 incl. template scan with a ≥ 6-files guard).
 - [ ] T11: `AnalyticsSnippetTest` (AC-8, AC-9 a–c) — verify the `$_SERVER`/`$_ENV`-before-
       `createClient()` approach reaches the container first; stop and report if not.
