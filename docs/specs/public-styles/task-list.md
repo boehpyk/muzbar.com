@@ -45,7 +45,7 @@
       Check compiled size ≤ 30 KB.
 
 ## Infrastructure — analytics
-- [ ] T8: `twig.yaml` globals `umami_script_url` / `umami_website_id` via `%env(default::…)%`;
+- [x] T8: `twig.yaml` globals `umami_script_url` / `umami_website_id` via `%env(default::…)%`;
       `UMAMI_SCRIPT_URL=` / `UMAMI_WEBSITE_ID=` in `src/.env` and `.env.example` (commented, empty =
       off); `_analytics.html.twig` (both set → one `defer` script with `data-exclude-search="true"`).
       Q2: include the partial in `coming_soon.html.twig`'s `<head>`.

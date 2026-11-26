@@ -1,5 +1,11 @@
 twig:
     file_name_pattern: '*.twig'
+    # Umami (ADR-0003), rendered by templates/_analytics.html.twig only when both are non-empty.
+    # `default::`, never a bare %env()%: a Twig global is on the boot path of every kernel (worker,
+    # console, CI, docker build), so a missing var must not be an EnvNotFoundException.
+    globals:
+        umami_script_url: '%env(default::UMAMI_SCRIPT_URL)%'
+        umami_website_id: '%env(default::UMAMI_WEBSITE_ID)%'
 
 when@test:
     twig:
