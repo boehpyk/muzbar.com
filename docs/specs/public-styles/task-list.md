@@ -13,7 +13,7 @@
 - (none — plan D1)
 
 ## Infrastructure — pipeline first (so every later task can be seen)
-- [ ] T1: `composer require symfonycasts/sass-bundle` (in `require`); `symfonycasts_sass.yaml` with
+- [x] T1: `composer require symfonycasts/sass-bundle` (in `require`); `symfonycasts_sass.yaml` with
       `root_sass: [assets/styles/public.scss]` and the Dart Sass version pinned (check the option via
       `config:dump-reference symfonycasts_sass`; record the version either way). Minimal
       `public.scss` that `@use`s a new `tokens.css` (lifted from `coming-soon.css` `:root` + spacing,

@@ -4,6 +4,10 @@ framework:
         paths:
             - assets/
         missing_import_mode: strict
+        # Sass partials are inlined into public.scss by Dart Sass; served on their own they would
+        # only publish source files nobody links.
+        excluded_patterns:
+            - '**/assets/styles/_*.scss'
 
 when@prod:
     framework:

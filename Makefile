@@ -38,6 +38,12 @@ migrate: ## Run Doctrine migrations
 migration.make: ## Generate a migration from mapping changes
 	$(EXEC) php bin/console make:migration
 
+sass: ## Compile the public SCSS once (var/sass/) — needed before any page renders in dev/test
+	$(EXEC) php bin/console sass:build
+
+sass.watch: ## Recompile the public SCSS on every save (foreground; Ctrl-C to stop)
+	$(DC_DEV) exec app php bin/console sass:build --watch
+
 composer: ## Run composer (usage: make composer cmd="require foo/bar")
 	$(EXEC) composer $(cmd)
 
@@ -69,7 +75,7 @@ test.db: ## Create + migrate the dedicated test database (muzbar_test)
 	$(DC_DEV) exec -T -e APP_ENV=test app php bin/console doctrine:database:create --if-not-exists --no-interaction
 	$(DC_DEV) exec -T -e APP_ENV=test app php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
 
-test: test.db ## Run the test suite (opts: filter=, file=) — provisions muzbar_test first
+test: test.db sass ## Run the test suite (opts: filter=, file=) — provisions muzbar_test and builds Sass first
 	$(DC_DEV) exec -T -e APP_ENV=test app php vendor/bin/phpunit $(if $(filter),--filter=$(filter)) $(file)
 
 check: cs.check stan deptrac test ## Run all quality gates (the Definition-of-Done chain)
@@ -90,4 +96,4 @@ help: ## Show this help
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: up.dev down.dev up.prod down.prod logs bash console migrate migration.make \
-        composer db.dump cs cs.check stan deptrac test.db test check hooks.install help
+        sass sass.watch composer db.dump cs cs.check stan deptrac test.db test check hooks.install help

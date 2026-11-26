@@ -1,0 +1,41 @@
+/*
+ * Brand tokens — the one source of truth for colour, type and spacing (ADR-0006).
+ *
+ * Plain CSS on purpose: public.scss pulls it in with `@use 'tokens'`, and the future admin
+ * Tailwind config must read the same file, which it cannot do from SCSS.
+ *
+ * Colours are the coming-soon palette, on dark only. Contrast on --ink (WCAG, plan D4):
+ *   --paper 16.4:1 (body) · --muted 11:1 · --faint 5.1:1 (the floor for text — never darker)
+ *   --accent 5.7:1 (links, focus, primary actions)
+ * --accent on --paper is 2.9:1: never put accent text on a light surface.
+ * --rule is below 3:1: decorative separators only, never an input border (inputs use --faint).
+ */
+:root {
+    --ink: #0f0e0c;
+    --paper: #f2ede4;
+    --accent: #ff4a1c;
+    --muted: #c9c2b6;
+    --faint: #8a8479;
+    --rule: #2a2722;
+    --surface: #1a1815;
+
+    --font-display: 'Unbounded', sans-serif;
+    --font-body: 'IBM Plex Mono', monospace;
+
+    --step--1: 0.875rem;
+    --step-0: 1rem;
+    --step-1: 1.25rem;
+    --step-2: 1.6rem;
+    --step-3: 2.2rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 1rem;
+    --space-4: 1.5rem;
+    --space-5: 2.5rem;
+    --space-6: 4rem;
+
+    --radius: 2px;
+    --focus-ring: 2px solid var(--accent);
+    --content-width: 72rem;
+}
