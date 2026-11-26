@@ -23,10 +23,10 @@ use App\Domain\Listing\Exception\NotTheSeller;
 use App\Domain\Listing\Exception\PublishedListingCannotBeRefiled;
 use App\Domain\Listing\Exception\UnknownCategory;
 use App\Domain\Listing\ValueObject\Currency;
-use App\Infrastructure\Catalog\Persistence\Doctrine\DbalAttributeSchema;
 use App\Infrastructure\Catalog\Persistence\Doctrine\DbalCategoryOutline;
 use App\Infrastructure\Identity\Security\SecurityUser;
 use App\Infrastructure\Listing\Form\LeafCategoryChoices;
+use App\Infrastructure\Listing\Form\ListingFormBuilder;
 use App\Infrastructure\Listing\Form\ListingFormData;
 use App\Infrastructure\Listing\Form\ListingFormType;
 use App\Infrastructure\Listing\Persistence\Doctrine\DbalSellerDrafts;
@@ -53,17 +53,15 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * - **No GET writes** (ADR-0015); every write is a POST with the form's CSRF token, then a 303.
  * - **Domain refusals are not logged**: they are user errors (AC-32), mapped to field errors with
  *   the failure contract's wording.
- * - **The Details section is rendered from Catalog's admin read model** (`DbalAttributeSchema`,
- *   listing-attribute-values plan D11 — the fourth cross-context crossing), while the Domain decides
- *   on `Categories::schemaOf()` read again under the lock at POST. A schema change in between only
- *   produces a refusal: fail closed.
+ * - **The form's categories and Details come from `ListingFormBuilder`** (listing-wizard D2), which
+ *   reads Catalog's admin read model; the Domain decides on `Categories::schemaOf()` read again
+ *   under the lock at POST. A schema change in between only produces a refusal: fail closed.
  */
 #[Route('/sell')]
 #[IsGranted('ROLE_USER')]
 final class SellController extends AbstractController
 {
     private const string NO_LONGER_OFFERED = '%s is no longer offered. Choose another.';
-    private const string NO_LONGER_OFFERED_LABEL = '%s (no longer offered)';
     private const string SAVED = 'Draft saved.';
     private const string NOT_A_LEAF = 'That category now has subcategories. Choose a more specific one.';
     private const string ADD_DETAILS = 'Draft saved. Add the details below.';
@@ -79,7 +77,7 @@ final class SellController extends AbstractController
     public function __construct(
         private readonly DbalCategoryOutline $outline,
         private readonly DbalSellerDrafts $drafts,
-        private readonly DbalAttributeSchema $schema,
+        private readonly ListingFormBuilder $forms,
     ) {
     }
 
@@ -88,7 +86,7 @@ final class SellController extends AbstractController
     {
         $rows = $this->outline->rows();
         $paths = LeafCategoryChoices::paths($rows);
-        $leaves = LeafCategoryChoices::leaves($rows);
+        $leaves = $this->forms->choices($rows);
 
         // A non-empty tree always has a leaf, so no leaves means no categories (AC-24).
         if ([] === $leaves) {
@@ -146,15 +144,7 @@ final class SellController extends AbstractController
 
         $rows = $this->outline->rows();
         $paths = LeafCategoryChoices::paths($rows);
-        $leaves = LeafCategoryChoices::leaves($rows);
-
-        // A draft found on a non-leaf (legacy data; impossible through the app) keeps its category
-        // on offer, so it can be edited without re-filing (failure contract, AC-5).
-        $choices = $leaves;
-
-        if (isset($paths[$draft['categoryId']])) {
-            $choices[$draft['categoryId']] = $paths[$draft['categoryId']];
-        }
+        $choices = $this->forms->choices($rows, $draft['categoryId']);
 
         $data = new ListingFormData();
         $data->title = $draft['title'];
@@ -169,7 +159,7 @@ final class SellController extends AbstractController
         // options (`keep`, ADR-0022 D10): it renders selected as "… (no longer offered)" instead of
         // an empty select that "blank = clear" would silently drop on save.
         $stored = $this->drafts->valuesOf($draft['id']);
-        [$schema, $noLongerOffered] = $this->detailsSchema($draft['categoryId'], $stored);
+        [$schema, $noLongerOffered] = $this->forms->details($choices, $draft['categoryId'], $stored);
         // Only values for fields on the form: a dormant value (its attribute archived, or moved out
         // of the lineage) would be submitted back and refused as "no longer applies". It is not lost:
         // revise carries it over while the category is unchanged (L-17).
@@ -219,7 +209,7 @@ final class SellController extends AbstractController
                 if ($refiled) {
                     // Re-filed: the aggregate dropped what the new category does not ask (L-10), and
                     // the new category may ask more — so back to the form, not the list (AC-21).
-                    $this->addFlash('success', \sprintf($publishClicked ? self::REFILED_NOT_PUBLISHED : self::REFILED, self::nameOf($rows, (string) $data->category)));
+                    $this->addFlash('success', \sprintf($publishClicked ? self::REFILED_NOT_PUBLISHED : self::REFILED, $this->forms->nameOf($rows, (string) $data->category)));
 
                     return $this->redirectToRoute('app_sell_draft_edit', ['id' => $draft['id']], Response::HTTP_SEE_OTHER);
                 }
@@ -269,63 +259,6 @@ final class SellController extends AbstractController
         }
 
         return $this->redirectToRoute('app_sell_drafts', [], Response::HTTP_SEE_OTHER);
-    }
-
-    /**
-     * The Details sub-form's rows: the effective schema (root first, then label) with each choice
-     * attribute's active options plus the archived one the listing stores for it, fetched for all of
-     * them in one query. An archived option is labelled "… (no longer offered)"; the second element
-     * maps each such option id to its plain label, for the refusal.
-     *
-     * `keep` is built from the **choice** attributes' stored values only: a choice value is always an
-     * option id, while a text value that merely looks like one must neither reach `id IN (…)` (a
-     * non-uuid string there is a 500) nor put an archived option onto another field's select.
-     *
-     * @param array<string, string> $stored the listing's stored values, by attribute id
-     *
-     * @return array{list<array{id: string, label: string, type: string, required: bool, unit: ?string, options: list<array{id: string, label: string}>}>, array<string, string>}
-     */
-    private function detailsSchema(string $categoryId, array $stored): array
-    {
-        $rows = $this->schema->effectiveFor($categoryId);
-        $choiceIds = array_column(array_filter($rows, static fn (array $row): bool => 'choice' === $row['type']), 'id');
-        $keep = array_values(array_intersect_key($stored, array_flip($choiceIds)));
-        $options = $this->schema->optionsFor($choiceIds, $keep);
-
-        $noLongerOffered = [];
-
-        foreach ($options as $attributeOptions) {
-            foreach ($attributeOptions as $option) {
-                if ($option['archived']) {
-                    $noLongerOffered[$option['id']] = $option['label'];
-                }
-            }
-        }
-
-        $schema = array_map(static fn (array $row): array => [
-            'id' => $row['id'],
-            'label' => $row['label'],
-            'type' => $row['type'],
-            'required' => $row['required'],
-            'unit' => $row['unit'],
-            'options' => array_map(
-                static fn (array $option): array => [
-                    'id' => $option['id'],
-                    'label' => $option['archived'] ? \sprintf(self::NO_LONGER_OFFERED_LABEL, $option['label']) : $option['label'],
-                ],
-                $options[$row['id']] ?? [],
-            ),
-        ], $rows);
-
-        return [$schema, $noLongerOffered];
-    }
-
-    /**
-     * @param list<array{id: string, parentId: ?string, name: string, slug: string, depth: int}> $rows
-     */
-    private static function nameOf(array $rows, string $categoryId): string
-    {
-        return array_column($rows, 'name', 'id')[$categoryId] ?? 'the new category';
     }
 
     /**

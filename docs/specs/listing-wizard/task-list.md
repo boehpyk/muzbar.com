@@ -22,7 +22,7 @@
       incomplete → no row; `CategoryTreeLockTest` dispatch-outside-lock case.
 
 ## Infrastructure — refactor first (no behaviour change)
-- [ ] T3: Extract `ListingFormBuilder` from `SellController` (`choices()`, `details()` with the
+- [x] T3: Extract `ListingFormBuilder` from `SellController` (`choices()`, `details()` with the
       offered-choices guard and choice-only `keep`, `nameOf()`). Controller uses it. Existing suite
       green **unmodified**.
 - [ ] T4: `ListingFormType` + unmapped hidden `details_for`; controller sets it to the category the
