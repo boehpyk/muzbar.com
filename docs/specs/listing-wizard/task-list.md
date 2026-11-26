@@ -58,7 +58,7 @@
 ## Tests (qa)
 - [x] T11: `ListingFormComponentTest` — AC-1…AC-10, AC-19, AC-20, AC-23 (statement counts with
       `QueryRecordingStatement`; target-path assertion reads the session, not a probe GET).
-- [ ] T12: `SellWizardTest` — AC-11…AC-18, AC-21; run `make test` twice (rate limiters, Redis).
+- [x] T12: `SellWizardTest` — AC-11…AC-18, AC-21; run `make test` twice (rate limiters, Redis).
 - [ ] T13: Scans — AC-22 (component dir: no `LiveAction`, no handler/repository/`Categories`;
       ≥ 1 file scanned) and AC-9 (template bindings).
 - [ ] T14: Mutation sweep (a)–(r), each applied alone, each bites; record results in the PR.
