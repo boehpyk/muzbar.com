@@ -34,6 +34,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\ClearableErrorsInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -71,6 +72,7 @@ final class SellController extends AbstractController
     private const string REFILED_NOT_PUBLISHED = 'Saved, not published yet. The details now follow “%s”: check them, then publish.';
     private const string FILL_TO_PUBLISH = 'Fill this in to publish.';
     private const string NEW_REQUIRED_DETAIL = 'A new detail is now required. Reload the page.';
+    private const string DETAILS_FOR_ANOTHER_CATEGORY = 'The details shown are for another category. Reload the page.';
     private const string WITHDRAWN = 'Withdrawn. It is no longer public.';
     private const string NOT_PUBLISHED = 'Only a published listing can be withdrawn.';
 
@@ -148,7 +150,7 @@ final class SellController extends AbstractController
         }
 
         // `ListingForm` shows "Save and publish" only beside Details (its `details_for` is set).
-        return $this->render('listing/sell.html.twig', ['form' => $form], $this->statusFor($form));
+        return $this->render('listing/sell.html.twig', ['form' => self::view($form, $detailsFor)], $this->statusFor($form));
     }
 
     #[Route('/drafts', name: 'app_sell_drafts', methods: ['GET'])]
@@ -185,7 +187,8 @@ final class SellController extends AbstractController
         // an empty select that "blank = clear" would silently drop on save.
         $stored = $this->drafts->valuesOf($draft['id']);
         // The POST binds the Details the page showed (D4): a page morphed to category B posts B's
-        // fields. A missing or tampered `details_for` means the stored category's, as on the GET.
+        // fields. A missing or tampered `details_for` means the stored category's, as on the GET;
+        // a valid one that is neither the submitted nor the stored category is refused below.
         $body = $request->request->all();
         $detailsFor = self::detailsFor($body, $choices) ?? (isset($choices[$draft['categoryId']]) ? $draft['categoryId'] : null);
         [$schema, $noLongerOffered] = $this->forms->details($choices, $detailsFor, $stored);
@@ -205,6 +208,16 @@ final class SellController extends AbstractController
 
         if ($form->isSubmitted()) {
             $this->explainStaleCategory($form, $paths, $choices);
+
+            // Revise replaces the whole value set and a blank field clears its value, so "blank =
+            // clear" is only safe when the blank fields were on the page for the category being
+            // saved. Details built for the submitted category (a finished morph) or the stored one
+            // (JS-free: L-10 drops on a re-file) are that; any other — a morph that failed or is
+            // still in flight after the seller switched back — would silently delete every value
+            // its category lacks. Refuse it, write nothing (found by /verify, listing-wizard D4).
+            if ($detailsFor !== $data->category && $detailsFor !== $draft['categoryId']) {
+                $form->addError(new FormError(self::DETAILS_FOR_ANOTHER_CATEGORY));
+            }
         }
 
         if ($form->isSubmitted() && $form->isValid()) {
@@ -262,7 +275,7 @@ final class SellController extends AbstractController
             }
         }
 
-        return $this->render('listing/edit.html.twig', ['form' => $form, 'draft' => $draft], $this->statusFor($form));
+        return $this->render('listing/edit.html.twig', ['form' => self::view($form, $detailsFor), 'draft' => $draft], $this->statusFor($form));
     }
 
     #[Route('/drafts/{id}/withdraw', name: 'app_sell_draft_withdraw', methods: ['POST'])]
@@ -408,6 +421,21 @@ final class SellController extends AbstractController
         $value = \is_array($form) ? ($form['details_for'] ?? null) : null;
 
         return \is_string($value) && isset($offered[$value]) ? $value : null;
+    }
+
+    /**
+     * The view to render, its hidden `details_for` set to the validated value — the category the
+     * Details were built for, `''` for none. An unmapped field re-renders what was submitted, so a
+     * 422 would otherwise echo a tampered value back into the page and the component's state.
+     *
+     * @param FormInterface<ListingFormData> $form
+     */
+    private static function view(FormInterface $form, ?string $detailsFor): FormView
+    {
+        $view = $form->createView();
+        $view['details_for']->vars['value'] = $detailsFor ?? '';
+
+        return $view;
     }
 
     /** @param array<mixed> $body `$request->request->all()` */

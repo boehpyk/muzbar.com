@@ -162,7 +162,10 @@ describe and publish my instrument from one page in under three minutes**.
       500, no statement with the raw value.
 - [ ] AC-18: Every existing Domain refusal keeps its field and wording on both pages (L-2 stale
       leaf, L-3/4/5, L-9 incl. "no longer offered", L-13, L-15), now including on `/sell` for L-9
-      and L-13; a drift between morph and POST only refuses (fail closed, ADR-0019).
+      and L-13; a drift between morph and POST only refuses (fail closed, ADR-0019) — with the
+      failure contract's messages, some of which are the **form's** rather than the Domain's (an
+      archived attribute is an extra field; an option archived on `/sell` is not a choice).
+      *Amended 2026-11-27 by `/verify` — the test won, on purpose.*
 
 ### Security, privacy, regressions
 
@@ -221,9 +224,10 @@ describe and publish my instrument from one page in under three minutes**.
 | A morph request fails (network, 5xx, 404) | The page stays as it was and stays submittable; `details_for` still names the category the visible Details are for, so the POST builds the right form and never publishes Details the seller did not see. Live's default error handling only; no custom retry. |
 | Category tampered in the live state | No Details, no schema statement (AC-6). |
 | Someone else's listing / no session | 404 (AC-19, AC-20). |
-| Schema changes between morph and POST (attribute archived, option archived, made required, bounds narrowed) | The POST's Domain refusal, in today's wording: "This detail no longer applies. Reload the page." / "… is no longer offered. Choose another." / "A new detail is now required. Reload the page." / range message. Nothing written. |
+| Schema changes between morph and POST (attribute archived, option archived, made required, bounds narrowed) | Refused, nothing written. *Amended 2026-11-27 by `/verify` — the test won, on purpose:* an **attribute archived** after the morph is not in the POST's form, so its field is an extra field → the form's root error "This form should not contain extra fields." (the Details sub-form bubbles it); an **option archived** on `/sell` is not among the choices → that field's "Choose one of the listed options."; on the **edit page** a stored option archived since → "… is no longer offered. Choose another."; **made required** → "A new detail is now required. Reload the page." (L-13); **bounds narrowed** → the range message. |
 | Category gains a subcategory between morph and POST | "That category now has subcategories. Choose a more specific one." (unchanged). |
 | `details_for` tampered | Treated as empty (`/sell`) or stored category (edit) — AC-17. |
-| Category select changed, then submitted before the morph returns | `details_for` still names the old category: `/sell` drafts without details, not published (AC-14); edit re-files with L-10 dropping, not published (AC-16). |
+| Edit POST whose `details_for` is neither the submitted nor the stored category (failed/in-flight morph) | 422, root error "The details shown are for another category. Reload the page.", nothing written, no handler call. *Added 2026-11-27 by `/verify`*: forwarding those Details would have cleared every value the category being saved has and theirs lacks (blank = clear). |
+| Category select changed, then submitted before the morph returns | `details_for` still names the old category: `/sell` drafts without details, not published (AC-14); edit re-files with L-10 dropping, not published, when the old category is the stored one (AC-16) — otherwise the 422 above (*amended 2026-11-27 by `/verify`*). |
 | Required detail empty on "Save and publish" from `/sell` | 422, field error, nothing written (AC-13). |
 | Bad CSRF token on the real POST | 422, root error, nothing written (AC-21). |

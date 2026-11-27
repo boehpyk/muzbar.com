@@ -69,7 +69,11 @@ them a decision rather than an install:
    `/sell`, the stored category on edit — AC-17), and builds the form for that category. Details are
    forwarded, and "Save and publish" is honoured, only when `details_for` equals the submitted
    category; otherwise `/sell` drafts without Details and does not publish, and the edit page
-   re-files as before (L-10 drops). `details_for` is a **UI fact, never a Domain input**: a tampered
+   re-files as before (L-10 drops) **only when `details_for` is the stored category** — any other
+   valid value is a 422, "The details shown are for another category. Reload the page.", nothing
+   written (*2026-11-27, found by `/verify`*: a morph to B that was switched back to A and failed
+   posted B's Details under A, and revise's blank = clear deleted every value A has and B lacks).
+   `details_for` is a **UI fact, never a Domain input**: a tampered
    value can only make the server more conservative, or offer Details for the category the seller is
    filing under — which the Domain then decides on `schemaOf()` under the lock (L-2, L-9, L-13).
 

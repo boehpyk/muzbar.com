@@ -103,4 +103,14 @@ final class ListingFormIsolationTest extends TestCase
         self::assertStringNotContainsString('data-model', $template, 'A per-field data-model would override the form-wide norender.');
         self::assertStringNotContainsString('on(change)', $template);
     }
+
+    public function testTheDetailsFieldsetIsDimmedByTheRootsAriaBusyNotByADataLoadingAttribute(): void
+    {
+        $template = (string) file_get_contents(self::root().'/'.self::TEMPLATE);
+        $template = preg_replace('/\{#.*?#\}/s', '', $template) ?? '';
+
+        self::assertNotSame('', $template, 'The template was not read.');
+        self::assertStringContainsString('<fieldset class="listing-details">', $template);
+        self::assertStringNotContainsString('data-loading', $template, 'addAttribute(aria-busy) renders aria-busy="", which ARIA reads as false.');
+    }
 }

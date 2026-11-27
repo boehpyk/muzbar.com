@@ -35,7 +35,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  *
  * `details_for` (unmapped, hidden) carries the category the rendered Details were built for, `''`
  * when none were (listing-wizard D4): the POST must build the form the page showed. It is
- * untrusted on the way back — the controller validates it against the offered choices.
+ * untrusted on the way back — the controller validates it against the offered choices and renders
+ * the validated value (an unmapped field would otherwise echo the submitted one on a 422).
  *
  * @phpstan-type SchemaField array{id: string, label: string, type: string, required: bool, unit: ?string, options: list<array{id: string, label: string}>}
  *

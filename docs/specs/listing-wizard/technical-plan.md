@@ -96,8 +96,17 @@ category. Consequences, all in the controller:
 | Page | `details_for` = submitted category | ≠ (JS-free, race, tamper) |
 |---|---|---|
 | `/sell` | forward `attributes`; honour `publish` | forward `[]`; ignore `publish`; flash "Add the details below." |
-| edit, same category | as today (they are equal by construction) | — |
-| edit, re-file | forward; honour `publish` (D5) | as today: forward (L-10 drops), ignore `publish` |
+| edit, same category | forward; honour `publish` | `details_for` = another offered category (a failed or in-flight morph): **422**, root error "The details shown are for another category. Reload the page.", nothing written |
+| edit, re-file | forward; honour `publish` (D5) | `details_for` = the **stored** category (JS-free): forward (L-10 drops), ignore `publish`. Any other: the 422 above |
+
+**Amended 2026-11-27 (found by `/verify`).** The edit row "same category … equal by construction" was
+false: a page morphed to B and switched back to the stored category A can post `details_for` = B if the
+second morph failed or was still in flight. Revise replaces the whole value set and blank = clear, so
+forwarding B's Details under category A deleted every value A has and B lacks, and said "Draft saved."
+The rule is now: on the edit page the Details are accepted **only** when `details_for` is the submitted
+category or the stored one (the form showed exactly those fields); any other valid `details_for` is a
+422 with nothing written and no handler call. `/sell` keeps its rule — a new listing has nothing to
+lose (AC-14).
 
 A tampered `details_for` can only make the server *more* conservative or make it accept Details for
 the category the seller is filing under — which the Domain then decides anyway (L-2, L-9, L-13 on
@@ -144,8 +153,10 @@ comes back (non-goal). Remembering it needs a second writable prop — add it if
 ### D8 — Accessibility and styling (minimal)
 
 One `<p role="status">Details for <path></p>` inside the Details fieldset (AC-10). During a request
-the fieldset gets `aria-busy="true"` via `data-loading="addAttribute(aria-busy)"`, and
-`_forms.scss` dims `[aria-busy="true"]`. Idiomorph keeps focus on the select (AC-27). No other SCSS.
+Live's loading plugin sets `aria-busy="true"` on the component root during the request, and
+`_forms.scss` dims `[aria-busy="true"] .listing-details` (*amended 2026-11-27 by `/verify`*: the
+first build used `data-loading="addAttribute(aria-busy)"`, which renders `aria-busy=""` — false to
+ARIA). Idiomorph keeps focus on the select (AC-27). No other SCSS.
 
 ### D9 — ADR-0027 (new) + amendments
 

@@ -23,7 +23,7 @@ use App\Domain\Shared\Port\DomainEventDispatcher;
 
 /**
  * Drafts a new listing with its details — and, when asked, publishes it — in one all-or-nothing
- * step (AC-9, AC-10, AC-12, AC-13). A refused publish rolls the draft back with it: no row is left.
+ * step (listing-draft AC-9, AC-10; listing-wizard AC-12, AC-13). A refused publish rolls the draft back with it: no row is left.
  *
  * Everything runs inside `holdSteady()`: the category status and its schema are only true while the
  * catalog is held, so the reads and the save they justify share one transaction under the shared

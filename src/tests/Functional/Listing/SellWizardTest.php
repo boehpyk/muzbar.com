@@ -10,10 +10,13 @@ use App\Application\Catalog\Handler\ArchiveAttributeHandler;
 use App\Application\Catalog\Handler\ArchiveAttributeOptionHandler;
 use App\Domain\Catalog\Entity\Attribute;
 use App\Domain\Catalog\Entity\Category;
+use App\Domain\Catalog\ValueObject\CategoryName;
+use App\Domain\Catalog\ValueObject\CategorySlug;
 use App\Domain\Identity\Entity\User;
 use App\Domain\Listing\Entity\Listing;
 use App\Domain\Listing\Event\ListingPublished;
 use App\Infrastructure\Shared\Event\SymfonyDomainEventDispatcher;
+use App\Tests\Factory\CategoryFactory;
 use App\Tests\Factory\ListingFactory;
 use App\Tests\Fixture\QueryRecordingStatement;
 use App\Tests\Fixture\SpyDomainEventDispatcher;
@@ -433,16 +436,93 @@ final class SellWizardTest extends WebTestCase
     }
 
     #[DataProvider('tamperedDetailsFor')]
-    public function testATamperedDetailsForOnTheEditPageIsTreatedAsTheStoredCategory(string $tampered): void
+    public function testATamperedDetailsForOnTheEditPageIsTreatedAsTheStoredCategoryAndItsRawValueNeverReachesAStatement(string $tampered): void
     {
         $draft = $this->annsElectricDraft();
         $tampered = '@branch' === $tampered ? $this->id($this->guitars) : $tampered;
         $details = $this->electricRequired() + [$this->id($this->strings) => '9'];
+        $path = '/sell/drafts/'.$draft->id()->toString().'/edit';
+        $token = $this->client->request('GET', $path)->filter('input[name="listing_form[_token]"]')->attr('value');
+        $pdo = $this->db->getNativeConnection();
+        self::assertInstanceOf(\PDO::class, $pdo);
 
-        $this->postEdit($draft, $this->fields($this->id($this->electric), $tampered, $details), 'save');
+        QueryRecordingStatement::install($pdo);
+        try {
+            $this->client->request('POST', $path, ['listing_form' => $this->fields($this->id($this->electric), $tampered, $details) + ['_token' => $token], 'action' => 'save']);
+        } finally {
+            $statements = QueryRecordingStatement::uninstallWithValues($pdo);
+        }
 
         self::assertResponseRedirects('/sell/drafts', 303);
         self::assertContains($this->id($this->strings), $this->storedAttributes($draft->id()->toString()), 'The form was built for the stored category: its fields bound.');
+        self::assertNotSame([], $statements, 'Control: the recorder saw the request.');
+        if ($tampered !== $this->id($this->guitars)) {
+            foreach ($statements as $statement) {
+                foreach ($statement['params'] as [$bound]) {
+                    self::assertNotSame($tampered, $bound, 'The raw details_for reached a statement: '.$statement['sql']);
+                }
+            }
+        }
+    }
+
+    public function testASellRefusalWithATamperedDetailsForRendersTheHiddenFieldEmptyAndOffersNoPublishButton(): void
+    {
+        $this->signIn();
+
+        $page = $this->postSell($this->fields($this->id($this->electric), 'tampered-value', [], ['title' => 'x']), 'save');
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('', (string) $page->filter('#listing_form_details_for')->attr('value'), 'An empty value renders without the attribute.');
+        self::assertStringNotContainsString('tampered-value', (string) $page->html());
+        self::assertCount(0, $page->filter('button[value="publish"]'), 'No Details on the page: no Save and publish.');
+        self::assertSame([], $this->listings());
+    }
+
+    public function testAnEditRefusalWithATamperedDetailsForRendersTheHiddenFieldAsTheStoredCategory(): void
+    {
+        $draft = $this->annsElectricDraft();
+
+        $page = $this->postEdit($draft, $this->fields($this->id($this->electric), 'tampered-value', $this->electricRequired(), ['title' => 'x']), 'save');
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame($this->id($this->electric), $page->filter('#listing_form_details_for')->attr('value'));
+        self::assertStringNotContainsString('tampered-value', (string) $page->html());
+    }
+
+    // ---------------------------------------------------------------- details_for mismatch on the edit page (found by /verify)
+
+    private const string ANOTHER_CATEGORY = 'The details shown are for another category. Reload the page.';
+
+    public function testAnEditPostWhoseDetailsWereForAnotherCategoryThanTheSubmittedAndStoredOneIs422AndClearsNothing(): void
+    {
+        $draft = $this->annsElectricDraft();
+        $listings = $this->listings();
+        $values = $this->valueRows();
+
+        // A morph to Bass that failed, then a switch back to Electric: Bass's fields, Electric's category.
+        $page = $this->postEdit($draft, $this->fields($this->id($this->electric), $this->id($this->bass), $this->bassRequired()), 'save');
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString(self::ANOTHER_CATEGORY, $page->filter('form')->first()->text());
+        $this->assertNothingWritten($listings, $values);
+        self::assertCount(3, $this->storedAttributes($draft->id()->toString()), 'Brand, condition and serial survive.');
+        self::assertSame([], $this->listingEvents());
+    }
+
+    public function testAnEditPostRefilingToAThirdCategoryWithDetailsForAnotherIs422AndChangesNothing(): void
+    {
+        $draft = $this->annsElectricDraft();
+        $listings = $this->listings();
+        $values = $this->valueRows();
+
+        // Stored Electric (A), details built for Bass (B), submitted category a third leaf (C).
+        $other = CategoryFactory::new(['name' => CategoryName::fromString('Acoustic'), 'slug' => CategorySlug::fromString('acoustic')])->childOf($this->guitars)->create();
+        $page = $this->postEdit($draft, $this->fields($this->id($other), $this->id($this->bass), $this->bassRequired()), 'publish');
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString(self::ANOTHER_CATEGORY, $page->filter('form')->first()->text());
+        $this->assertNothingWritten($listings, $values);
+        self::assertSame([], $this->listingEvents());
     }
 
     public function testAnArrayValuedDetailsForIsNotA500(): void
@@ -525,7 +605,7 @@ final class SellWizardTest extends WebTestCase
         $this->assertNothingWritten($listings, $values);
     }
 
-    public function testADriftBetweenTheMorphAndThePostOnlyRefusesAndWritesNothing(): void
+    public function testAnAttributeArchivedBetweenTheMorphAndThePostIsRefusedAsAnExtraFieldAndWritesNothing(): void
     {
         $this->signIn();
         // The seller's page offered Strings; an admin archives it before the POST.
@@ -533,9 +613,25 @@ final class SellWizardTest extends WebTestCase
         self::assertInstanceOf(ArchiveAttributeHandler::class, $handler);
         $handler(new ArchiveAttribute($this->id($this->strings)));
 
-        $this->postSell($this->fields($this->id($this->electric), $this->id($this->electric), $this->electricRequired() + [$this->id($this->strings) => '6']), 'publish');
+        $page = $this->postSell($this->fields($this->id($this->electric), $this->id($this->electric), $this->electricRequired() + [$this->id($this->strings) => '6']), 'publish');
 
         self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString('This form should not contain extra fields.', $page->filter('form')->first()->text());
+        self::assertSame([], $this->listings());
+        self::assertSame([], $this->valueRows());
+    }
+
+    public function testAnOptionArchivedAfterTheRenderIsRefusedOnItsFieldAndWritesNothing(): void
+    {
+        $this->signIn();
+        $handler = self::getContainer()->get(ArchiveAttributeOptionHandler::class);
+        self::assertInstanceOf(ArchiveAttributeOptionHandler::class, $handler);
+        $handler(new ArchiveAttributeOption($this->id($this->brand), $this->optionIdOf($this->brand, 'Fender')));
+
+        $page = $this->postSell($this->fields($this->id($this->electric), $this->id($this->electric), $this->electricRequired()), 'publish');
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(['Choose one of the listed options.'], $this->errorsOn($page, $this->detailField($this->brand)));
         self::assertSame([], $this->listings());
         self::assertSame([], $this->valueRows());
     }

@@ -690,6 +690,11 @@ final class ListingFormComponentTest extends WebTestCase
         self::assertStringNotContainsString('Edit listing', $replayed);
     }
 
+    /**
+     * The 404-versus-302 status is what bites mutation (q) (an AccessDeniedException would be the
+     * firewall's 302). The target-path line is belt-and-braces only: a POST never stashes a target
+     * path, so it cannot fail on its own.
+     */
     public function testAnAnonymousLiveRequestIs404AndLeavesTheIntendedActionUntouched(): void
     {
         [$props] = $this->annsLiveProps();

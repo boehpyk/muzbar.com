@@ -996,7 +996,12 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   string-vs-array footgun), checks it against the **offered** category choices — invalid is **empty**
   on `/sell` and the **stored category** on edit — and builds the form for it. Details are forwarded
   and "Save and publish" honoured **only when `details_for` = the submitted category**; otherwise
-  `/sell` drafts without details and edit re-files with L-10 dropping (mutations (b), (c), (n), (o)).
+  `/sell` drafts without details (mutations (b), (c), (n), (o)). On **edit**, `details_for` = the
+  **stored** category is the JS-free path (forward, L-10 drops on a re-file, no publish); **any other**
+  valid value (a failed or in-flight morph) is a 422 root error "The details shown are for another
+  category. Reload the page." with nothing written — revise replaces the whole set and blank = clear,
+  so forwarding another category's Details silently deleted values (found by `/verify`). The 422
+  re-renders the **validated** `details_for` (`SellController::view()`), never the submitted one.
 - **`ListingPublished` now also comes from create** (`/sell` "Save and publish", via
   `DraftListingHandler`), dispatched after `holdSteady()` returns. `search-alert-match` (14) and any
   other listener must not assume a publish follows a revise.
@@ -1012,8 +1017,9 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   description, a 422) re-renders it, and its state is JSON in `data-live-props-value` —
   `json_encode` fails. `#[PostMount(priority: -10)] scrubFormValues()` `mb_scrub`s every string
   after the trait extracts them. The page itself renders the bytes fine (Twig substitutes).
-- **`data-loading="addAttribute(aria-busy)"` sets `aria-busy=""`, not `"true"`** — the
-  `_forms.scss` rule matches `[aria-busy]` (presence). `[aria-busy="true"]` never matches.
+- **`data-loading="addAttribute(aria-busy)"` sets `aria-busy=""`, which ARIA reads as false** — so
+  the listing form uses no directive: Live's loading plugin itself sets `aria-busy="true"` on the
+  component root during a request, and `_forms.scss` dims `[aria-busy="true"] .listing-details`.
 - **The morph's statement budget (AC-8: `/sell` ≤ 3, edit ≤ 5) excludes the one `identity_user`
   SELECT** — Symfony refreshing the signed-in user on every authenticated request, not the
   component. Count it and every budget is off by one; filter it by name, nothing else.
