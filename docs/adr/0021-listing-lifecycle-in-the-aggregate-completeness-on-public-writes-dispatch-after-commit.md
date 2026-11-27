@@ -301,3 +301,18 @@ Recorded by the `listing-schema-drift` slice
    Dormant values (L-17) are skipped. **Stale values are still refused:** an archived option's
    attribute is in force, so its value fails `read()` (`NotAnOption`), as narrowed bounds do.
 2. **Decision 9's list loses C-27** (retired). C-23/C-24 and C-25/C-26 stay status-blind.
+
+## Amendment, 2026-11-26 — a re-file may publish when the page showed the new category's details
+
+Recorded by the `listing-wizard` slice ([ADR-0027](./0027-symfony-ux-under-assetmapper-live-component-renders-controller-writes.md), plan D5, Q6). **Amends decision 6's last sentence (listing-publish Q2).**
+
+1. **"Save and publish" on a re-file publishes when `details_for` equals the submitted category** —
+   `$publish = $publishClicked && $detailsFor === $category && !$wasPublished`. Q2's reason for
+   refusing ("the new category's fields were never shown") is exactly what `details_for` now records.
+   When it does not match (the JS-free path, a race, a tampered value), the controller still sends
+   `publish: false`, as before.
+2. **L-13 still decides**, against the new category's schema, in the same transaction as the
+   re-file. L-15 is unchanged: a **published** listing still cannot be re-filed.
+3. **`/sell` may publish too:** `DraftListingHandler` drafts and publishes in one `holdSteady()`
+   transaction (a refused publish leaves no row), releases `ListingPublished` inside and dispatches it
+   after `holdSteady()` returns — decision 5's shape, now on a second handler.

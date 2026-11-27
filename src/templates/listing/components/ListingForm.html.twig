@@ -1,0 +1,39 @@
+{# The listing form on the sell and edit pages (`ListingForm`, listing-wizard). It renders; the
+   `<form>` posts to the page it is on, like any other form. Root-level errors (bad CSRF token, extra
+   fields such as a posted `seller`) land on the form, not a field. `buttons`: a list of
+   `{label, action?}`; an `action` is posted as the top-level `action` parameter
+   (`save` | `publish`, listing-publish D12). On `/sell` a `publish` button shows only beside Details
+   (`details_for` set — an empty schema counts, D4); the edit page decides its buttons by status.
+   Everything below is read from the form view, so the first render (the controller's form) and a
+   morph (the component's) read alike. #}
+{% set details_for = form.details_for.vars.value %}
+<div {{ attributes }}>
+    {{ form_start(form) }}
+        {{ form_errors(form) }}
+        {{ form_row(form.title) }}
+        {{ form_row(form.description) }}
+        {{ form_row(form.price) }}
+        {{ form_row(form.currency) }}
+        {# The one element that asks for a morph (AC-9); every other field only syncs (norender|*). #}
+        {{ form_row(form.category, {attr: {'data-action': 'change->live#$render'}}) }}
+        {{ form_widget(form.details_for) }}
+        {% if form.attributes is defined %}
+            {# No `data-loading` here: `addAttribute(aria-busy)` renders `aria-busy=""`, which ARIA reads as
+               false. Live itself sets `aria-busy="true"` on the component root while a morph is in
+               flight; `_forms.scss` dims this fieldset under it (D8). #}
+            <fieldset class="listing-form-details">
+                <legend>Details</legend>
+                {% for choice in form.category.vars.choices|filter(c => c.value == details_for) %}
+                    <p role="status">Details for {{ choice.label }}</p>
+                {% endfor %}
+                {{ form_errors(form.attributes) }}
+                {% for field in form.attributes %}
+                    {{ form_row(field) }}
+                {% endfor %}
+            </fieldset>
+        {% endif %}
+        {% for button in buttons|filter(b => b.action is not defined or b.action != 'publish' or listingId is not null or details_for != '') %}
+            <button type="submit"{% if button.action is defined %} name="action" value="{{ button.action }}"{% endif %}>{{ button.label }}</button>
+        {% endfor %}
+    {{ form_end(form) }}
+</div>

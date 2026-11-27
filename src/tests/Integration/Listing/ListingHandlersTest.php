@@ -80,11 +80,11 @@ final class ListingHandlersTest extends KernelTestCase
         $em = $container->get(EntityManagerInterface::class);
         self::assertInstanceOf(EntityManagerInterface::class, $em);
 
-        $this->draft = new DraftListingHandler($listings, $categories);
         $clock = $container->get(Clock::class);
         self::assertInstanceOf(Clock::class, $clock);
         $events = $container->get(DomainEventDispatcher::class);
         self::assertInstanceOf(DomainEventDispatcher::class, $events);
+        $this->draft = new DraftListingHandler($listings, $categories, $clock, $events);
         $this->revise = new ReviseListingHandler($listings, $categories, $clock, $events);
         $this->db = $db;
         $this->em = $em;
@@ -104,7 +104,7 @@ final class ListingHandlersTest extends KernelTestCase
 
     private function draftOnElectric(string $price = '1234.50', string $currency = 'EUR'): ListingId
     {
-        return ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision V', '', $price, $currency));
+        return ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision V', '', $price, $currency, [], false));
     }
 
     private function revision(ListingId $id, string $by, string $category, string $title = 'Changed title', string $price = '99', string $currency = 'SEK'): ReviseListing
@@ -132,7 +132,7 @@ final class ListingHandlersTest extends KernelTestCase
     public function testDraftingOnABranchIsRefusedAndWritesNothing(): void
     {
         try {
-            ($this->draft)(new DraftListing($this->ann, $this->guitars->id()->toString(), 'Fender Precision V', '', '10', 'EUR'));
+            ($this->draft)(new DraftListing($this->ann, $this->guitars->id()->toString(), 'Fender Precision V', '', '10', 'EUR', [], false));
             self::fail('Expected CategoryIsNotALeaf.');
         } catch (CategoryIsNotALeaf) {
             self::assertSame([], $this->table());
@@ -142,7 +142,7 @@ final class ListingHandlersTest extends KernelTestCase
     public function testDraftingOnAWellFormedButUnknownCategoryIsRefusedAndWritesNothing(): void
     {
         try {
-            ($this->draft)(new DraftListing($this->ann, Uuid::v7()->toRfc4122(), 'Fender Precision V', '', '10', 'EUR'));
+            ($this->draft)(new DraftListing($this->ann, Uuid::v7()->toRfc4122(), 'Fender Precision V', '', '10', 'EUR', [], false));
             self::fail('Expected UnknownCategory.');
         } catch (UnknownCategory) {
             self::assertSame([], $this->table());
@@ -152,7 +152,7 @@ final class ListingHandlersTest extends KernelTestCase
     public function testDraftingOnAMalformedCategoryIdIsUnknownCategoryAndWritesNothing(): void
     {
         try {
-            ($this->draft)(new DraftListing($this->ann, 'not-a-uuid', 'Fender Precision V', '', '10', 'EUR'));
+            ($this->draft)(new DraftListing($this->ann, 'not-a-uuid', 'Fender Precision V', '', '10', 'EUR', [], false));
             self::fail('Expected UnknownCategory.');
         } catch (UnknownCategory) {
             self::assertSame([], $this->table());

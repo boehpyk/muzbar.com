@@ -313,3 +313,18 @@ Recorded by the `listing-publish` slice ([ADR-0021](./0021-listing-lifecycle-in-
 4. **Consequences, "cross-currency comparison is undecided"** — answered by
    [ADR-0024](./0024-price-is-compared-only-within-one-currency.md): a price filter is one currency,
    no conversion. "Nothing filters on price" is no longer true; "nothing sorts" still is.
+
+## Amendment, 2026-11-26 — one form builder for page, POST and morph; the POST builds its form for `details_for`
+
+Recorded by the `listing-wizard` slice ([ADR-0027](./0027-symfony-ux-under-assetmapper-live-component-renders-controller-writes.md), plan D2, D4).
+
+1. **The fourth crossing has one owner on the UI side:** `Infrastructure/Listing/Form/ListingFormBuilder`
+   (final, no interface) builds the listing form's category choices and Details from Catalog's read
+   models (`DbalCategoryOutline`, `DbalAttributeSchema::effectiveFor()`/`optionsFor()`). The `/sell`
+   and edit pages, their POSTs and the `ListingForm` Live Component's morph all use it, so the page,
+   the morph and the POST render and bind **the same fields**. It reads no schema for a category that
+   is not among the offered choices.
+2. **The POST builds its form for `details_for`**, not for the stored category: the category the
+   page's Details were rendered for, validated against the offered choices (invalid → empty on
+   `/sell`, the stored category on edit). It is a UI fact; decision 5 is unchanged — the Domain still
+   decides on `schemaOf()` read again under the lock, so a drift between morph and POST only refuses.

@@ -51,7 +51,7 @@ final class SearchTextSyncTest extends KernelTestCase
         $db = $container->get(Connection::class);
         self::assertInstanceOf(Connection::class, $db);
 
-        $this->draft = new DraftListingHandler($listings, $categories);
+        $this->draft = new DraftListingHandler($listings, $categories, $clock, $events);
         $this->revise = new ReviseListingHandler($listings, $categories, $clock, $events);
         $this->withdraw = new WithdrawListingHandler($listings, $categories);
         $this->db = $db;
@@ -95,7 +95,7 @@ final class SearchTextSyncTest extends KernelTestCase
 
     public function testADraftCreatedThroughTheHandlerGetsItsRow(): void
     {
-        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Strätocaster Special', 'Sunburst finish', '100', 'EUR'))->toString();
+        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Strätocaster Special', 'Sunburst finish', '100', 'EUR', [], false))->toString();
 
         $row = $this->row($id);
         self::assertNotNull($row);
@@ -114,7 +114,7 @@ final class SearchTextSyncTest extends KernelTestCase
 
     public function testRevisingOnlyTheDescriptionReplacesTheDocument(): void
     {
-        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision', 'oldword', '100', 'EUR'))->toString();
+        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision', 'oldword', '100', 'EUR', [], false))->toString();
         $before = $this->row($id);
         self::assertTrue($this->documentMatches($id, 'oldword'));
 
@@ -132,7 +132,7 @@ final class SearchTextSyncTest extends KernelTestCase
     {
         // The handler's UPDATE always lists title too (revise() swaps VO instances), so it cannot tell a
         // trigger that watches `title` alone from the real one. A bare statement can.
-        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision', 'oldword', '100', 'EUR'))->toString();
+        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision', 'oldword', '100', 'EUR', [], false))->toString();
 
         $this->db->executeStatement('UPDATE listing_listing SET description = ? WHERE id = ?', ['newword', $id]);
 
@@ -142,7 +142,7 @@ final class SearchTextSyncTest extends KernelTestCase
 
     public function testRevisingOnlyTheTitleReplacesTheFoldedTitle(): void
     {
-        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision', 'same words', '100', 'EUR'))->toString();
+        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Precision', 'same words', '100', 'EUR', [], false))->toString();
 
         ($this->revise)($this->revision($id, 'Gibsön Explorer', 'same words'));
 
@@ -156,7 +156,7 @@ final class SearchTextSyncTest extends KernelTestCase
 
     public function testPublishingLeavesTheRowIdentical(): void
     {
-        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Précision', 'some words', '100', 'EUR'))->toString();
+        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Précision', 'some words', '100', 'EUR', [], false))->toString();
         $before = $this->row($id);
 
         ($this->revise)($this->revision($id, 'Fender Précision', 'some words', true));
@@ -167,7 +167,7 @@ final class SearchTextSyncTest extends KernelTestCase
 
     public function testWithdrawingLeavesTheRowIdentical(): void
     {
-        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Précision', 'some words', '100', 'EUR'))->toString();
+        $id = ($this->draft)(new DraftListing($this->ann, $this->electric->id()->toString(), 'Fender Précision', 'some words', '100', 'EUR', [], false))->toString();
         ($this->revise)($this->revision($id, 'Fender Précision', 'some words', true));
         $before = $this->row($id);
 
@@ -181,9 +181,9 @@ final class SearchTextSyncTest extends KernelTestCase
     public function testEveryListingOfEveryStatusHasExactlyOneRow(): void
     {
         $seller = $this->ann;
-        ($this->draft)(new DraftListing($seller, $this->electric->id()->toString(), 'One', '', '100', 'EUR'));
+        ($this->draft)(new DraftListing($seller, $this->electric->id()->toString(), 'One', '', '100', 'EUR', [], false));
         ListingFactory::new()->inCategory($this->electric)->titled('Two')->create();
-        $published = ($this->draft)(new DraftListing($seller, $this->electric->id()->toString(), 'Three', '', '100', 'EUR'))->toString();
+        $published = ($this->draft)(new DraftListing($seller, $this->electric->id()->toString(), 'Three', '', '100', 'EUR', [], false))->toString();
         ($this->revise)($this->revision($published, 'Three', '', true));
         ($this->withdraw)(new WithdrawListing($published, $seller));
 

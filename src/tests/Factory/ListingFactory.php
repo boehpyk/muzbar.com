@@ -95,7 +95,7 @@ final class ListingFactory extends PersistentObjectFactory
             /** @var Price $price */
             $price = $attributes['price'];
 
-            return Listing::draft($id, $sellerId, $categoryId, CategoryStatus::Leaf, $title, $description, $price);
+            return Listing::draft($id, $sellerId, $categoryId, CategoryStatus::Leaf, $title, $description, $price, AttributeSchema::none(), AttributeInput::fromArray([]));
         })->afterPersist(static function (Listing $listing, array $attributes): void {
             $manager = self::entityManager();
 

@@ -85,11 +85,17 @@ final class Listing
     }
 
     /**
-     * L-1: the seller is fixed here and never changes. L-7: a new listing is a draft, with no
-     * details yet — the create form has none, because the category is not known until it is submitted.
+     * L-1: the seller is fixed here and never changes. L-7 (amended): a new listing is a draft whose
+     * details are read by L-9 at birth, exactly as on every later write — `$schema` is the effective
+     * schema of `$categoryId`, a fact true only under the shared lock. An empty input is a draft
+     * with no details. No L-10 (there is no earlier category to drop from), no L-17 (nothing is
+     * stored yet) and no L-13 (a draft never checks `required` — L-11).
+     *
+     * Order: L-2 → L-9 → assign.
      *
      * @throws UnknownCategory
      * @throws CategoryIsNotALeaf
+     * @throws InvalidAttributeValue
      */
     public static function draft(
         ListingId $id,
@@ -99,10 +105,12 @@ final class Listing
         ListingTitle $title,
         ListingDescription $description,
         Price $price,
+        AttributeSchema $schema,
+        AttributeInput $input,
     ): self {
         self::assertFileableUnder($categoryId, $categoryStatus);
 
-        return new self($id, $sellerId, $categoryId, $title, $description, $price, ListingStatus::Draft, AttributeValues::none(), null);
+        return new self($id, $sellerId, $categoryId, $title, $description, $price, ListingStatus::Draft, $schema->read($input), null);
     }
 
     /**

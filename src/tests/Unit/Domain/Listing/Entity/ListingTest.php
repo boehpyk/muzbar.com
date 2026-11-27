@@ -59,6 +59,8 @@ final class ListingTest extends TestCase
             ListingTitle::fromString('Fender Precision V'),
             ListingDescription::fromString('Mint'),
             Price::fromMinorUnits(123450, Currency::EUR),
+            AttributeSchema::none(),
+            AttributeInput::fromArray([]),
         );
     }
 
@@ -102,6 +104,8 @@ final class ListingTest extends TestCase
             ListingTitle::fromString('Fender Precision V'),
             ListingDescription::fromString(''),
             Price::fromMinorUnits(100, Currency::EUR),
+            AttributeSchema::none(),
+            AttributeInput::fromArray([]),
         );
     }
 
@@ -247,6 +251,86 @@ final class ListingTest extends TestCase
         }
 
         return $out;
+    }
+
+    /**
+     * @param array<string, string> $input
+     */
+    private function draftWith(AttributeSchema $schema, array $input, CategoryStatus $status = CategoryStatus::Leaf): Listing
+    {
+        return Listing::draft(
+            ListingId::fromString('018f5b2a-0000-7000-8000-000000000002'),
+            SellerId::fromString(self::ANN),
+            CategoryId::fromString(self::ELECTRIC),
+            $status,
+            ListingTitle::fromString('Fender Precision V'),
+            ListingDescription::fromString('Mint'),
+            Price::fromMinorUnits(123450, Currency::EUR),
+            $schema,
+            AttributeInput::fromArray($input),
+        );
+    }
+
+    public function testDraftingStoresValidDetailsReadAgainstTheSchema(): void
+    {
+        $listing = $this->draftWith($this->electricSchema(), $this->allFiveElectricValues());
+
+        self::assertSame(
+            [self::CONDITION => self::USED, self::BRAND => self::FENDER, self::STRINGS => 6, self::HAS_CASE => true, self::SERIAL => 'SN-1'],
+            $this->valuesAsScalars($listing),
+        );
+    }
+
+    public function testDraftingWithANonOptionChoiceValueIsRefused(): void
+    {
+        try {
+            $this->draftWith($this->electricSchema(), [self::CONDITION => self::FENDER]);
+            self::fail('expected InvalidAttributeValue');
+        } catch (InvalidAttributeValue $e) {
+            self::assertSame(InvalidAttributeValueReason::NotAnOption, $e->reason());
+            self::assertSame(self::CONDITION, $e->attributeId()?->toString());
+        }
+    }
+
+    public function testDraftingWithANonNumberForANumberAttributeIsRefused(): void
+    {
+        try {
+            $this->draftWith($this->electricSchema(), [self::STRINGS => 'six']);
+            self::fail('expected InvalidAttributeValue');
+        } catch (InvalidAttributeValue $e) {
+            self::assertSame(InvalidAttributeValueReason::NotAWholeNumber, $e->reason());
+            self::assertSame(self::STRINGS, $e->attributeId()?->toString());
+        }
+    }
+
+    public function testDraftingWithAKeyNotInTheSchemaIsRefused(): void
+    {
+        try {
+            $this->draftWith($this->electricSchema(), [self::BASS_STRINGS => '4']);
+            self::fail('expected InvalidAttributeValue');
+        } catch (InvalidAttributeValue $e) {
+            self::assertSame(InvalidAttributeValueReason::NotInForce, $e->reason());
+            self::assertSame(self::BASS_STRINGS, $e->attributeKey());
+        }
+    }
+
+    public function testDraftingLeavesARequiredAttributeEmptyBecauseADraftNeverChecksRequired(): void
+    {
+        $listing = $this->draftWith($this->requiredElectricSchema(), []);
+
+        self::assertTrue($listing->attributeValues()->isEmpty());
+    }
+
+    public function testDraftingWithAnEmptyInputStoresNoValues(): void
+    {
+        self::assertTrue($this->draftWith($this->electricSchema(), [])->attributeValues()->isEmpty());
+    }
+
+    public function testDraftingOnANonLeafRefusesOnTheCategoryBeforeReadingTheDetails(): void
+    {
+        $this->expectException(CategoryIsNotALeaf::class);
+
+        $this->draftWith($this->electricSchema(), [self::CONDITION => 'not-an-option'], CategoryStatus::Branch);
     }
 
     public function testADraftStartsWithNoAttributeValues(): void

@@ -1,3 +1,6 @@
+// Stimulus (ADR-0027): the live controller is `fetch: lazy`, so pages without a component load none.
+import './stimulus_bootstrap.js';
+
 /*
  * The login overlay (ADR-0015): `/login`'s auth panel shown in a native modal <dialog>.
  *

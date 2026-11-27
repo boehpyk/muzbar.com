@@ -354,7 +354,7 @@ final class SeedSearchBenchmarkCommand extends Command
             $title = $brand['labelOf'][$values[$brand['id']]].' '.$model.' '.$leaf['name'].(0 === $i % self::RARE_EVERY ? ' '.self::RARE_WORD : '');
             $description = self::description();
 
-            $id = ($this->draftListing)(new DraftListing($seller, $leaf['id'], $title, $description, $price, $currency))->toString();
+            $id = ($this->draftListing)(new DraftListing($seller, $leaf['id'], $title, $description, $price, $currency, [], false))->toString();
             $publish = $i < $count || $i >= $count + intdiv($count, 10);
             ($this->reviseListing)(new ReviseListing($id, $seller, $leaf['id'], $title, $description, $price, $currency, $values, $publish));
 

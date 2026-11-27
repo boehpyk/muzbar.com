@@ -224,7 +224,24 @@ Docker Compose · Traefik · Nginx.
 > fetches `/login`'s stylesheet. Umami behind `UMAMI_SCRIPT_URL` + `UMAMI_WEBSITE_ID` (both or off),
 > never on admin or token URLs, query strings excluded, no consent banner (ADR-0003 amendment).
 > All ten (a)–(j) mutations bit; 2357 tests. ADR-0003/0006 amendments.
-> Next: `listing-wizard` (6).
+> `listing-wizard` (2026-11-27, **passed `/verify` 2026-11-27 in three iterations** — the CRITICAL was an edit POST whose `details_for` named a third category silently clearing stored details, now a 422 (AC-16b); then a CSS class collision with the public page's `dl.listing-details`) — Phase 2 item 6 of 15, the repo's **first Stimulus code and first
+> Live Component**: choosing a category on `/sell` or the edit page morphs the Details beneath it,
+> basics and shared-attribute values kept. **The Live Component renders; the controller writes** —
+> `ListingForm` (`method: 'post'`, `ComponentWithFormTrait`, a `#[PreReRender]` `morph()`) has **no
+> `#[LiveAction]`** and injects only read models (`ListingFormIsolationTest` scans), so every save is
+> still the ordinary, JS-free POST through the same handlers under `holdSteady()`. **A UI limitation
+> had leaked into a Domain rule:** L-7's "no details yet" was about a form, not about gear — **L-7
+> amended**, `Listing::draft()` reads details by L-9 at birth, and `DraftListing` carries `attributes`
+> + `publish` (draft-and-publish is one transaction; `ListingPublished` dispatched after it).
+> **`details_for`** (hidden, unmapped) is *which category the Details on this page were rendered for*:
+> the POST reads it from the raw body once, validates it against the offered choices, builds its form
+> for it, and publishes only when it equals the submitted category — so re-file + publish now works.
+> symfony/ux-live-component **3.8.1** (plan said 2.x), `@hotwired/stimulus` **3.2.2**, live
+> controller `fetch: lazy`; the image `ls`-asserts both and `deploy.yml` fetches the live controller.
+> All eighteen (a)–(r) mutations bit — (f) only after a test that calls `morph()` directly (the Live round trip re-extracts `formValues` and hides extra fields); (r) by hand; (s) — the AC-16b guard — added at `/verify`. 2438 tests.
+> [ADR-0027](./docs/adr/0027-symfony-ux-under-assetmapper-live-component-renders-controller-writes.md)
+> + ADR-0019/0020/0021 amendments.
+> Next: `search-ui` (7) — the 10 req/s box re-run (ADR-0026 AC-10) is due before it.
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot
 > failures (owned by the deploy image check and the Phase 2 queue-age readiness item).
@@ -968,6 +985,60 @@ These are documented failure modes we design against (see [docs/infrastructure.m
 - **`url()` in a Sass partial resolves relative to the entry file** (`public.scss`), not the partial.
 - **A page under `base.html.twig` gets Umami.** A page with a token in its URL, or a custom error page,
   must empty `{% block analytics %}`. A new admin template must extend `admin/layout.html.twig`.
+
+**The listing wizard** ([ADR-0027](./docs/adr/0027-symfony-ux-under-assetmapper-live-component-renders-controller-writes.md)):
+
+- **The live endpoint writes nothing.** `ListingForm` has no `#[LiveAction]` and injects no handler,
+  repository or `Categories` port; `ListingFormIsolationTest` scans for all three (mutation (a)). A
+  Live Component that needs to write must justify, **in its own ADR**, why the page's POST cannot.
+- **`details_for` is read from the raw body once and validated before anything trusts it.**
+  `SellController` reads `$request->request->all()` (never `InputBag::all('listing_form')` — the
+  string-vs-array footgun), checks it against the **offered** category choices — invalid is **empty**
+  on `/sell` and the **stored category** on edit — and builds the form for it. Details are forwarded
+  and "Save and publish" honoured **only when `details_for` = the submitted category**; otherwise
+  `/sell` drafts without details (mutations (b), (c), (n), (o)). On **edit**, `details_for` = the
+  **stored** category is the JS-free path (forward, L-10 drops on a re-file, no publish); **any other**
+  valid value (a failed or in-flight morph) is a 422 root error "The details shown are for another
+  category. Reload the page." with nothing written — revise replaces the whole set and blank = clear,
+  so forwarding another category's Details silently deleted values (found by `/verify`). The 422
+  re-renders the **validated** `details_for` (`SellController::view()`), never the submitted one.
+- **`ListingPublished` now also comes from create** (`/sell` "Save and publish", via
+  `DraftListingHandler`), dispatched after `holdSteady()` returns. `search-alert-match` (14) and any
+  other listener must not assume a publish follows a revise.
+- **Stimulus and the live controller exist in prod only because the image builds them** —
+  `composer install`'s `importmap:install` auto-script (`assets/vendor/` is gitignored) and then
+  `asset-map:compile`. The Dockerfile `ls`-asserts `stimulus.index-*.js` and `live_controller-*.js`,
+  and `deploy.yml` fetches the live controller's URL from `/login`'s importmap (it is `fetch: lazy`,
+  so never modulepreloaded). **A new Stimulus controller or importmap package adds its own `ls` line**
+  — no in-process test fetches what it renders (the public-styles lesson again).
+- **`importmap:require` rewrites `importmap.php` and strips `declare(strict_types=1)`.** Put it back
+  after every `importmap:require`/`remove`, or php-cs-fixer fails the build.
+- **Invalid UTF-8 in `formValues` 500s the component.** A refused POST (`"ab\xC3"` in the
+  description, a 422) re-renders it, and its state is JSON in `data-live-props-value` —
+  `json_encode` fails. `#[PostMount(priority: -10)] scrubFormValues()` `mb_scrub`s every string
+  after the trait extracts them. The page itself renders the bytes fine (Twig substitutes).
+- **`data-loading="addAttribute(aria-busy)"` sets `aria-busy=""`, which ARIA reads as false** — so
+  the listing form uses no directive: Live's loading plugin itself sets `aria-busy="true"` on the
+  component root during a request, and `_forms.scss` dims `[aria-busy="true"] .listing-form-details`.
+- **A network-level morph failure wedges the component until a reload** (ux-live-component 3.8.1,
+  hand-check 3a): the root keeps `aria-busy="true"`, the Details stay dimmed, and later category
+  changes send no request. Nothing is lost — the page can still be submitted, and **AC-16b's guard
+  (`details_for` neither submitted nor stored → 422) is the only thing that stops a wedged page from
+  saving the wrong Details** (blank = clear). Never "simplify" that guard away. Recovery handling
+  is a known ceiling; re-check after any ux-live-component upgrade.
+- **The morph's statement budget (AC-8: `/sell` ≤ 3, edit ≤ 5) excludes the one `identity_user`
+  SELECT** — Symfony refreshing the signed-in user on every authenticated request, not the
+  component. Count it and every budget is off by one; filter it by name, nothing else.
+- **No user or someone else's listing on a live request is a 404 — never `AccessDenied`.** The
+  firewall's entry point would run and overwrite the stashed target path (the overlay's intended
+  action, ADR-0015; mutation (q)). No `access_control` rule for `/_components` either: the
+  component's per-render `DbalSellerDrafts::find()` is the guard (mutation (e)).
+- **`ListingForm` must be mounted with the controller's form** (`<twig:ListingForm :form="form" …>`):
+  the first render is the controller's form, errors and all; only **re**-renders build it in
+  `morph()`/`instantiateForm()`, which throws without one.
+- **The test-env debug 404 echoes the posted live props** (the request is in the trace), so "no
+  listing data in the response" cannot be asserted on the raw body — `ListingFormComponentTest`
+  compares the exception `<h1>` of the two 404s and asserts no `data-live-props-value`.
 
 **Error tracking** ([ADR-0013](./docs/adr/0013-error-tracking-hosted-sentry-one-capture-path.md); runbook in [docs/infrastructure.md](./docs/infrastructure.md)
 §*Sentry (runbook)*):
