@@ -157,3 +157,15 @@ jobs:
             *javascript*) ;;
             *) echo "::error::$live is served as '$type', expected javascript. Check asset-map:compile in the image and the nginx public volume."; exit 1 ;;
           esac
+          # The search controller is lazy too (search-ui AC-13); /login, not /browse, keeps this check
+          # off the rate-limited route. A 404 here silently leaves /browse JS-free.
+          search="$(printf '%s' "$page" | grep -o -m1 '/assets/controllers/search_controller-[A-Za-z0-9_-]*\.js' || true)"
+          if [ -z "$search" ]; then
+            echo "::error::/login's importmap names no search_controller-*.js."
+            exit 1
+          fi
+          type="$(curl -fsS -o /dev/null -w '%{content_type}' "https://muzbar.com$search")"
+          case "$type" in
+            *javascript*) ;;
+            *) echo "::error::$search is served as '$type', expected javascript. Check asset-map:compile in the image and the nginx public volume."; exit 1 ;;
+          esac

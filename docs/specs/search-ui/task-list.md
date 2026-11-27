@@ -50,7 +50,7 @@
 - [x] T7: `restore` on `popstate` (only `state.search`; `replaceState` on connect — D5); failure
       handling: 429 → status line from `Retry-After`, else `location.assign` (D7); focus restore
       incl. text value + selection (D6). Wire the `data-action`s on the wrapper (no `input->`).
-- [ ] T8: Dockerfile `ls` for the compiled controller (path from `debug:asset-map`); `deploy.yml`
+- [x] T8: Dockerfile `ls` for the compiled controller (path from `debug:asset-map`); `deploy.yml`
       fetch of its URL from `/login`'s importmap. Build the image locally once; prove mutation (l)
       by removing the `ls` target (AC-13).
 

@@ -39,12 +39,14 @@ COPY src/ /var/www/html/
 # compiled assets, and with debug off AssetMapper's dev server is off too — so every /assets/ URL
 # fell through to index.php and 404'd in prod while every test stayed green. The `ls` makes a
 # build that produced no public stylesheet, Stimulus or live controller (listing-wizard AC-26) fail here instead of on the box.
+# Every app controller under assets/controllers/ adds its own line (search-ui AC-13).
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress \
     && php bin/console sass:build \
     && php bin/console asset-map:compile \
     && ls public/assets/styles/public-*.css \
           public/assets/vendor/@hotwired/stimulus/stimulus.index-*.js \
-          public/assets/@symfony/ux-live-component/live_controller-*.js >/dev/null \
+          public/assets/@symfony/ux-live-component/live_controller-*.js \
+          public/assets/controllers/search_controller-*.js >/dev/null \
     && mkdir -p var && chown -R www-data:www-data var \
     && mkdir -p /mnt/public && chown www-data:www-data /mnt/public
 COPY docker/php/docker-entrypoint.prod.sh /usr/local/bin/docker-entrypoint
