@@ -39,3 +39,45 @@ Notes:
   - `01a21a24-3868-7f55-9d7f-85cdf1612002` "HC NoJS Les Paul 1127" — published (Electric)
   - `01a21a24-57f5-7b51-a2e2-811036136cfd` "HC NoJS flash 1127" — draft (Acoustic)
 - Three `ListingPublished` events dispatched (no listener). One verification mail in Mailpit.
+
+## 2026-11-27 — recheck after /verify fixes
+
+**Branch:** `feature/listing-wizard` (HEAD `95c6da2` + uncommitted rename of the Details fieldset
+class to `listing-form-details`; `make sass` run first) · **Runtime:** dev stack, Chromium via
+Playwright (headless) · **Seller:** fresh account `wizard-rc-mwyrjmt3@example.com`, verified with
+`muzbar:identity:verify-email`.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1a | `/sell` Details fieldset layout | **PASS** | `fieldset.listing-form-details`: computed `display: block`, `grid-template-columns: none`. Legend, status line and all six field rows at the same x (41) and width (804), stacked in one column, same label-over-control look as the basics. Screenshot: `scratchpad/recheck-sell-details.png`. |
+| 1b | Edit page Details fieldset layout | **PASS** | Same: `display: block`, all children x=41 w=804. Screenshot: `scratchpad/recheck-edit-details.png`. |
+| 1c | Public `/listings/{id}` `dl.listing-details` | **PASS** | `display: grid`, `grid-template-columns: 256px 512px`; every `dt` at x=24 with its `dd` at x=280 on the same row (5 pairs). Screenshot: `scratchpad/recheck-public-listing.png`. |
+| 2 | Dimming during a morph (`/_components/**` delayed 1.2 s) | **PASS** | 400 ms into the request: root `aria-busy="true"`, fieldset opacity `0.5` (status still "Electric"). After the response: `aria-busy` absent, opacity `1`, status "Acoustic". |
+| 3a | Aborted morph (`route.abort()`): does the busy state clear? | **FAIL (contract gap)** | Edit page, after a good morph to Acoustic, changed the select back to Electric with the request aborted (`POST /_components/ListingForm net::ERR_FAILED`). Sampled every 500 ms for 5 s: `aria-busy="true"` and opacity `0.5` at **every** sample — it never clears. Live logs two uncaught `TypeError: Failed to fetch` (from `Backend.makeRequest` → `performRequest`), shows no error dialog, and leaves the pending request set. **The component is wedged:** after reloading, aborting one morph and then removing the abort, the next category change sent **0** `_components` requests in 3 s; Details stayed on the old category, still dimmed. No field or button was disabled. |
+| 3b | Save in that state (select = stored Electric, Details = Acoustic) | **PASS** | "Save draft" → **422** on `/sell/drafts/{id}/edit`, message "The details shown are for another category. Reload the page." |
+| 3c | Reload after the 422 | **PASS** | GET 200: title, price `900.00`, `EUR`, category Electric, Details for Electric with stored Brand=Gibson, Strings=6, Serial number=SN-RC-TELE intact; `aria-busy` absent. |
+| 4a | Basics + shared value kept across a morph | **PASS** | Electric → Acoustic: title, description, `1250.50`, `USD` unchanged; Brand=Fender, Has case=Yes, Strings=6 kept; Serial number gone. |
+| 4b | Focus after an `ArrowUp` change | **PASS** | `document.activeElement` = `listing_form_category` both during and after the morph. |
+| 4c | "Save and publish" from `/sell` | **PASS** | Landed on `/listings/01a21c48-793c-76d8-b58d-b10529713641`, title and five details shown. |
+| 4d | No console errors in the normal flow | **PASS** | Register, login, `/sell` (2 morphs), publish, draft save, edit morph: 0 errors / 0 warnings. The only errors logged are the deliberate aborts (`ERR_FAILED` + 2× `TypeError` each), the deliberate 422, and a 422 from `/register` (email already taken). |
+
+**On 3a:** the page "stays as it was" (nothing is lost, every control stays enabled, and a native
+submit still works and is caught by the details-for guard) but it does **not** recover by itself:
+the Details stay dimmed and further category changes never reach the server until the page is
+reloaded. Recovering would take our own handling of a failed Live request (not
+investigated here); until then the server-side guard is what keeps a wedged page from saving the
+wrong details.
+
+Notes:
+- Cosmetic: the "required to publish" hint renders *below* its select, directly above the next
+  field's label, so it reads as belonging to the next field (visible in both screenshots).
+- The Playwright console log already held earlier entries (an unrelated session's aborts and a 422 on
+  draft `01a21c45-aecd…`) before this run; only entries from this run are counted above.
+
+### Data created in the dev DB (this recheck)
+
+- User `wizard-rc-mwyrjmt3@example.com`, verified.
+- `01a21c48-793c-76d8-b58d-b10529713641` "RC Strat 1127" — published (Acoustic).
+- `01a21c48-99ef-7aa2-867e-2a3ed2644c6b` "RC Draft Tele 1127" — draft (Electric; Brand, Strings,
+  Serial number).
+- One `ListingPublished` event dispatched (no listener). One verification mail in Mailpit.
