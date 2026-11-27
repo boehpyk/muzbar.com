@@ -10,8 +10,16 @@
        Facets work by submitting the form. No seller data reaches this template: no Search read
        selects `seller_id` (S-9). #}
     {% set query = result.query %}
-    <main class="search-browse">
-        <h1>{{ category ? category.name : 'All categories' }}</h1>
+    {# The surviving query — what every link carries — built once: `<main>`'s `data-search-url` (the
+       address bar after an enhanced update, search-ui D3) and the alert slot read the same array.
+       Never `app.request.queryString`: that echoes hostile, unknown and empty parameters. #}
+    {% set searchParams = {category: categoryId, f: f, r: r, price: price, q: q}|merge(query.page > 1 ? {page: query.page} : {})|filter(v => v is not empty) %}
+    {# Progressive enhancement (search-ui, ADR-0028): the `search` controller re-requests this same
+       URL and swaps `<main>`. The status line lives outside `<main>` so it survives every swap. #}
+    <div class="search-page" data-controller="search">
+    <p class="visually-hidden" role="status" aria-live="polite" data-search-target="status"></p>
+    <main class="search-browse" data-search-url="{{ path('app_browse', searchParams) }}">
+        <h1 id="search-heading" tabindex="-1">{{ category ? category.name : 'All categories' }}</h1>
 
         {% if breadcrumb is not empty %}
             <nav class="search-breadcrumb" aria-label="Breadcrumb">
@@ -29,6 +37,8 @@
                 {% endfor %}
             </ul>
         {% endif %}
+
+        <a class="skip-link" href="#search-results">Skip to results</a>
 
         {# Always rendered: the price filter applies with or without a category (search-range-facets Q7). #}
         <form class="search-facets" method="get" action="{{ path('app_browse') }}">
@@ -90,11 +100,11 @@
             <a href="{{ path('app_browse', {category: categoryId}) }}">Clear filters</a>
         </form>
 
-        <section class="search-results">
+        <section class="search-results" id="search-results">
             {% if result.textMatch == constant('App\\Domain\\Search\\ValueObject\\TextMatch::Similar') %}
                 <p class="search-similar">No exact matches for “{{ q }}”. Showing listings with similar titles.</p>
             {% endif %}
-            <p>{{ result.total }} {{ result.total == 1 ? 'listing' : 'listings' }}</p>
+            <p class="search-total">{{ result.total }} {{ result.total == 1 ? 'listing' : 'listings' }}</p>
 
             {% if result.hits is empty %}
                 <p>No listings found.</p>
@@ -125,4 +135,5 @@
             {% endif %}
         </section>
     </main>
+    </div>
 {% endblock %}
