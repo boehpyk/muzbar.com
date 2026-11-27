@@ -466,7 +466,7 @@ launch is not a Phase 2 item.
 - [ ] 7. `search-ui` — the public faceted search UI over slices 1–3 (US-2, FR-3): category-driven
       facets that update with the selection, counts, ranges, text box, 0-result state. Progressive
       enhancement of slice 1's `GET` form (Live Component or Turbo Frame — the plan decides); the URL
-      stays the query, so a search is a link. Leaves a **slot** on the 0-result page for slice 12.
+      stays the query, so a search is a link. Leaves a **slot** on the 0-result page for slice 13 (`search-alert-subscribe`).
 - [ ] Seller contact channels *(before public launch — `listing-publish` plan Q4)* — the public listing
       page shows **no** seller data and no way to reach the seller. PRD §6: "explicitly preferred
       external channels" without exposing the email (Constitution §8). Each slice reverses

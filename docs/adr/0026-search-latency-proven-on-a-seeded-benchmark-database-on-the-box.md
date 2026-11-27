@@ -123,3 +123,18 @@ deferred by the owner; it is due **before `search-ui` (7)** and at the latest at
 estimate from the measured service times, not a measurement. The re-run must also confirm k6's
 summary shows every `{bn:Bn,phase:measure}` threshold with a non-zero count — a threshold with no
 samples passes vacuously (the load mode's per-scenario gating has never run).
+
+## Amendment 2026-11-27 — one update is one request is one token (search-ui, ADR-0028)
+
+With `search-ui` the page updates without a reload, and **one applied change = one `/browse`
+request = one `browse` limiter token** — by construction, because the enhanced path re-requests the
+same route (ADR-0028 decision 2); there is no second door to throttle. Where a JS-free visitor
+batched several ticks into one "Apply filters", each tick is now a request. **The limit stays
+30/min per IP** (search-ui Q2): the client's half of the contract — a 400 ms debounce on
+checkbox/select/number changes, the text box searching on submit only, superseded requests aborted
+(ADR-0028 decision 4) — bounds a person well below it, a 429 leaves the page and its selection
+intact, and the limit is still the only guard against the planning-bound 20-selection URL (B9).
+Revisit with logs if 429s appear for real visitors (CGNAT/office IPs share a bucket).
+
+*Results of the 10 req/s re-run:* **pending — owner-run (search-ui T0 / AC-0); `search-ui` does not
+merge until it is logged** in docs/infrastructure.md's results log and its verdict recorded here.
