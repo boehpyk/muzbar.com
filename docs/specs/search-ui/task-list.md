@@ -57,7 +57,7 @@
 ## Tests (qa)
 - [x] T9: `tests/Functional/Search/BrowseUiTest.php` — AC-1, AC-3…AC-10 (fixtures as
       `BrowsePageTest`; `ClearsRateLimiters`). AC-1 compares 200 pages only.
-- [ ] T10: Scans — AC-1 header scan, AC-2 (router: one Search route; no `AsLiveComponent`/
+- [x] T10: Scans — AC-1 header scan, AC-2 (router: one Search route; no `AsLiveComponent`/
       `AsTwigComponent` under `Infrastructure/Search`), AC-9 include line, AC-12 controller source.
       Strip comments first; assert ≥ 1 file scanned.
 - [ ] T11: AC-11 regression — every existing Search suite unmodified; `make test` twice in a row.
