@@ -6,8 +6,8 @@
 {% block head %}<meta name="robots" content="noindex">{% endblock %}
 
 {% block body %}
-    {# Unstyled, JS-free, semantic markup with stable class names (search-browse plan §Infrastructure).
-       Facets work by submitting the form. No seller data reaches this template: no Search read
+    {# Semantic markup with stable class names that works without JS: facets submit the form, links
+       navigate (search-browse); the `search` controller below only enhances that. No seller data reaches this template: no Search read
        selects `seller_id` (S-9). #}
     {% set query = result.query %}
     {# The surviving query — what every link carries — built once: `<main>`'s `data-search-url` (the

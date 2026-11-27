@@ -26,6 +26,15 @@ export default class extends Controller {
     /** Marks the entry this page was loaded into as ours, so Back to it re-renders it (D5). */
     connect() {
         history.replaceState({ search: true }, '');
+        this.shown = this.searchOf(location.href);
+    }
+
+    /** A URL without its hash: what decides which page <main> shows. */
+    searchOf(href) {
+        const url = new URL(href);
+        url.hash = '';
+
+        return url.href;
     }
 
     disconnect() {
@@ -73,9 +82,13 @@ export default class extends Controller {
         this.update(url.href, 'link');
     }
 
-    /** Back/Forward to an entry this controller wrote; any other entry (a hash link) is the browser's. */
+    /**
+     * Back/Forward to an entry this controller wrote, showing another search. Any other entry is the
+     * browser's — including Back out of "Skip to results": that lands on our entry, but only the hash
+     * differs from what <main> already shows, so a request would re-render the same page (AC-17).
+     */
     restore(event) {
-        if (!event.state?.search) {
+        if (!event.state?.search || this.searchOf(location.href) === this.shown) {
             return;
         }
 
@@ -138,7 +151,8 @@ export default class extends Controller {
 
         const next = page?.querySelector('main.search-browse');
         if (!next) {
-            location.assign(url);
+            // Back/Forward already moved the address bar to `url`: replace, or Forward is lost.
+            'history' === cause ? location.replace(url) : location.assign(url);
 
             return;
         }
@@ -149,6 +163,7 @@ export default class extends Controller {
         if ('history' !== cause) {
             history.pushState({ search: true }, '', next.dataset.searchUrl);
         }
+        this.shown = this.searchOf(location.href);
         this.announce(next);
 
         if ('form' === cause) {
@@ -175,11 +190,12 @@ export default class extends Controller {
     /** The control inside <main> that has focus, as it is right before the swap. */
     focused() {
         const element = document.activeElement;
-        if (!element?.id || !this.main()?.contains(element)) {
+        if (!element || !this.main()?.contains(element)) {
             return null;
         }
 
-        return { id: element.id, value: element.value, start: element.selectionStart ?? null, end: element.selectionEnd ?? null };
+        // An id-less control ("Apply filters") cannot be found again: `id: null` sends focus to the heading.
+        return { id: element.id || null, value: element.value, start: element.selectionStart ?? null, end: element.selectionEnd ?? null };
     }
 
     /**
@@ -192,7 +208,7 @@ export default class extends Controller {
             return;
         }
 
-        const target = document.getElementById(focused.id);
+        const target = null === focused.id ? null : document.getElementById(focused.id);
         if (null === target) {
             this.heading()?.focus({ preventScroll: true });
 

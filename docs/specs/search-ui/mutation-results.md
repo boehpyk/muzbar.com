@@ -22,3 +22,5 @@ first try; none needed a strengthened test.
 (k)-(r) are client-side and proved by hand at `/verify` (T13); (k) is also covered by the AC-12 scan
 (`testTheTemplateBindsNoKeystrokeEvent`, `testTheControllerIsLazy...`'s `'input'` listener check),
 which was not separately mutated here.
+
+Client-side (k)-(r) and (l): see [hand-check.md](./hand-check.md). All bit at `/verify`, 2026-11-27.
