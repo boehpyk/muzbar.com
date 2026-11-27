@@ -37,7 +37,7 @@
       the end keeps its "First page" branch. `noindex` untouched (AC-10).
 
 ## Infrastructure — styles
-- [ ] T5: `_base.scss` `.visually-hidden`; `_components.scss`: busy dimming on
+- [x] T5: `_base.scss` `.visually-hidden`; `_components.scss`: busy dimming on
       `.search-browse[aria-busy="true"] .search-results`, `.search-empty` block, 44 px checkbox rows
       under 48rem, skip-to-results visible on focus (reuse `.skip-link`'s pattern). Tokens only.
       `make sass`; check 375 px for horizontal scroll.
