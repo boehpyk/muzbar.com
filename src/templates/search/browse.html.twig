@@ -43,12 +43,14 @@
         {# Always rendered: the price filter applies with or without a category (search-range-facets Q7). #}
         <form class="search-facets" method="get" action="{{ path('app_browse') }}">
             {% if categoryId %}
-                <input type="hidden" name="category" value="{{ categoryId }}">
+                <input type="hidden" id="search-category" name="category" value="{{ categoryId }}">
             {% endif %}
+            {# Control ids are built from what the control means, so the same control has the same id on
+               any page that shows it — the search controller refocuses by id after a swap (AC-5). #}
             {# Shows the surviving terms, not what was typed. maxlength mirrors the Domain cap; it is not the guard (S-15). #}
             <label class="search-text">
                 Search
-                <input type="search" name="q" value="{{ q }}" maxlength="{{ constant('App\\Domain\\Search\\ValueObject\\SearchTerms::MAX_LENGTH') }}">
+                <input type="search" id="search-q" name="q" value="{{ q }}" maxlength="{{ constant('App\\Domain\\Search\\ValueObject\\SearchTerms::MAX_LENGTH') }}">
             </label>
             {% for facet in result.facets %}
                 {% set attributeId = facet.attribute.attributeId.toString %}
@@ -58,11 +60,11 @@
                         <legend>{{ facet.attribute.label }}{% if facet.attribute.unit %} ({{ facet.attribute.unit }}){% endif %}</legend>
                         <label>
                             From
-                            <input type="number" step="1" inputmode="numeric" name="r[{{ attributeId }}][min]" value="{{ facet.selected.min ?? '' }}" placeholder="{{ facet.observed.min ?? '' }}">
+                            <input type="number" step="1" inputmode="numeric" id="search-r-{{ attributeId }}-min" name="r[{{ attributeId }}][min]" value="{{ facet.selected.min ?? '' }}" placeholder="{{ facet.observed.min ?? '' }}">
                         </label>
                         <label>
                             To
-                            <input type="number" step="1" inputmode="numeric" name="r[{{ attributeId }}][max]" value="{{ facet.selected.max ?? '' }}" placeholder="{{ facet.observed.max ?? '' }}">
+                            <input type="number" step="1" inputmode="numeric" id="search-r-{{ attributeId }}-max" name="r[{{ attributeId }}][max]" value="{{ facet.selected.max ?? '' }}" placeholder="{{ facet.observed.max ?? '' }}">
                         </label>
                         <p>{{ facet.count }} {{ facet.count == 1 ? 'listing' : 'listings' }}{% if facet.observed %}, {{ facet.observed.min }}–{{ facet.observed.max }}{% endif %}</p>
                     </fieldset>
@@ -71,7 +73,7 @@
                         <legend>{{ facet.attribute.label }}</legend>
                         {% for bucket in facet.buckets %}
                             <label>
-                                <input type="checkbox" name="f[{{ attributeId }}][]" value="{{ bucket.value }}"{% if bucket.selected %} checked{% endif %}>
+                                <input type="checkbox" id="search-f-{{ attributeId }}-{{ bucket.value }}" name="f[{{ attributeId }}][]" value="{{ bucket.value }}"{% if bucket.selected %} checked{% endif %}>
                                 {{ bucket.label }} ({{ bucket.count }})
                             </label>
                         {% endfor %}
@@ -80,7 +82,8 @@
             {% endfor %}
             <fieldset class="search-price">
                 <legend>Price</legend>
-                <select name="price[currency]">
+                <label for="search-price-currency">Currency</label>
+                <select id="search-price-currency" name="price[currency]">
                     <option value="">Any currency</option>
                     {% for currency in currencies %}
                         <option value="{{ currency.value }}"{% if currency.value == (price.currency ?? '') %} selected{% endif %}>{{ currency.value }}</option>
@@ -88,11 +91,11 @@
                 </select>
                 <label>
                     From
-                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" name="price[min]" value="{{ price.min ?? '' }}">
+                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" id="search-price-min" name="price[min]" value="{{ price.min ?? '' }}">
                 </label>
                 <label>
                     To
-                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" name="price[max]" value="{{ price.max ?? '' }}">
+                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" id="search-price-max" name="price[max]" value="{{ price.max ?? '' }}">
                 </label>
                 <p>Choosing a currency hides listings priced in other currencies.</p>
             </fieldset>

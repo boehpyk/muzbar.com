@@ -29,7 +29,7 @@
       `data-search-url` on `<main>` (AC-3), wrapper `div[data-controller=search]` + status line
       outside `<main>` (AC-4), `#search-heading[tabindex=-1]`, `#search-results`, "Skip to results"
       (AC-6), `.search-total` (AC-7). No `data-action`s yet. Existing Search suites green unmodified.
-- [ ] T3: Control ids per AC-5 (`search-q`, `search-f-<attr>-<value>`, `search-r-<attr>-min|max`,
+- [x] T3: Control ids per AC-5 (`search-q`, `search-f-<attr>-<value>`, `search-r-<attr>-min|max`,
       `search-price-currency|min|max`), labels kept. Suites green unmodified.
 - [ ] T4: 0-result state (`section.search-empty`, heading "No listings found.", q named, "Clear
       filters", "Search all categories" — AC-8) + `<div data-search-alert-slot>` including the new
