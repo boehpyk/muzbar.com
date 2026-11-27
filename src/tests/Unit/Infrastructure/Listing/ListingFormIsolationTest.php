@@ -110,7 +110,39 @@ final class ListingFormIsolationTest extends TestCase
         $template = preg_replace('/\{#.*?#\}/s', '', $template) ?? '';
 
         self::assertNotSame('', $template, 'The template was not read.');
-        self::assertStringContainsString('<fieldset class="listing-details">', $template);
+        self::assertStringContainsString('<fieldset class="listing-form-details">', $template);
         self::assertStringNotContainsString('data-loading', $template, 'addAttribute(aria-busy) renders aria-busy="", which ARIA reads as false.');
+    }
+
+    /**
+     * The public listing page once had a `<dl class="listing-details">` grid and the form's fieldset
+     * took the same name: the grid rules shaped the form, and no in-process test can see CSS. The
+     * form's class belongs to its template and to `_forms.scss` alone.
+     */
+    public function testTheFormsDetailsClassIsUsedByNoOtherTemplateAndStyledOnlyInTheFormsStylesheet(): void
+    {
+        $offences = [];
+        $templates = 0;
+        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(self::root().'/templates', \FilesystemIterator::SKIP_DOTS)) as $file) {
+            if ($file instanceof \SplFileInfo && 'twig' === $file->getExtension()) {
+                ++$templates;
+                if (!str_ends_with($file->getPathname(), '/'.self::TEMPLATE) && str_contains((string) file_get_contents($file->getPathname()), 'listing-form-details')) {
+                    $offences[] = $file->getPathname();
+                }
+            }
+        }
+        $styles = 0;
+        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(self::root().'/assets/styles', \FilesystemIterator::SKIP_DOTS)) as $file) {
+            if ($file instanceof \SplFileInfo && \in_array($file->getExtension(), ['scss', 'css'], true)) {
+                ++$styles;
+                if ('_forms.scss' !== $file->getFilename() && str_contains((string) file_get_contents($file->getPathname()), 'listing-form-details')) {
+                    $offences[] = $file->getPathname();
+                }
+            }
+        }
+
+        self::assertGreaterThan(0, $templates, 'No templates scanned: the path is wrong.');
+        self::assertGreaterThan(0, $styles, 'No stylesheets scanned: the path is wrong.');
+        self::assertSame([], $offences, 'The form\'s Details class must not be shared with another template or stylesheet.');
     }
 }

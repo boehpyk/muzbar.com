@@ -154,7 +154,7 @@ comes back (non-goal). Remembering it needs a second writable prop — add it if
 
 One `<p role="status">Details for <path></p>` inside the Details fieldset (AC-10). During a request
 Live's loading plugin sets `aria-busy="true"` on the component root during the request, and
-`_forms.scss` dims `[aria-busy="true"] .listing-details` (*amended 2026-11-27 by `/verify`*: the
+`_forms.scss` dims `[aria-busy="true"] .listing-form-details` (*amended 2026-11-27 by `/verify`*: the
 first build used `data-loading="addAttribute(aria-busy)"`, which renders `aria-busy=""` — false to
 ARIA). Idiomorph keeps focus on the select (AC-27). No other SCSS.
 

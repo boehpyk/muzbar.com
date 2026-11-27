@@ -114,6 +114,6 @@ fieldset ul:has(> li) {
 // The listing form's Details while a morph is in flight (listing-wizard D8). Live's loading plugin
 // sets `aria-busy="true"` on the component root for the request — a real value, unlike the
 // `data-loading="addAttribute(aria-busy)"` directive, which renders `aria-busy=""` (read as false).
-[aria-busy="true"] .listing-details {
+[aria-busy="true"] .listing-form-details {
     opacity: 0.5;
 }

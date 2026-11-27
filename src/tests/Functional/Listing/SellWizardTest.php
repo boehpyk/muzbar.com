@@ -509,6 +509,26 @@ final class SellWizardTest extends WebTestCase
         self::assertSame([], $this->listingEvents());
     }
 
+    public function testAPublishedListingsEditPostWhoseDetailsForIsAnotherOfferedLeafIs422AndChangesNothing(): void
+    {
+        $ann = $this->signIn();
+        $published = ListingFactory::new()->soldBy($ann)->inCategory($this->electric)->titled('Fender Precision V')->withValues($this->electricRequired())->published()->create();
+        $listings = $this->listings();
+        $values = $this->valueRows();
+        $before = $this->onlyListing();
+
+        $page = $this->postEdit($published, $this->fields($this->id($this->electric), $this->id($this->bass), $this->bassRequired(), ['title' => 'Never saved']), 'save');
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString(self::ANOTHER_CATEGORY, $page->filter('form')->first()->text());
+        $this->assertNothingWritten($listings, $values);
+        $after = $this->onlyListing();
+        self::assertSame('published', $after['status']);
+        self::assertSame($before['published_at'], $after['published_at']);
+        self::assertNotNull($after['published_at']);
+        self::assertSame([], $this->listingEvents());
+    }
+
     public function testAnEditPostRefilingToAThirdCategoryWithDetailsForAnotherIs422AndChangesNothing(): void
     {
         $draft = $this->annsElectricDraft();

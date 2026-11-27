@@ -157,6 +157,10 @@ describe and publish my instrument from one page in under three minutes**.
 - [ ] AC-16: Edit page, re-file with `details_for` = A (the JS-free path): today's behaviour,
       unchanged — the form is built for A, L-10 drops what B does not ask, "Save and publish" does
       **not** publish, flash "Saved, not published yet. The details now follow “B” …".
+- [ ] AC-16b *(added 2026-11-27 by `/verify`)*: Edit page: a POST whose `details_for` is an offered
+      category that is neither the submitted nor the stored one (a failed or in-flight morph, or
+      tampering — drafts and published listings) → 422 "The details shown are for another category.
+      Reload the page.", nothing written, no event.
 - [ ] AC-17: A `details_for` that is not an offered category (tampered, unknown, malformed, a
       branch) is treated as **empty** on `/sell` and as the **stored category** on the edit page; no
       500, no statement with the raw value.

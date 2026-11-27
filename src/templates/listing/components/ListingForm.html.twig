@@ -21,7 +21,7 @@
             {# No `data-loading` here: `addAttribute(aria-busy)` renders `aria-busy=""`, which ARIA reads as
                false. Live itself sets `aria-busy="true"` on the component root while a morph is in
                flight; `_forms.scss` dims this fieldset under it (D8). #}
-            <fieldset class="listing-details">
+            <fieldset class="listing-form-details">
                 <legend>Details</legend>
                 {% for choice in form.category.vars.choices|filter(c => c.value == details_for) %}
                     <p role="status">Details for {{ choice.label }}</p>

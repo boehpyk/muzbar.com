@@ -1019,7 +1019,7 @@ These are documented failure modes we design against (see [docs/infrastructure.m
   after the trait extracts them. The page itself renders the bytes fine (Twig substitutes).
 - **`data-loading="addAttribute(aria-busy)"` sets `aria-busy=""`, which ARIA reads as false** — so
   the listing form uses no directive: Live's loading plugin itself sets `aria-busy="true"` on the
-  component root during a request, and `_forms.scss` dims `[aria-busy="true"] .listing-details`.
+  component root during a request, and `_forms.scss` dims `[aria-busy="true"] .listing-form-details`.
 - **The morph's statement budget (AC-8: `/sell` ≤ 3, edit ≤ 5) excludes the one `identity_user`
   SELECT** — Symfony refreshing the signed-in user on every authenticated request, not the
   component. Count it and every budget is off by one; filter it by name, nothing else.
