@@ -47,7 +47,7 @@
       `change` (400 ms debounce; ignore the text box's own `change`), `follow` (link interception per
       D8), one `fetch` with `AbortController`, swap `main.search-browse`, `pushState` the response's
       `data-search-url`, update `document.title`, status line, `aria-busy` (D2–D6).
-- [ ] T7: `restore` on `popstate` (only `state.search`; `replaceState` on connect — D5); failure
+- [x] T7: `restore` on `popstate` (only `state.search`; `replaceState` on connect — D5); failure
       handling: 429 → status line from `Retry-After`, else `location.assign` (D7); focus restore
       incl. text value + selection (D6). Wire the `data-action`s on the wrapper (no `input->`).
 - [ ] T8: Dockerfile `ls` for the compiled controller (path from `debug:asset-map`); `deploy.yml`

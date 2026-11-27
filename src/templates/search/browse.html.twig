@@ -12,11 +12,12 @@
     {% set query = result.query %}
     {# The surviving query — what every link carries — built once: `<main>`'s `data-search-url` (the
        address bar after an enhanced update, search-ui D3) and the alert slot read the same array.
-       Never `app.request.queryString`: that echoes hostile, unknown and empty parameters. #}
+       Never the raw query string: that echoes hostile, unknown and empty parameters. #}
     {% set searchParams = {category: categoryId, f: f, r: r, price: price, q: q}|merge(query.page > 1 ? {page: query.page} : {})|filter(v => v is not empty) %}
     {# Progressive enhancement (search-ui, ADR-0028): the `search` controller re-requests this same
        URL and swaps `<main>`. The status line lives outside `<main>` so it survives every swap. #}
-    <div class="search-page" data-controller="search">
+    {# Never bind a keystroke event here: typing never searches (search-ui D4, AC-12). #}
+    <div class="search-page" data-controller="search" data-action="change->search#change submit->search#submit click->search#follow popstate@window->search#restore">
     <p class="visually-hidden" role="status" aria-live="polite" data-search-target="status"></p>
     <main class="search-browse" data-search-url="{{ path('app_browse', searchParams) }}">
         <h1 id="search-heading" tabindex="-1">{{ category ? category.name : 'All categories' }}</h1>
