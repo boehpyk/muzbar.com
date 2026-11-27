@@ -211,7 +211,7 @@ Docker Compose · Traefik · Nginx.
 > on the box, 10 000 listings, the slowest statement runs in 57.5 ms, yet 50 closed-loop clients
 > **failed — CPU-bound** (p95 0.6–1.4 s, ~85 % of what 4 cores serve); a bigger FPM pool was slower.
 > **No index, no promoted column.** The owner re-read the budget as **10 req/s arriving** (Constitution
-> §7 now points at the ADR amendment; the box re-run is pending). The 20-selection page is
+> §7 now points at the ADR amendment; **re-run on the box 2026-11-28: PASS**, B1–B8 p95 46–97 ms, nothing queues). The 20-selection page is
 > **planner-bound** (1.4 s in `bind`, 26 ms executing), so `/browse` is **rate-limited, 30/min per IP**.
 > ADR-0002/0004 amendments.
 > `public-styles` (2026-11-26) — Search 5 of 15, **zero Domain/Application code** (presentation only).
@@ -252,7 +252,7 @@ Docker Compose · Traefik · Nginx.
 > swap; the status line lives outside `<main>`. 0-result state + an empty `search/_alert_slot.html.twig`
 > for `search-alert-subscribe` (13). Limit stays 30/min (Q2). All ten (a)–(j) mutations bit; 2461 tests.
 > [ADR-0028](./docs/adr/0028-search-page-enhanced-by-re-requesting-itself-the-url-is-the-state.md)
-> + ADR-0026/0027 amendments. **Does not merge until the 10 req/s box re-run (ADR-0026 AC-10) is logged.**
+> + ADR-0026/0027 amendments. AC-0 met: the 10 req/s box re-run **passed 2026-11-28**.
 > Next: `seller-contact-handles` (8).
 > One Phase 0 item still carries over — the Claude Code hooks from
 > [docs/tooling.md](./docs/tooling.md). Not covered by Sentry, by design: crash loops and pre-boot

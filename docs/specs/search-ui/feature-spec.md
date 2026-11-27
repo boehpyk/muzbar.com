@@ -118,10 +118,11 @@ or bookmark the result — with exactly the same page working when JavaScript is
 
 ### Precondition
 
-- [ ] AC-0: ADR-0026 AC-10 (10 req/s arriving, open model, per gating scenario, on the box, 0
+- [x] AC-0: ADR-0026 AC-10 (10 req/s arriving, open model, per gating scenario, on the box, 0
       dropped arrivals, non-zero sample count per threshold) has been run and logged in
       docs/infrastructure.md's results log **before this branch merges**, with its verdict recorded
       in ADR-0026's amendment. Owner-run (T0); `/verify` checks the log entry exists.
+      **Met 2026-11-28: PASS** (B1–B8 p95 46–97 ms, 0 dropped, 300–301 samples each; results log + ADR-0026).
 
 ### Server side — the page the controller reads (functional, `KernelBrowser`, real DB)
 

@@ -254,7 +254,7 @@ or accept), not a Postgres verdict.
 ## Re-run at 10 requests/s: ADR-0026 AC-10, gating `search-ui` AC-0
 
 > **Follow this section for the re-run.** It stands alone: steps 0–9 above are the 2026-11-25
-> record. About 30–40 minutes, mostly the seed. `search-ui` does not merge until this is logged.
+> record. About 30–40 minutes, mostly the seed. **Done 2026-11-28: PASS** (results log).
 
 **What changed since the first run, and why this run is shorter:**
 
@@ -275,14 +275,21 @@ Run it when the site is quiet. B9 runs last and is ungated: at 10 req/s × ~1.5 
 saturates the 4 cores **for ~40 s by design**, and production `/browse` is slow for that window.
 Other tenants count too. If `uptime` shows load near **4** before you start, wait.
 
-### R1. Copy the two bench files (laptop, repo root, on `main`)
+### R1. Copy the two bench files from `main` (laptop, repo root)
 
 ```bash
-git fetch origin && git checkout origin/main -- bench/search.js docker-compose.bench.yml   # no-op if already current
-ssh <box> 'mkdir -p /home/muzbar-deploy/muzbar.com/bench'
-scp docker-compose.bench.yml <box>:/home/muzbar-deploy/muzbar.com/
-scp bench/search.js          <box>:/home/muzbar-deploy/muzbar.com/bench/
+git fetch origin
+git show origin/main:bench/search.js          | ssh <box> 'mkdir -p /home/muzbar-deploy/muzbar.com/bench && cat > /home/muzbar-deploy/muzbar.com/bench/search.js'
+git show origin/main:docker-compose.bench.yml | ssh <box> 'cat > /home/muzbar-deploy/muzbar.com/docker-compose.bench.yml'
+ssh <box> 'grep -c constant-arrival-rate /home/muzbar-deploy/muzbar.com/bench/search.js'   # must print 1
 ```
+
+`git show` sends `main`'s version straight to the box and leaves your branch and working tree
+alone. **The `grep` is the check that matters.** On 2026-11-27 the box still held the first run's
+closed-loop `search.js`, and that run silently re-measured 50 clients (2 778 samples for B1, not
+300, and no `dropped_iterations` lines). `0` means a stale file: copy again. Copy **files** only and
+never replace the `bench/` directory: `bench/out/scenarios.json` (R4) must survive until R5. It
+cannot be regenerated, because every seed mints new ids.
 
 *Why `main`:* the box holds only what `deploy.yml` ships (`docker-compose.yml`, nginx conf,
 `.env`). The bench files are copied in and removed at the end. `docker-compose.bench.yml` raises

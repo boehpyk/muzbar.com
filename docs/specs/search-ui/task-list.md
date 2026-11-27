@@ -5,7 +5,7 @@
 > **Owner answers:** pending (Q1–Q10 in the feature spec; written to the recommendation).
 
 ## Gate (owner-run, on the box — not an implementer task)
-- [ ] T0: **ADR-0026 AC-10** — the 10 req/s arriving box re-run (runbook: docs/infrastructure.md
+- [x] T0: **ADR-0026 AC-10** — the 10 req/s arriving box re-run (runbook: docs/infrastructure.md
       §*Search: latency benchmark*; k6 `constant-arrival-rate`, per gating scenario, 0 dropped
       arrivals, every `{bn:Bn,phase:measure}` threshold with a non-zero count). Log it in the results
       log and record the verdict in ADR-0026's amendment. **The branch does not merge until this is
