@@ -55,7 +55,7 @@
       by removing the `ls` target (AC-13).
 
 ## Tests (qa)
-- [ ] T9: `tests/Functional/Search/BrowseUiTest.php` — AC-1, AC-3…AC-10 (fixtures as
+- [x] T9: `tests/Functional/Search/BrowseUiTest.php` — AC-1, AC-3…AC-10 (fixtures as
       `BrowsePageTest`; `ClearsRateLimiters`). AC-1 compares 200 pages only.
 - [ ] T10: Scans — AC-1 header scan, AC-2 (router: one Search route; no `AsLiveComponent`/
       `AsTwigComponent` under `Infrastructure/Search`), AC-9 include line, AC-12 controller source.
@@ -70,10 +70,10 @@
       suspect the runtime first (opcache, stale `var/cache`, `public/assets/` shadowing).
 
 ## Docs
-- [ ] T14: CLAUDE.md — status line for `search-ui` + footguns (the page is the component: never a
+- [x] T14: CLAUDE.md — status line for `search-ui` + footguns (the page is the component: never a
       fragment endpoint or header branch without an ADR; the status line lives outside `<main>`;
       the controller's `ls` line; no `input` listener on `/browse`).
-- [ ] T15: roadmap item 7 ticked with a "Shipped" note (item 7 wording "slice 12" → 13 already fixed at approval)
+- [x] T15: roadmap item 7 ticked with a "Shipped" note (item 7 wording "slice 12" → 13 already fixed at approval)
       `search-alert-subscribe` (Q7); FORboehpyk.md chapter (the URL is the state; why not Live/Turbo;
       cost as a design input).
 
