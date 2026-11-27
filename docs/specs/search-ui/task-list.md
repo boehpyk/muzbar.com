@@ -60,8 +60,8 @@
 - [x] T10: Scans — AC-1 header scan, AC-2 (router: one Search route; no `AsLiveComponent`/
       `AsTwigComponent` under `Infrastructure/Search`), AC-9 include line, AC-12 controller source.
       Strip comments first; assert ≥ 1 file scanned.
-- [ ] T11: AC-11 regression — every existing Search suite unmodified; `make test` twice in a row.
-- [ ] T12: Mutation sweep (a)–(j) against the suite, each applied alone, each bites; results in
+- [x] T11: AC-11 regression — every existing Search suite unmodified; `make test` twice in a row.
+- [x] T12: Mutation sweep (a)–(j) against the suite, each applied alone, each bites; results in
       `mutation-results.md`.
 
 ## Hand-check (at `/verify`)
