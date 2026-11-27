@@ -224,7 +224,7 @@ Docker Compose · Traefik · Nginx.
 > fetches `/login`'s stylesheet. Umami behind `UMAMI_SCRIPT_URL` + `UMAMI_WEBSITE_ID` (both or off),
 > never on admin or token URLs, query strings excluded, no consent banner (ADR-0003 amendment).
 > All ten (a)–(j) mutations bit; 2357 tests. ADR-0003/0006 amendments.
-> `listing-wizard` (2026-11-27) — Phase 2 item 6 of 15, the repo's **first Stimulus code and first
+> `listing-wizard` (2026-11-27, **passed `/verify` 2026-11-27 in three iterations** — the CRITICAL was an edit POST whose `details_for` named a third category silently clearing stored details, now a 422 (AC-16b); then a CSS class collision with the public page's `dl.listing-details`) — Phase 2 item 6 of 15, the repo's **first Stimulus code and first
 > Live Component**: choosing a category on `/sell` or the edit page morphs the Details beneath it,
 > basics and shared-attribute values kept. **The Live Component renders; the controller writes** —
 > `ListingForm` (`method: 'post'`, `ComponentWithFormTrait`, a `#[PreReRender]` `morph()`) has **no
@@ -238,7 +238,7 @@ Docker Compose · Traefik · Nginx.
 > for it, and publishes only when it equals the submitted category — so re-file + publish now works.
 > symfony/ux-live-component **3.8.1** (plan said 2.x), `@hotwired/stimulus` **3.2.2**, live
 > controller `fetch: lazy`; the image `ls`-asserts both and `deploy.yml` fetches the live controller.
-> All eighteen (a)–(r) mutations bit — (f) only after a test that calls `morph()` directly (the Live round trip re-extracts `formValues` and hides extra fields); (r) by hand. 2430 tests.
+> All eighteen (a)–(r) mutations bit — (f) only after a test that calls `morph()` directly (the Live round trip re-extracts `formValues` and hides extra fields); (r) by hand; (s) — the AC-16b guard — added at `/verify`. 2438 tests.
 > [ADR-0027](./docs/adr/0027-symfony-ux-under-assetmapper-live-component-renders-controller-writes.md)
 > + ADR-0019/0020/0021 amendments.
 > Next: `search-ui` (7) — the 10 req/s box re-run (ADR-0026 AC-10) is due before it.
