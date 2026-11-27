@@ -43,7 +43,7 @@
       `make sass`; check 375 px for horizontal scroll.
 
 ## Infrastructure — the controller
-- [ ] T6: `assets/controllers/search_controller.js` (`stimulusFetch: 'lazy'`): `submit` (immediate),
+- [x] T6: `assets/controllers/search_controller.js` (`stimulusFetch: 'lazy'`): `submit` (immediate),
       `change` (400 ms debounce; ignore the text box's own `change`), `follow` (link interception per
       D8), one `fetch` with `AbortController`, swap `main.search-browse`, `pushState` the response's
       `data-search-url`, update `document.title`, status line, `aria-busy` (D2–D6).
