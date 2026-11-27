@@ -31,7 +31,7 @@
       (AC-6), `.search-total` (AC-7). No `data-action`s yet. Existing Search suites green unmodified.
 - [x] T3: Control ids per AC-5 (`search-q`, `search-f-<attr>-<value>`, `search-r-<attr>-min|max`,
       `search-price-currency|min|max`), labels kept. Suites green unmodified.
-- [ ] T4: 0-result state (`section.search-empty`, heading "No listings found.", q named, "Clear
+- [x] T4: 0-result state (`section.search-empty`, heading "No listings found.", q named, "Clear
       filters", "Search all categories" — AC-8) + `<div data-search-alert-slot>` including the new
       empty `search/_alert_slot.html.twig` with `{search: searchParams} only` (AC-9). The page past
       the end keeps its "First page" branch. `noindex` untouched (AC-10).

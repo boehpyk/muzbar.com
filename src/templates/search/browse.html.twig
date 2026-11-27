@@ -109,7 +109,24 @@
             {% endif %}
             <p class="search-total">{{ result.total }} {{ result.total == 1 ? 'listing' : 'listings' }}</p>
 
-            {% if result.hits is empty %}
+            {# The 0-result state is `total == 0`, never `hits is empty`: a page past the end has hits on
+               other pages and keeps its "First page" link below (AC-8). #}
+            {% if result.total == 0 %}
+                <section class="search-empty" aria-labelledby="search-empty-heading">
+                    <h2 id="search-empty-heading">No listings found.</h2>
+                    {% if q %}
+                        <p>Nothing matched your search for “{{ q }}”.</p>
+                    {% endif %}
+                    {% if f or r or price or q %}
+                        <p><a href="{{ path('app_browse', {category: categoryId}) }}">Clear filters</a></p>
+                    {% endif %}
+                    {# Category-bound `f`/`r` do not survive leaving the category; text and price do. #}
+                    {% if categoryId %}
+                        <p><a href="{{ path('app_browse', {q: q, price: price}) }}">Search all categories</a></p>
+                    {% endif %}
+                    <div data-search-alert-slot>{% include 'search/_alert_slot.html.twig' with {search: searchParams} only %}</div>
+                </section>
+            {% elseif result.hits is empty %}
                 <p>No listings found.</p>
             {% else %}
                 <ol>
