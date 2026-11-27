@@ -2,8 +2,9 @@
 
 > The explained, one-off walkthrough of docs/infrastructure.md §*Search: latency benchmark* for the
 > first box run (2026-11-25). The canonical runbook stays there; this dies with the spec.
-> **Historical — do not follow for a re-run.** It copies `docker/php/zz-pool.conf`, which was
-> deleted after this run (T11a). Use docs/infrastructure.md's runbook.
+> **Historical: do not follow steps 0–9 for a re-run.** They copy `docker/php/zz-pool.conf`, which
+> was deleted after this run (T11a). For the 10 req/s re-run, follow the last section,
+> *Re-run at 10 requests/s*.
 > Box: Hetzner, 4 shared vCPU, 7.7 GB RAM, ~5.3 GB available, **no swap**, four tenants.
 >
 > About 40–60 minutes, mostly waiting. Nothing touches production's data or containers **as long as
@@ -249,19 +250,158 @@ or accept), not a Postgres verdict.
 
 ---
 
-## Re-run at 10 requests/s (after the 2026-11-25 run — ADR-0026 amendment)
 
-The first run measured 50 clients (FAIL, CPU-bound) and dropped `muzbar_bench`. The new reading
-needs **only the load pass**, but on a fresh seed — the service and explain numbers don't change
-with the load, so they are not repeated. Pool step 8b is gone (pool not shipped).
+## Re-run at 10 requests/s: ADR-0026 AC-10, gating `search-ui` AC-0
 
-1. Branch head has a new `bench/search.js`: **step 1, `search.js` only** (`scp bench/search.js …`).
-   No new image — the seeder is unchanged, so `5ec2bb6` is still right.
-2. Steps **2–5** (export `MUZBAR_IMAGE=…:5ec2bb64f17c421eb72f1b95cd55ce90b6176bbc`; pre-check
-   `uptime` only; create; seed; `ANALYZE`).
-3. **Step 8** — the load pass, as written. Expect ~7 min; at 10 req/s the load average should stay
-   near 1 until B9 (last, ungated), which overloads the box for ~40 s by design.
-   `exit=0` = PASS. In the summary, each `dropped_iterations{scenario:Bn}` must be `count==0`.
-4. **Step 9** — clean up, and confirm `muzbar_bench` is gone.
+> **Follow this section for the re-run.** It stands alone: steps 0–9 above are the 2026-11-25
+> record. About 30–40 minutes, mostly the seed. `search-ui` does not merge until this is logged.
 
-Bring back: the load summary (or `bench/out/load.json`) and the `uptime` lines.
+**What changed since the first run, and why this run is shorter:**
+
+- **The question.** The budget now means *10 requests/s arriving per scenario* (open model, ADR-0026
+  amendment 2026-11-25), not *50 clients clicking non-stop*. Only the **load pass** answers it.
+  Service and explain numbers do not depend on load, so they are not repeated.
+- **No branch image.** The seeder and the 10 req/s `bench/search.js` are on `main` (#38).
+  `search-ui` changes no PHP and no SQL. So the bench uses **the image production already runs**,
+  which also removes the "a bare `up` moves production to another image" hazard.
+- **No pool step.** `zz-pool.conf` is gone. The pool stays the image default (5 children).
+- **Two new pass conditions:** no gating scenario may **drop an arrival**, and every gating
+  threshold must have **samples** (a threshold with zero samples passes vacuously, and the
+  per-scenario load gating has never run before).
+
+### R0. Pick the hour
+
+Run it when the site is quiet. B9 runs last and is ungated: at 10 req/s × ~1.5 s CPU each, it
+saturates the 4 cores **for ~40 s by design**, and production `/browse` is slow for that window.
+Other tenants count too. If `uptime` shows load near **4** before you start, wait.
+
+### R1. Copy the two bench files (laptop, repo root, on `main`)
+
+```bash
+git fetch origin && git checkout origin/main -- bench/search.js docker-compose.bench.yml   # no-op if already current
+ssh <box> 'mkdir -p /home/muzbar-deploy/muzbar.com/bench'
+scp docker-compose.bench.yml <box>:/home/muzbar-deploy/muzbar.com/
+scp bench/search.js          <box>:/home/muzbar-deploy/muzbar.com/bench/
+```
+
+*Why `main`:* the box holds only what `deploy.yml` ships (`docker-compose.yml`, nginx conf,
+`.env`). The bench files are copied in and removed at the end. `docker-compose.bench.yml` raises
+`BROWSE_RATE_LIMIT` to 1 000 000 for `app-bench` only: k6 is one IP at 10 req/s, and the real
+30/min limit would 429 the whole run.
+
+### R2. Shell setup on the box, using the deployed image
+
+```bash
+ssh <box>
+cd /home/muzbar-deploy/muzbar.com
+
+export MUZBAR_IMAGE=$(docker compose ps -q app | xargs docker inspect --format '{{.Config.Image}}')
+echo "$MUZBAR_IMAGE"                                    # write it down: it is the "Image SHA" of the results row
+docker compose exec -T app php bin/console list muzbar:search   # must list muzbar:search:seed-benchmark
+
+B="docker compose -f docker-compose.yml -f docker-compose.bench.yml"
+K6="docker run --rm --user $(id -u):$(id -g) --network muzbar_bench -v $PWD/bench:/bench grafana/k6:1.0.0 run --quiet"
+mkdir -p bench/out
+```
+
+- **If `seed-benchmark` is missing**, production predates #38. Use the first run's image instead:
+  `export MUZBAR_IMAGE=ghcr.io/boehpyk/muzbar.com:5ec2bb64f17c421eb72f1b95cd55ce90b6176bbc` (its
+  search code is identical to `main` at #38), and **never run a bare `docker compose up`** while it
+  is exported.
+- ⚠️ **Never `$B down`.** It stops the whole production stack. Bench services are started and
+  removed **by name** only.
+
+### R3. Pre-check (write the output down)
+
+```bash
+nproc; free -m; uptime
+docker compose exec -T app php bin/console dbal:run-sql "SELECT datname FROM pg_database WHERE datname = 'muzbar_bench'"   # must be empty
+```
+
+A leftover `muzbar_bench` means an earlier run's cleanup was skipped: drop it (R7's `dropdb` line)
+before going on. The seeder refuses a non-empty database anyway.
+
+### R4. Start the bench pair, create, migrate, seed, `ANALYZE` (~5–15 min)
+
+```bash
+$B up -d --no-deps app-bench nginx-bench
+$B exec -T app-bench php bin/console doctrine:database:create
+$B exec -T app-bench php bin/console doctrine:migrations:migrate -n
+$B exec -T app-bench php bin/console muzbar:search:seed-benchmark --listings=10000 --seed=1 > bench/out/scenarios.json
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d muzbar_bench -c ANALYZE'
+```
+
+Same as steps 4–5 of the first run. `--seed=1` makes the data and the scenario URLs (B1–B9)
+identical to 2026-11-25's, so the two runs differ only in the load model. The migrations now include
+`search-full-text`'s trigger and text table, both created in `muzbar_bench` only. `ANALYZE` gives
+the planner real statistics instead of autovacuum's timing.
+
+### R5. The load pass: **the verdict** (~7 min)
+
+```bash
+uptime
+$K6 -e BENCH_MODE=load --summary-export /bench/out/load.json /bench/search.js; echo "exit=$?"
+uptime
+```
+
+For each of B1…B9 in turn: 10 s warm-up (not counted), then 30 s measured, all at **10 requests per
+second arriving**. Arrivals do not wait for answers, as real visitors don't. At most 50 can be in
+flight; past that k6 **drops** arrivals, which is how an open model shows overload.
+
+- **`exit=0` = PASS:** every B1–B8 measured p95 < 200 ms, 0 failed requests, 100 % checks, and 0
+  dropped arrivals. **`exit=99` = FAIL**, and ✗ marks the failing thresholds.
+- **Expectation, written before measuring:** PASS with room to spare. The 2026-11-25 service p95s
+  were 40–102 ms. At 10 req/s that is ~0.4–1 core of 4, so almost nothing should queue. Load should
+  stay near 1 until B9.
+- **The run counts only if load before it was below 4** (ADR-0026 Consequences). Otherwise repeat
+  it; don't log it.
+
+### R6. Prove the gating had samples (the vacuous-pass check)
+
+```bash
+docker run --rm -i ghcr.io/jqlang/jq:1.7.1 -r '
+  .metrics | to_entries[]
+  | select(.key | test("^http_req_duration\\{bn:B[1-9],phase:measure\\}$|^dropped_iterations\\{scenario:B[1-8]\\}$"))
+  | "\(.key)\tcount=\(.value.count)\tmed=\(.value.med // "-")\tp95=\(.value["p(95)"] // "-")\tmax=\(.value.max // "-")"' \
+  < bench/out/load.json | sort
+```
+
+Expect **eight `dropped_iterations{scenario:Bn}` lines with `count=0`**, and nine
+`http_req_duration{bn:Bn,phase:measure}` lines with **`count` ≈ 300** (10/s × 30 s). A **missing
+line or `count=0`** on a duration line means that threshold judged nothing: the run is **not** a
+PASS, whatever the exit code says. Bring that back as a finding. B9's line is reported, not gated.
+
+### R7. Clean up (~2 min, don't skip)
+
+```bash
+$B rm -sf app-bench nginx-bench
+docker compose exec -T postgres sh -c 'dropdb -U "$POSTGRES_USER" --force muzbar_bench'
+docker volume rm muzbar_bench_public
+docker network rm muzbar_bench
+docker compose exec -T app php bin/console dbal:run-sql "SELECT datname FROM pg_database WHERE datname = 'muzbar_bench'"   # empty
+unset MUZBAR_IMAGE
+```
+
+Fetch the results, then remove the bench files from the box:
+
+```bash
+# laptop:
+scp -r <box>:/home/muzbar-deploy/muzbar.com/bench/out ./bench/out-box-$(date +%F)
+# box:
+rm -r bench docker-compose.bench.yml
+```
+
+*Why:* 11 500 fake listings off the production server. A stray database would also trip the next
+restore rehearsal's count check.
+
+### What to bring back
+
+1. `echo "$MUZBAR_IMAGE"` (R2), and `nproc` / `free -m` / `uptime` (R3).
+2. The seed's last progress line (R4).
+3. The `exit=` line, the two `uptime` lines around R5, and **R6's output** (or `bench/out/load.json`).
+
+With those I write the **results-log row** in docs/infrastructure.md §*Search: latency benchmark*
+(one line per scenario, the same shape as the 2026-11-24 row), fill the *Results* of **both**
+ADR-0026 amendments (2026-11-25 and 2026-11-27), tick `search-ui` AC-0, and update the
+`search-benchmark` memory. **On a FAIL, nothing merges:** it goes back to ADR-0026 decision 5 (the
+owner's call: box, budget, or accept), not to an index.
