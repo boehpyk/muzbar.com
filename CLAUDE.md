@@ -1020,6 +1020,12 @@ These are documented failure modes we design against (see [docs/infrastructure.m
 - **`data-loading="addAttribute(aria-busy)"` sets `aria-busy=""`, which ARIA reads as false** — so
   the listing form uses no directive: Live's loading plugin itself sets `aria-busy="true"` on the
   component root during a request, and `_forms.scss` dims `[aria-busy="true"] .listing-form-details`.
+- **A network-level morph failure wedges the component until a reload** (ux-live-component 3.8.1,
+  hand-check 3a): the root keeps `aria-busy="true"`, the Details stay dimmed, and later category
+  changes send no request. Nothing is lost — the page can still be submitted, and **AC-16b's guard
+  (`details_for` neither submitted nor stored → 422) is the only thing that stops a wedged page from
+  saving the wrong Details** (blank = clear). Never "simplify" that guard away. Recovery handling
+  is a known ceiling; re-check after any ux-live-component upgrade.
 - **The morph's statement budget (AC-8: `/sell` ≤ 3, edit ≤ 5) excludes the one `identity_user`
   SELECT** — Symfony refreshing the signed-in user on every authenticated request, not the
   component. Count it and every budget is off by one; filter it by name, nothing else.
