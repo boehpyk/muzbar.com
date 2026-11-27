@@ -70,4 +70,4 @@
       FORboehpyk.md chapter.
 
 ## Verify
-- [ ] T17: `/verify` → reviewer PASS, all 27 acceptance criteria checked, docs updated.
+- [x] T17: `/verify` → reviewer PASS, all 27 acceptance criteria checked, docs updated.
