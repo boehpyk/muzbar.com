@@ -463,10 +463,15 @@ launch is not a Phase 2 item.
       publishes only when that equals the submitted category. The image `ls`-asserts the Stimulus and
       live-controller files and `deploy.yml` fetches the live controller. Dependent options (D14)
       still not in scope.
-- [ ] 7. `search-ui` — the public faceted search UI over slices 1–3 (US-2, FR-3): category-driven
+- [x] 7. `search-ui` — the public faceted search UI over slices 1–3 (US-2, FR-3): category-driven
       facets that update with the selection, counts, ranges, text box, 0-result state. Progressive
       enhancement of slice 1's `GET` form (Live Component or Turbo Frame — the plan decides); the URL
-      stays the query, so a search is a link. Leaves a **slot** on the 0-result page for slice 12.
+      stays the query, so a search is a link. Leaves a **slot** on the 0-result page for slice 13 (`search-alert-subscribe`).
+      **Shipped** 2026-11-27 ([ADR-0028](./adr/0028-search-page-enhanced-by-re-requesting-itself-the-url-is-the-state.md)):
+      neither — a lazy Stimulus controller re-requests `/browse` itself, swaps `<main>` and pushes the
+      response's canonical URL; one route, one response, one limiter token per update. 400 ms debounce,
+      text on submit only, 429 stays. 0-result state with recovery links and the empty alert slot.
+      Merge waits on ADR-0026 AC-10 (the 10 req/s box re-run).
 - [ ] Seller contact channels *(before public launch — `listing-publish` plan Q4)* — the public listing
       page shows **no** seller data and no way to reach the seller. PRD §6: "explicitly preferred
       external channels" without exposing the email (Constitution §8). Each slice reverses

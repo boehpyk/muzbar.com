@@ -26,7 +26,7 @@ handler directly.
   planner chose it. Investigate one on a *selective* leg (a selected facet's `EXISTS`, a rare text
   term) — on `search_listing_text` a common word matching ~10 % of rows is a correct seq scan.
 - Budget: **p95 < 200 ms per scenario at 10 req/s arriving over 10k+ listings** (Constitution §7,
-  ADR-0026 as amended). To be proven by the box benchmark's 10 req/s re-run, still pending (docs/infrastructure.md §*Search: latency
+  ADR-0026 as amended). Proven on the box 2026-11-28 by the 10 req/s re-run (B1–B8 p95 46–97 ms; docs/infrastructure.md §*Search: latency
   benchmark*), never by CI or a laptop. **Latency is the verdict; plans explain it.**
 - **Measure service time before tuning.** A load p95 far above the 1-client time is queueing (CPU or
   PHP-FPM), which no index fixes. On the 4-core box the CPU is the queue: more FPM children made it

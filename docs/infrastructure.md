@@ -649,6 +649,29 @@ Results log (one row per run; the box decides, local rows are marked as such):
 | | | | | | B8 | 58 / 67 | 854 / 1 021 / 1 700 | 58 | 0 | 17.6 ms · Hash Join | FAIL | |
 | | | | | | B9 | 1 588 / 1 728 | 28 312 / 34 248 / 34 920 (n = 31) | | 0 | execution 26 ms; **bind (planning) 1 423 ms** of a 1.56 s request | reported | |
 | 2026-11-25 | box, pool 12 | same | same; load 12.5 after (5.8 with 5 children) | same | B1–B8 | — | p95 645 / 1 030 / 1 023 / 1 103 / 844 / 1 006 / 1 551 / 1 003 ms | −2 % total | 0 | — | FAIL, **worse** | `pm.max_children = 12` in `app-bench` only; not shipped |
+| 2026-11-27 | box, **invalid** | `fedc5f8` | same | same | B1–B8 | — | B1 534 / 624 / 993 ms … B7 1 280 / 1 430 / 2 640 ms | 92 (B1) | 0 | — | not used | the box still held the first run's **closed-loop** `search.js`: 50 clients again, not 10 req/s (2 778 B1 samples, no `dropped_iterations`). Reproduced 2026-11-25 within ~1 %. Runbook R1 now `grep`s the box's copy |
+| 2026-11-28 | **box** (verdict, 10 req/s arriving — ADR-0026 amendment 2026-11-25) | `fedc5f8` (production, `main`) | 4 shared vCPU / 7.7 GB (5.1 GB available), no swap; 15-min load 0.67 at the end of the run | 10 000 (+1 000 draft, 500 withdrawn; seed 214 s, 46 MB flat; `--seed=1`) | B1 | — (not re-run) | 38 / 46 / 52 ms (n = 300) | 10 arriving | 0 | — (no explain pass) | **PASS** | none |
+| | | | | | B2 | | 62 / 75 / 91 (n = 301) | 10 | 0 | | PASS | |
+| | | | | | B3 | | 55 / 70 / 88 (n = 300) | 10 | 0 | | PASS | |
+| | | | | | B4 | | 71 / 87 / 95 (n = 300) | 10 | 0 | | PASS | |
+| | | | | | B5 | | 52 / 61 / 70 (n = 301) | 10 | 0 | | PASS | |
+| | | | | | B6 | | 55 / 68 / 71 (n = 301) | 10 | 0 | | PASS | |
+| | | | | | B7 | | 88 / 97 / 122 (n = 300) | 10 | 0 | | PASS | |
+| | | | | | B8 | | 60 / 78 / 103 (n = 301) | 10 | 0 | | PASS | |
+| | | | | | B9 | | 24 889 / 28 673 / 29 083 (n = 37; 263 arrivals dropped) | | 0 | | reported | |
+
+Box findings (2026-11-28): the 10 req/s re-run (ADR-0026 AC-10 as amended; `search-ui` AC-0):
+
+- **PASS.** `exit=0`. Every B1–B8 p95 is 46–97 ms against 200 ms, with 0 failed requests and 100 %
+  checks. **0 dropped arrivals** in every gating scenario. **Every gating threshold judged real
+  samples** (300–301 per measured window, checked from `load.json`), so nothing passed vacuously.
+- **Nothing queues at 10 req/s.** The load p95s sit at the 2026-11-25 one-client service p95s
+  (40–102 ms), so the latency is the work itself.
+- **B9 is unchanged and still the reason for the limiter.** 37 answered in its window, p95 28.7 s,
+  263 arrivals dropped. It saturated the cores for its ~40 s (1-min load 3.47 at the end). The
+  30/min per-IP `/browse` limit stays.
+- **Cleaned up**: `muzbar_bench` dropped (`pg_database` no longer lists it), and the bench
+  containers, volume, network and files removed.
 
 Box findings (2026-11-25) — the verdict:
 

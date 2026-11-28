@@ -48,6 +48,7 @@
       rate-limit decision (AC-12, plan D7); cleanup (AC-14). Everything logged.
       *Done 2026-11-25: FAIL, CPU-bound (d.5); 50 000 run skipped — CPU is the verdict, more rows
       only restate it. AC-10 as amended (10 req/s) **deferred** — re-run due before search-ui (7).*
+      *Re-run 2026-11-28: **PASS** at 10 req/s (B1–B8 p95 46–97 ms, 0 dropped).*
 
 ## Tuning (only if T10 fails — plan D6; one task per change, each re-measured)
 - [x] T11a: PHP-FPM pool made explicit (`docker/php/zz-pool.conf`, Q6) — sized from measured child
@@ -70,3 +71,4 @@
 - [x] T13: `/verify` → reviewer PASS, all acceptance criteria checked, docs updated.
       *2026-11-25: PASS in two iterations (MAJOR: ADR-0026 claimed a 10 req/s result that did not
       exist). AC-10 (amended) **deferred**, not met — box re-run before search-ui (7).*
+      *AC-10 (amended) **met 2026-11-28**: PASS on the box.*

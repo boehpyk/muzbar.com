@@ -163,7 +163,7 @@ not, whether the fix is an index, a promoted column, a GUC, the PHP-FPM pool, or
 
 ### C. The verdict (on the box, recorded)
 
-- [ ] **AC-10: The budget.** On the box, on `muzbar_bench` seeded with `--listings=10000`, after
+- [x] **AC-10: The budget.** On the box, on `muzbar_bench` seeded with `--listings=10000`, after
       `ANALYZE`, for **each gating scenario B1–B8** under the load run (50 clients, closed loop, no
       think time, 30 s measured after 10 s warm-up): **p95 < 200 ms**, **0 failed requests**,
       **100 % checks**. k6 exits `0`. (Interpretation of "50 concurrent": Q1 — recorded in ADR-0026.)

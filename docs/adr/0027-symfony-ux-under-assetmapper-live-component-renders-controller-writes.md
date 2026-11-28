@@ -170,3 +170,15 @@ them a decision rather than an install:
   `holdSteady()` returns, as on revise. A listener must not assume a publish follows a revise.
 - **Decision 8 is a standing review rule.** It costs nothing to keep and is easy to forget: a
   `#[LiveAction]` reads like a convenience, not like a new write path.
+
+## Amendment 2026-11-27 — app controllers, and the case decision 1 does not cover (search-ui)
+
+- **The image `ls` + deploy-fetch rule applies to the app's own controllers** under
+  `assets/controllers/`, not only to importmap packages. The first is `search` (lazy, so never
+  modulepreloaded): the Dockerfile `ls` names its compiled file and `deploy.yml` fetches its URL from
+  `/login`'s importmap.
+- **When the state is the URL, no Live Component.** Decision 1 adopted Live Components for
+  server-held state that changes as the user edits; `/browse` holds none — its whole state is the
+  query string and the server renders any URL in full. [ADR-0028](./0028-search-page-enhanced-by-re-requesting-itself-the-url-is-the-state.md)
+  records that case: a lazy Stimulus controller re-requests the page's own URL, one route, one
+  response.

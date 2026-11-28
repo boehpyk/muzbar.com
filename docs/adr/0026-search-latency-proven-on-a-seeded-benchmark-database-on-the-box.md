@@ -117,9 +117,26 @@ Constitution §7's budget row points here. Revisit when traffic approaches 10 re
 numbers above say where the box tips over (~40–90 req/s by scenario). B9 and the rate limit are
 unaffected: one B9 is ~1.5 s of CPU at any load.
 
-*Results:* **pending — not yet run.** The 10 req/s box re-run (feature-spec AC-10 as amended) is
-deferred by the owner; it is due **before `search-ui` (7)** and at the latest at `phase2-gate`
-(15), and goes into docs/infrastructure.md's results log. Until then the amended budget is an
-estimate from the measured service times, not a measurement. The re-run must also confirm k6's
-summary shows every `{bn:Bn,phase:measure}` threshold with a non-zero count — a threshold with no
-samples passes vacuously (the load mode's per-scenario gating has never run).
+*Results:* **PASS, measured on the box 2026-11-28** (image `fedc5f8`, production; 10 000 published,
+`--seed=1`). B1–B8 p95 46 / 75 / 70 / 87 / 61 / 68 / 97 / 78 ms, 0 failed requests, 100 % checks,
+**0 dropped arrivals** in every gating scenario. Every `{bn:Bn,phase:measure}` threshold judged
+300–301 samples, so none passed vacuously. The load p95s equal the one-client service times
+(2026-11-25): at 10 req/s nothing queues. B9 (reported) p95 28.7 s, 263 arrivals dropped: the rate
+limit stands. Full rows: docs/infrastructure.md's results log. An earlier attempt on 2026-11-27 is
+logged as **invalid**: a stale closed-loop `search.js` on the box re-measured 50 clients. The amended
+budget is now a measurement.
+
+## Amendment 2026-11-27 — one update is one request is one token (search-ui, ADR-0028)
+
+With `search-ui` the page updates without a reload, and **one applied change = one `/browse`
+request = one `browse` limiter token** — by construction, because the enhanced path re-requests the
+same route (ADR-0028 decision 2); there is no second door to throttle. Where a JS-free visitor
+batched several ticks into one "Apply filters", each tick is now a request. **The limit stays
+30/min per IP** (search-ui Q2): the client's half of the contract — a 400 ms debounce on
+checkbox/select/number changes, the text box searching on submit only, superseded requests aborted
+(ADR-0028 decision 4) — bounds a person well below it, a 429 leaves the page and its selection
+intact, and the limit is still the only guard against the planning-bound 20-selection URL (B9).
+Revisit with logs if 429s appear for real visitors (CGNAT/office IPs share a bucket).
+
+*Results of the 10 req/s re-run:* **PASS, 2026-11-28** (see the 2026-11-25 amendment's Results). `search-ui`
+AC-0 is met.

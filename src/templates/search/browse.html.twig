@@ -6,12 +6,21 @@
 {% block head %}<meta name="robots" content="noindex">{% endblock %}
 
 {% block body %}
-    {# Unstyled, JS-free, semantic markup with stable class names (search-browse plan §Infrastructure).
-       Facets work by submitting the form. No seller data reaches this template: no Search read
+    {# Semantic markup with stable class names that works without JS: facets submit the form, links
+       navigate (search-browse); the `search` controller below only enhances that. No seller data reaches this template: no Search read
        selects `seller_id` (S-9). #}
     {% set query = result.query %}
-    <main class="search-browse">
-        <h1>{{ category ? category.name : 'All categories' }}</h1>
+    {# The surviving query — what every link carries — built once: `<main>`'s `data-search-url` (the
+       address bar after an enhanced update, search-ui D3) and the alert slot read the same array.
+       Never the raw query string: that echoes hostile, unknown and empty parameters. #}
+    {% set searchParams = {category: categoryId, f: f, r: r, price: price, q: q}|merge(query.page > 1 ? {page: query.page} : {})|filter(v => v is not empty) %}
+    {# Progressive enhancement (search-ui, ADR-0028): the `search` controller re-requests this same
+       URL and swaps `<main>`. The status line lives outside `<main>` so it survives every swap. #}
+    {# Never bind a keystroke event here: typing never searches (search-ui D4, AC-12). #}
+    <div class="search-page" data-controller="search" data-action="change->search#change submit->search#submit click->search#follow popstate@window->search#restore">
+    <p class="visually-hidden" role="status" aria-live="polite" data-search-target="status"></p>
+    <main class="search-browse" data-search-url="{{ path('app_browse', searchParams) }}">
+        <h1 id="search-heading" tabindex="-1">{{ category ? category.name : 'All categories' }}</h1>
 
         {% if breadcrumb is not empty %}
             <nav class="search-breadcrumb" aria-label="Breadcrumb">
@@ -30,15 +39,19 @@
             </ul>
         {% endif %}
 
+        <a class="skip-link" href="#search-results">Skip to results</a>
+
         {# Always rendered: the price filter applies with or without a category (search-range-facets Q7). #}
         <form class="search-facets" method="get" action="{{ path('app_browse') }}">
             {% if categoryId %}
-                <input type="hidden" name="category" value="{{ categoryId }}">
+                <input type="hidden" id="search-category" name="category" value="{{ categoryId }}">
             {% endif %}
+            {# Control ids are built from what the control means, so the same control has the same id on
+               any page that shows it — the search controller refocuses by id after a swap (AC-5). #}
             {# Shows the surviving terms, not what was typed. maxlength mirrors the Domain cap; it is not the guard (S-15). #}
             <label class="search-text">
                 Search
-                <input type="search" name="q" value="{{ q }}" maxlength="{{ constant('App\\Domain\\Search\\ValueObject\\SearchTerms::MAX_LENGTH') }}">
+                <input type="search" id="search-q" name="q" value="{{ q }}" maxlength="{{ constant('App\\Domain\\Search\\ValueObject\\SearchTerms::MAX_LENGTH') }}">
             </label>
             {% for facet in result.facets %}
                 {% set attributeId = facet.attribute.attributeId.toString %}
@@ -48,11 +61,11 @@
                         <legend>{{ facet.attribute.label }}{% if facet.attribute.unit %} ({{ facet.attribute.unit }}){% endif %}</legend>
                         <label>
                             From
-                            <input type="number" step="1" inputmode="numeric" name="r[{{ attributeId }}][min]" value="{{ facet.selected.min ?? '' }}" placeholder="{{ facet.observed.min ?? '' }}">
+                            <input type="number" step="1" inputmode="numeric" id="search-r-{{ attributeId }}-min" name="r[{{ attributeId }}][min]" value="{{ facet.selected.min ?? '' }}" placeholder="{{ facet.observed.min ?? '' }}">
                         </label>
                         <label>
                             To
-                            <input type="number" step="1" inputmode="numeric" name="r[{{ attributeId }}][max]" value="{{ facet.selected.max ?? '' }}" placeholder="{{ facet.observed.max ?? '' }}">
+                            <input type="number" step="1" inputmode="numeric" id="search-r-{{ attributeId }}-max" name="r[{{ attributeId }}][max]" value="{{ facet.selected.max ?? '' }}" placeholder="{{ facet.observed.max ?? '' }}">
                         </label>
                         <p>{{ facet.count }} {{ facet.count == 1 ? 'listing' : 'listings' }}{% if facet.observed %}, {{ facet.observed.min }}–{{ facet.observed.max }}{% endif %}</p>
                     </fieldset>
@@ -61,7 +74,7 @@
                         <legend>{{ facet.attribute.label }}</legend>
                         {% for bucket in facet.buckets %}
                             <label>
-                                <input type="checkbox" name="f[{{ attributeId }}][]" value="{{ bucket.value }}"{% if bucket.selected %} checked{% endif %}>
+                                <input type="checkbox" id="search-f-{{ attributeId }}-{{ bucket.value }}" name="f[{{ attributeId }}][]" value="{{ bucket.value }}"{% if bucket.selected %} checked{% endif %}>
                                 {{ bucket.label }} ({{ bucket.count }})
                             </label>
                         {% endfor %}
@@ -70,7 +83,8 @@
             {% endfor %}
             <fieldset class="search-price">
                 <legend>Price</legend>
-                <select name="price[currency]">
+                <label for="search-price-currency">Currency</label>
+                <select id="search-price-currency" name="price[currency]">
                     <option value="">Any currency</option>
                     {% for currency in currencies %}
                         <option value="{{ currency.value }}"{% if currency.value == (price.currency ?? '') %} selected{% endif %}>{{ currency.value }}</option>
@@ -78,11 +92,11 @@
                 </select>
                 <label>
                     From
-                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" name="price[min]" value="{{ price.min ?? '' }}">
+                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" id="search-price-min" name="price[min]" value="{{ price.min ?? '' }}">
                 </label>
                 <label>
                     To
-                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" name="price[max]" value="{{ price.max ?? '' }}">
+                    <input type="number" min="0" max="9999999" step="1" inputmode="numeric" id="search-price-max" name="price[max]" value="{{ price.max ?? '' }}">
                 </label>
                 <p>Choosing a currency hides listings priced in other currencies.</p>
             </fieldset>
@@ -90,13 +104,30 @@
             <a href="{{ path('app_browse', {category: categoryId}) }}">Clear filters</a>
         </form>
 
-        <section class="search-results">
+        <section class="search-results" id="search-results">
             {% if result.textMatch == constant('App\\Domain\\Search\\ValueObject\\TextMatch::Similar') %}
                 <p class="search-similar">No exact matches for “{{ q }}”. Showing listings with similar titles.</p>
             {% endif %}
-            <p>{{ result.total }} {{ result.total == 1 ? 'listing' : 'listings' }}</p>
+            <p class="search-total">{{ result.total }} {{ result.total == 1 ? 'listing' : 'listings' }}</p>
 
-            {% if result.hits is empty %}
+            {# The 0-result state is `total == 0`, never `hits is empty`: a page past the end has hits on
+               other pages and keeps its "First page" link below (AC-8). #}
+            {% if result.total == 0 %}
+                <section class="search-empty" aria-labelledby="search-empty-heading">
+                    <h2 id="search-empty-heading">No listings found.</h2>
+                    {% if q %}
+                        <p>Nothing matched your search for “{{ q }}”.</p>
+                    {% endif %}
+                    {% if f or r or price or q %}
+                        <p><a href="{{ path('app_browse', {category: categoryId}) }}">Clear filters</a></p>
+                    {% endif %}
+                    {# Category-bound `f`/`r` do not survive leaving the category; text and price do. #}
+                    {% if categoryId %}
+                        <p><a href="{{ path('app_browse', {q: q, price: price}) }}">Search all categories</a></p>
+                    {% endif %}
+                    <div data-search-alert-slot>{% include 'search/_alert_slot.html.twig' with {search: searchParams} only %}</div>
+                </section>
+            {% elseif result.hits is empty %}
                 <p>No listings found.</p>
             {% else %}
                 <ol>
@@ -125,4 +156,5 @@
             {% endif %}
         </section>
     </main>
+    </div>
 {% endblock %}
